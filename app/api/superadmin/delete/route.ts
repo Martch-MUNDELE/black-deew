@@ -5,7 +5,6 @@ export async function POST(req: NextRequest) {
   const { adminId, performedBy } = await req.json()
   const { data } = await supabase.from('admins').select('email').eq('id', adminId).single()
   await supabase.from('admins').update({ status: 'deleted' }).eq('id', adminId)
-  await supabase.auth.admin.deleteUser(adminId)
   await supabase.from('admin_logs').insert({ action: 'DELETE_ADMIN', performed_by: performedBy, target_email: data?.email })
   return NextResponse.json({ success: true })
 }
