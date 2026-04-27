@@ -4,6 +4,8 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import { FacturePDF } from '@/lib/pdf'
 import { Resend } from 'resend'
 
+export const dynamic = 'force-dynamic'
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -22,19 +24,31 @@ export async function POST(req: NextRequest) {
     slot = data
   }
 
+  // Numéro de facture BD-YYYYMMDD-NNNN
+  const today = new Date().toISOString().split('T')[0]
+  const { count: orderCount } = await supabase
+    .from('orders')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', today + 'T00:00:00.000Z')
+    .lte('created_at', today + 'T23:59:59.999Z')
+  const seqNum = String((orderCount ?? 0) + 1).padStart(4, '0')
+  const dateStr = today.replace(/-/g, '')
+  const factureNum = `BD-${dateStr}-${seqNum}`
+  console.log('FACTURE DEBUG:', factureNum, siteName)
+
   const { data: settings } = await supabase.from('settings').select('*')
   const logoUrl = settings?.find((s: any) => s.key === 'site_logo')?.value || ''
   const siteName = settings?.find((s: any) => s.key === 'site_name')?.value || 'Black Deew'
   const siteBaseline = settings?.find((s: any) => s.key === 'site_baseline')?.value || 'AGADIR · LIVRAISON'
 
   const pdfBuffer = await renderToBuffer(
-    FacturePDF({ order, items: order.order_items, slot }) as any
+    FacturePDF({ order, items: order.order_items, slot, siteName, siteBaseline, factureNum }) as any
   )
 
   await resend.emails.send({
     from: 'Black Deew <onboarding@resend.dev>',
     to: order.customer_email,
-    subject: `🧾 Votre facture ${siteName} — ${order.total.toFixed(2)} DH`,
+    subject: `🧾 Facture ${factureNum} — ${siteName}`,
     html: `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;background:#0A0804;font-family:'Helvetica Neue',Arial,sans-serif">
@@ -73,7 +87,7 @@ export async function POST(req: NextRequest) {
   </div>
 </body>
 </html>`,
-    attachments: [{ filename: `facture-${order.id.slice(0,8)}.pdf`, content: pdfBuffer }]
+    attachments: [{ filename: `${factureNum}.pdf`, content: pdfBuffer }]
   })
 
   return NextResponse.json({ success: true })

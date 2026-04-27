@@ -12,6 +12,8 @@ type Slot = {
   blocked: boolean
 }
 
+const toLocalISO = () => { const d = new Date(); d.setTime(d.getTime() + 60 * 60 * 1000); return d.toISOString().split('T')[0] }
+
 export default function SlotPicker({ onSelect }: { onSelect: (id: string) => void }) {
   const [groups, setGroups] = useState<{ date: string; slots: Slot[] }[]>([])
   const [selectedDate, setSelectedDate] = useState('')
@@ -21,7 +23,7 @@ export default function SlotPicker({ onSelect }: { onSelect: (id: string) => voi
 
   useEffect(() => {
     const load = async () => {
-      const today = new Date().toISOString().split('T')[0]
+      const today = toLocalISO()
       const nowMins = new Date().getHours() * 60 + new Date().getMinutes()
       const { data } = await supabase
         .from('delivery_slots')
@@ -62,7 +64,7 @@ export default function SlotPicker({ onSelect }: { onSelect: (id: string) => voi
       day: date.toLocaleDateString('fr-FR', { weekday: 'short' }),
       num: date.toLocaleDateString('fr-FR', { day: 'numeric' }),
       month: date.toLocaleDateString('fr-FR', { month: 'short' }),
-      isToday: d === new Date().toISOString().split('T')[0],
+      isToday: d === toLocalISO(),
     }
   }
 

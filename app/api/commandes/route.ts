@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     delivery_mode: delivery_mode || null, delivery_fee: delivery_fee ?? null, distance_km: distance_km ?? null,
   }).select().single()
 
-  if (error || !order) { console.error('Supabase error:', JSON.stringify(error)); return NextResponse.json({ error: 'Erreur création commande' }, { status: 500 }) }
+  if (error || !order) { return NextResponse.json({ error: 'Erreur création commande' }, { status: 500 }) }
 
   await supabase.from('order_items').insert(items.map((item: any) => ({ ...item, order_id: order.id })))
   await supabase.from('delivery_slots').update({ booked: slot.booked + 1 }).eq('id', slot_id)

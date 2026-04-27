@@ -14,17 +14,17 @@ export default async function HomePage() {
   const [{ data: products }, { data: settings }, { data: menuCats }] = await Promise.all([
     supabase.from('products').select('*').eq('active', true).order('name'),
     supabase.from('settings').select('*').eq('key', 'status'),
-    supabase.from('menu_categories').select('id, slug, parent_id, display_order, active, level').order('display_order'),
+    supabase.from('menu_categories').select('id, slug, name, parent_id, display_order, active, level').order('display_order'),
   ])
 
   const isOpen = ((settings as any[])?.find?.((s: any) => s.key === 'status')?.value || '') === 'open'
 
-  type MenuCatMin = { id: string; slug: string; parent_id: string | null; display_order: number; active: boolean; level: number }
+  type MenuCatMin = { id: string; slug: string; name: string; parent_id: string | null; display_order: number; active: boolean; level: number }
   const cats = (menuCats as MenuCatMin[] | null) ?? []
   const menuGroupes = (() => {
     const l0 = cats.filter(c => c.level === 0 && c.active).sort((a, b) => a.display_order - b.display_order)
     const l1 = cats.filter(c => c.level === 1 && c.active).sort((a, b) => a.display_order - b.display_order)
-    return l0.map(g => ({ id: g.slug, sous: l1.filter(s => s.parent_id === g.id).map(s => ({ id: s.slug })) }))
+    return l0.map(g => ({ id: g.slug, label: g.name, sous: l1.filter(s => s.parent_id === g.id).map(s => ({ id: s.slug, label: s.name })) }))
   })()
 
   return (

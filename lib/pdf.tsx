@@ -53,12 +53,12 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: border, marginHorizontal: 32, marginBottom: 20 },
 })
 
-export function FacturePDF({ order, items, slot }: { order: any, items: any[], slot: any }) {
+export function FacturePDF({ order, items, slot, siteName, siteBaseline, factureNum }: { order: any, items: any[], slot: any, siteName?: string, siteBaseline?: string, factureNum?: string }) {
   const date = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
   const slotDate = slot?.date
     ? new Date(slot.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
     : '—'
-  const orderId = order.id?.slice(0, 8).toUpperCase()
+  const orderId = factureNum ?? order.id?.slice(0, 8).toUpperCase()
 
   return (
     <Document>
@@ -68,12 +68,12 @@ export function FacturePDF({ order, items, slot }: { order: any, items: any[], s
         <View style={styles.header}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <View>
-              <Text style={styles.logoText}>ABOU JOUDIA</Text>
-              <Text style={styles.logoSub}>Sandwichs & Boissons  •  Agadir  •  Livraison à domicile</Text>
+              <Text style={styles.logoText}>{siteName ?? 'BLACK DEEW'}</Text>
+              <Text style={styles.logoSub}>{siteBaseline ?? 'Kinshasa · Livraison à domicile'}</Text>
             </View>
             <View style={styles.headerRight}>
               <Text style={styles.factureLabel}>Facture</Text>
-              <Text style={styles.factureNum}>#{orderId}</Text>
+              <Text style={styles.factureNum}>{orderId}</Text>
               <Text style={styles.factureDate}>{date}</Text>
             </View>
           </View>

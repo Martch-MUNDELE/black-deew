@@ -1,14 +1,15 @@
 'use client'
 import ProductCard from '@/components/ProductCard'
+import CategoryBar from '@/components/CategoryBar'
 import { useCatalogue } from '@/store/catalogue'
 import type { Product } from '@/lib/types'
 
-type GroupeFilter = { id: string; sous: { id: string }[] }
+type GroupeFilter = { id: string; label?: string; sous: { id: string; label?: string }[] }
 
 const GROUPES_FALLBACK: GroupeFilter[] = [
-  { id: 'boissons', sous: [{ id: 'chaudes' }, { id: 'froides' }] },
-  { id: 'sandwichs', sous: [{ id: 'sandwichs_chauds' }, { id: 'sandwichs_froids' }] },
-  { id: 'salades', sous: [] },
+  { id: 'boissons', label: 'Boissons', sous: [{ id: 'chaudes', label: 'Chaudes' }, { id: 'froides', label: 'Froides' }] },
+  { id: 'sandwichs', label: 'Sandwichs', sous: [{ id: 'sandwichs_chauds', label: 'Chauds' }, { id: 'sandwichs_froids', label: 'Froids' }] },
+  { id: 'salades', label: 'Salades', sous: [] },
 ]
 
 export default function CatalogueClient({ products, isOpen, groupes: groupesProp }: { products: Product[], isOpen: boolean, groupes?: GroupeFilter[] }) {
@@ -25,6 +26,8 @@ export default function CatalogueClient({ products, isOpen, groupes: groupesProp
   if (!hasSelected) return null
 
   return (
+    <>
+    <CategoryBar groupes={groupes} />
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '16px 16px clamp(120px, 30vh, 240px)', maxWidth: 600, margin: '0 auto' }}>
       {filtered.length === 0 ? (
         <div style={{ textAlign: 'center', color: '#C8B99A', padding: '40px 0', fontSize: 14 }}>Aucun produit disponible</div>
@@ -32,5 +35,6 @@ export default function CatalogueClient({ products, isOpen, groupes: groupesProp
         <ProductCard key={p.id} product={p} featured={false} isOpen={isOpen} allProducts={products} />
       ))}
     </div>
+    </>
   )
 }
