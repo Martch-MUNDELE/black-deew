@@ -187,7 +187,7 @@ export default function PanierPage() {
     } else {
       setDeliveryResult(null)
     }
-  }, [form.lat, form.lng, chosenMode, deliveryLoaded, deliverySettings, deliveryZones])
+  }, [form.lat, form.lng, chosenMode, deliveryLoaded, deliverySettings, deliveryZones, items])
 
   // ── Recalcul initial si position restaurée depuis localStorage ────────────
 
