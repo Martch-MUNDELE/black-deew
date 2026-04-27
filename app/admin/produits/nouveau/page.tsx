@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import ImageUpload from '@/components/ImageUpload'
 
 const FALLBACK_SUBCATS = [
   { slug: 'chaudes', name: 'Boissons Chaudes' },
@@ -18,7 +19,6 @@ export default function NouveauProduit() {
   const supabase = createClient()
   const [form, setForm] = useState({ name: '', description: '', ingredients: '', price: 0, subcategory: 'sandwichs_chauds', image_url: '', active: true })
   const [subcats, setSubcats] = useState<{ slug: string; name: string }[]>(FALLBACK_SUBCATS)
-  const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -26,22 +26,6 @@ export default function NouveauProduit() {
       if (data && data.length > 0) setSubcats(data as { slug: string; name: string }[])
     })
   }, [])
-
-  const uploadImage = async (file: File) => {
-    setUploading(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('bucket', 'products')
-      const res = await fetch('/api/upload-image', { method: 'POST', body: formData })
-      const json = await res.json()
-      if (json.error) { alert('Upload error: ' + json.error) }
-      else { setForm(f => ({ ...f, image_url: json.url })) }
-    } catch (e: any) {
-      alert('Upload error: ' + e.message)
-    }
-    setUploading(false)
-  }
 
   const save = async () => {
     setSaving(true)
@@ -66,17 +50,7 @@ export default function NouveauProduit() {
         ))}
         <div>
           <label style={labelStyle}>Image</label>
-          {form.image_url && <img src={form.image_url} alt="preview" style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 10, marginBottom: 10 }} />}
-          <label style={{ display: 'block', padding: '14px', borderRadius: 10, border: '1.5px dashed rgba(232,160,32,0.3)', background: 'rgba(232,160,32,0.04)', color: '#E8A020', cursor: 'pointer', textAlign: 'center', fontSize: 13, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
-            {uploading ? 'Upload...' : 'Choisir une image'}
-            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { if (e.target.files && e.target.files[0]) uploadImage(e.target.files[0]) }} />
-          </label>
-          {!form.image_url && (
-            <div style={{ marginTop: 8 }}>
-              <label style={labelStyle}>Ou URL</label>
-              <input type="text" placeholder="https://..." value={form.image_url} onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))} style={inputStyle} />
-            </div>
-          )}
+          <ImageUpload imageUrl={form.image_url} onUpload={url => setForm(f => ({ ...f, image_url: url }))} />
         </div>
         <div>
           <label style={labelStyle}>Sous-catégorie</label>
@@ -90,7 +64,7 @@ export default function NouveauProduit() {
         </div>
         <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
           <button onClick={() => router.push('/admin/produits')} style={{ flex: 1, padding: '14px', borderRadius: 50, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#C8B99A', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 14 }}>Annuler</button>
-          <button onClick={save} disabled={saving || uploading} style={{ flex: 2, padding: '14px', borderRadius: 50, border: 'none', background: 'linear-gradient(135deg,#F5C842,#FF6B20)', color: '#0A0804', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 14 }}>{saving ? 'Enregistrement...' : 'Enregistrer'}</button>
+          <button onClick={save} disabled={saving} style={{ flex: 2, padding: '14px', borderRadius: 50, border: 'none', background: 'linear-gradient(135deg,#F5C842,#FF6B20)', color: '#0A0804', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 14 }}>{saving ? 'Enregistrement...' : 'Enregistrer'}</button>
         </div>
       </div>
     </div>
