@@ -6,8 +6,7 @@ import { useRouter } from 'next/navigation'
 
 type Product = { id: string; name: string; price: number; image_url: string; subcategory: string; active: boolean; featured: boolean; popular: boolean }
 
-const SUBCAT_LABELS: Record<string, string> = { chaudes: 'Boissons Chaudes', froides: 'Boissons Froides', sandwichs_chauds: 'Sandwichs Chauds', sandwichs_froids: 'Sandwichs Froids', salades: 'Salades' }
-const SUBCAT_ORDER = ['sandwichs_chauds', 'sandwichs_froids', 'salades', 'chaudes', 'froides']
+
 
 const IconEdit = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -25,6 +24,7 @@ const IconTrash = () => (
 
 function ProduitsAdminInner() {
   const [products, setProducts] = useState<Product[]>([])
+  const [subcats, setSubcats] = useState<{slug: string, name: string}[]>([])
   const searchParams = useSearchParams()
   const [tab, setTab] = useState(() => searchParams.get('tab') || 'actifs')
   const [search, setSearch] = useState('')
@@ -36,8 +36,12 @@ function ProduitsAdminInner() {
   const router = useRouter()
 
   const load = async () => {
-    const { data } = await supabase.from('products').select('*').order('subcategory')
-    setProducts((data as Product[]) || [])
+    const [{ data: prods }, { data: cats }] = await Promise.all([
+      supabase.from('products').select('*').order('name'),
+      supabase.from('menu_categories').select('slug,name').eq('level', 1).eq('active', true).order('display_order')
+    ])
+    setProducts((prods as Product[]) || [])
+    setSubcats((cats as {slug: string, name: string}[]) || [])
   }
   useEffect(() => {
     load()
@@ -74,11 +78,23 @@ function ProduitsAdminInner() {
 
   const filtered = products.filter(p => tab === 'actifs' ? p.active : !p.active).filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()))
 
-  const grouped = SUBCAT_ORDER.reduce<Record<string, Product[]>>((acc, sub) => {
+  // Grouper par sous-catégorie dynamiquement
+  const allSubs = subcats.length > 0
+    ? subcats.map(s => s.slug)
+    : [...new Set(filtered.map(p => p.subcategory))]
+  const subcatLabel = (slug: string) => subcats.find(s => s.slug === slug)?.name ?? slug
+  const grouped = allSubs.reduce<Record<string, Product[]>>((acc, sub) => {
     const items = filtered.filter(p => p.subcategory === sub)
     if (items.length > 0) acc[sub] = items
     return acc
   }, {})
+  // Ajouter les produits avec subcategory hors liste
+  filtered.forEach(p => {
+    if (!allSubs.includes(p.subcategory) && p.subcategory) {
+      if (!grouped[p.subcategory]) grouped[p.subcategory] = []
+      if (!grouped[p.subcategory].find(x => x.id === p.id)) grouped[p.subcategory].push(p)
+    }
+  })
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto' }}>
@@ -117,7 +133,7 @@ function ProduitsAdminInner() {
       {Object.entries(grouped).map(([sub, items]) => (
         <div key={sub} style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#E8A020', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid rgba(232,160,32,0.15)' }}>
-            {SUBCAT_LABELS[sub]} ({items.length})
+            {subcatLabel(sub)} ({(items as Product[]).length})
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {items.map(p => (

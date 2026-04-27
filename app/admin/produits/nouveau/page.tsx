@@ -29,19 +29,25 @@ export default function NouveauProduit() {
 
   const uploadImage = async (file: File) => {
     setUploading(true)
-    const fileName = Date.now() + '.' + file.name.split('.').pop()
-    const { error } = await supabase.storage.from('products').upload(fileName, file, { upsert: true })
-    if (!error) {
-      const { data } = supabase.storage.from('products').getPublicUrl(fileName)
-      setForm(f => ({ ...f, image_url: data.publicUrl }))
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('bucket', 'products')
+      const res = await fetch('/api/upload-image', { method: 'POST', body: formData })
+      const json = await res.json()
+      if (json.error) { alert('Upload error: ' + json.error) }
+      else { setForm(f => ({ ...f, image_url: json.url })) }
+    } catch (e: any) {
+      alert('Upload error: ' + e.message)
     }
     setUploading(false)
   }
 
   const save = async () => {
     setSaving(true)
-    const cat = ['chaudes', 'froides'].includes(form.subcategory) ? 'boissons' : 'nourriture'
-    await supabase.from('products').insert({ ...form, category: cat })
+    const { error } = await supabase.from('products').insert({ ...form })
+    setSaving(false)
+    if (error) { alert('Erreur : ' + error.message); return }
     router.push('/admin/produits')
   }
 

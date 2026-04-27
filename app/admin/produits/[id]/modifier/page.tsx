@@ -48,8 +48,7 @@ export default function ModifierProduit() {
 
   const save = async () => {
     setSaving(true)
-    const cat = ['chaudes', 'froides'].includes(form.subcategory) ? 'boissons' : 'nourriture'
-    const { error } = await admin.from('products').update({ ...form, category: cat }).eq('id', params.id)
+    const { error } = await admin.from('products').update({ ...form }).eq('id', params.id)
     if (error) {
       alert('Erreur: ' + error.message)
       setSaving(false)

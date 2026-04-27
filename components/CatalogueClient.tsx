@@ -1,6 +1,5 @@
 'use client'
 import ProductCard from '@/components/ProductCard'
-import CategoryBar from '@/components/CategoryBar'
 import { useCatalogue } from '@/store/catalogue'
 import type { Product } from '@/lib/types'
 
@@ -26,8 +25,6 @@ export default function CatalogueClient({ products, isOpen, groupes: groupesProp
   if (!hasSelected) return null
 
   return (
-    <>
-    <CategoryBar groupes={groupes} />
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '16px 16px clamp(120px, 30vh, 240px)', maxWidth: 600, margin: '0 auto' }}>
       {filtered.length === 0 ? (
         <div style={{ textAlign: 'center', color: '#C8B99A', padding: '40px 0', fontSize: 14 }}>Aucun produit disponible</div>
@@ -35,6 +32,5 @@ export default function CatalogueClient({ products, isOpen, groupes: groupesProp
         <ProductCard key={p.id} product={p} featured={false} isOpen={isOpen} allProducts={products} />
       ))}
     </div>
-    </>
   )
 }
