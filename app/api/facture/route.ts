@@ -34,7 +34,6 @@ export async function POST(req: NextRequest) {
   const seqNum = String((orderCount ?? 0) + 1).padStart(4, '0')
   const dateStr = today.replace(/-/g, '')
   const factureNum = `BD-${dateStr}-${seqNum}`
-  console.log('FACTURE DEBUG:', factureNum, siteName)
 
   const { data: settings } = await supabase.from('settings').select('*')
   const logoUrl = settings?.find((s: any) => s.key === 'site_logo')?.value || ''
