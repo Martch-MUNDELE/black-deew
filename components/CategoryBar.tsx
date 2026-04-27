@@ -4,7 +4,7 @@ import { useCatalogue } from '@/store/catalogue'
 type GroupeFilter = { id: string; label?: string; sous: { id: string; label?: string }[] }
 
 export default function CategoryBar({ groupes }: { groupes: GroupeFilter[] }) {
-  const { activeGroupe, activeSous, setGroupe, setSous } = useCatalogue()
+  const { activeGroupe, activeSous, setGroupe, setSous, setHasSelected } = useCatalogue()
   const groupe = groupes.find(g => g.id === activeGroupe) ?? groupes[0]
 
   return (
@@ -15,7 +15,7 @@ export default function CategoryBar({ groupes }: { groupes: GroupeFilter[] }) {
           {groupes.map(g => {
             const isActive = activeGroupe === g.id
             return (
-              <button key={g.id} onClick={() => setGroupe(g.id, g.sous[0]?.id || g.id)}
+              <button key={g.id} onClick={() => { setGroupe(g.id, g.sous[0]?.id || g.id); setHasSelected(true) }}
                 style={{ display: 'inline-flex', alignItems: 'center', padding: '6px 14px', borderRadius: 50, border: isActive ? '1px solid rgba(232,160,32,0.4)' : '1px solid rgba(255,255,255,0.07)', background: isActive ? 'rgba(232,160,32,0.1)' : 'transparent', color: isActive ? '#F5C842' : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: isActive ? 700 : 400, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0 }}>
                 {g.label ?? g.id}
               </button>
