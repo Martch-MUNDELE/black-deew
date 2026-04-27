@@ -20,12 +20,24 @@ export default function ModifierProduit() {
   const supabase = createClient()
   const admin = supabase
   const [form, setForm] = useState<{ name: string, description: string, ingredients: string, price: number, subcategory: string, image_url: string, active: boolean, discount: number | null }>({ name: '', description: '', ingredients: '', price: 0, subcategory: 'sandwichs_chauds', image_url: '', active: true, discount: null })
-  const [subcats, setSubcats] = useState<{ slug: string; name: string }[]>(FALLBACK_SUBCATS)
+  const [subcats, setSubcats] = useState<{ slug: string; name: string; label: string }[]>(FALLBACK_SUBCATS.map(s => ({ ...s, label: s.name })))
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    supabase.from('menu_categories').select('slug,name').eq('level', 1).eq('active', true).order('display_order').then(({ data }) => {
-      if (data && data.length > 0) setSubcats(data as { slug: string; name: string }[])
+    supabase.from('menu_categories').select('slug,name,level,parent_id,id').eq('active', true).order('display_order').then(({ data }) => {
+      if (!data || data.length === 0) return
+      const l0 = data.filter((c: any) => c.level === 0)
+      const l1 = data.filter((c: any) => c.level === 1)
+      const options: { slug: string; name: string; label: string }[] = []
+      l0.forEach((g: any) => {
+        const children = l1.filter((s: any) => s.parent_id === g.id)
+        if (children.length === 0) {
+          options.push({ slug: g.slug, name: g.name, label: g.name })
+        } else {
+          children.forEach((s: any) => options.push({ slug: s.slug, name: s.name, label: g.name + ' — ' + s.name }))
+        }
+      })
+      if (options.length > 0) setSubcats(options)
     })
   }, [])
 
@@ -70,7 +82,7 @@ export default function ModifierProduit() {
         <div>
           <label style={labelStyle}>Sous-catégorie</label>
           <select value={form.subcategory} onChange={e => setForm(f => ({ ...f, subcategory: e.target.value }))} style={{ ...inputStyle, cursor: 'pointer' }}>
-            {subcats.map(s => <option key={s.slug} value={s.slug}>{s.name}</option>)}
+            {subcats.map(s => <option key={s.slug} value={s.slug}>{s.label}</option>)}
           </select>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(232,160,32,0.1)' }}>
