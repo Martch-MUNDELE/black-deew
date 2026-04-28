@@ -25,9 +25,12 @@ const IconTrash = () => (
 function ProduitsAdminInner() {
   const [products, setProducts] = useState<Product[]>([])
   const [subcats, setSubcats] = useState<{slug: string, name: string}[]>([])
+  const [parentCats, setParentCats] = useState<{id: string, slug: string, name: string}[]>([])
   const searchParams = useSearchParams()
   const [tab, setTab] = useState(() => searchParams.get('tab') || 'actifs')
   const [search, setSearch] = useState('')
+  const [filterCat, setFilterCat] = useState('')
+  const [openCatDropdown, setOpenCatDropdown] = useState(false)
   useEffect(() => {
     const t = searchParams.get('tab')
     if (t && t !== tab) setTab(t)
@@ -35,19 +38,28 @@ function ProduitsAdminInner() {
   const supabase = createClient()
   const router = useRouter()
 
-  const load = async () => {
-    const [{ data: prods }, { data: cats }] = await Promise.all([
-      supabase.from('products').select('*').order('name'),
-      supabase.from('menu_categories').select('slug,name').eq('level', 1).eq('active', true).order('display_order')
+  const loadCats = async () => {
+    const [{ data: parents }, { data: children }] = await Promise.all([
+      supabase.from('menu_categories').select('id,slug,name').eq('level', 0).eq('active', true).order('display_order'),
+      supabase.from('menu_categories').select('slug,name,parent_id').eq('level', 1).eq('active', true).order('display_order'),
     ])
-    setProducts((prods as Product[]) || [])
-    setSubcats((cats as {slug: string, name: string}[]) || [])
+    setParentCats((parents as {id: string, slug: string, name: string}[]) || [])
+    setSubcats((children as {slug: string, name: string, parent_id: string}[]) || [])
   }
+
+  const loadProducts = async (cat: string) => {
+    if (!cat) { setProducts([]); return }
+    const { data: prods } = await supabase.from('products').select('*').eq('subcategory', cat).order('name')
+    setProducts((prods as Product[]) || [])
+  }
+
   useEffect(() => {
-    load()
-    window.addEventListener('focus', load)
-    return () => window.removeEventListener('focus', load)
+    loadCats()
   }, [])
+
+  useEffect(() => {
+    loadProducts(filterCat)
+  }, [filterCat])
 
   const del = async (id: string) => {
     if (!window.confirm('Supprimer ce produit ?')) return
@@ -58,7 +70,7 @@ function ProduitsAdminInner() {
       const path = product.image_url.split('/products/')[1]?.split('?')[0]
       if (path) await supabase.storage.from('products').remove([path])
     }
-    await load()
+    await loadProducts(filterCat)
   }
 
   const setFeatured = async (id: string) => {
@@ -76,7 +88,7 @@ function ProduitsAdminInner() {
     })))
   }
 
-  const filtered = products.filter(p => tab === 'actifs' ? p.active : !p.active).filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()))
+  const filtered = products.filter(p => tab === 'actifs' ? p.active : !p.active).filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())).filter(p => !filterCat || p.subcategory === filterCat)
 
   // Grouper par sous-catégorie dynamiquement
   const allSubs = subcats.length > 0
@@ -113,6 +125,59 @@ function ProduitsAdminInner() {
         onChange={e => setSearch(e.target.value)}
         style={{ width: '100%', padding: '10px 14px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(255,255,255,0.03)', color: '#F5EDD6', fontSize: 13, outline: 'none', fontFamily: 'DM Sans, sans-serif', marginBottom: 16, boxSizing: 'border-box' as const }}
       />
+      {/* FILTRE CATEGORIE */}
+      <div style={{ position: 'relative', marginBottom: 12 }}>
+        <button
+          onClick={() => setOpenCatDropdown(o => !o)}
+          style={{ width: '100%', padding: '10px 16px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.2)', background: '#131009', color: filterCat ? '#F5C842' : '#7A6E58', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: 600, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', outline: 'none' }}
+        >
+          <span>{filterCat ? (subcats as any[]).find((s: any) => s.slug === filterCat)?.name : 'Sélectionner une catégorie'}</span>
+          <span style={{ fontSize: 12, transition: 'transform 0.2s', display: 'inline-block', transform: openCatDropdown ? 'rotate(180deg)' : 'rotate(0deg)', color: '#E8A020' }}>⌄</span>
+        </button>
+        {openCatDropdown && (
+          <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#1A1510', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 14, overflow: 'hidden', zIndex: 100, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+            {filterCat && (
+              <button
+                onClick={() => { setFilterCat(''); setOpenCatDropdown(false) }}
+                style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(232,160,32,0.1)', color: '#7A6E58', fontSize: 11, fontFamily: 'DM Sans, sans-serif', fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
+              >
+                ✕ Effacer le filtre
+              </button>
+            )}
+            {parentCats.map(parent => {
+              const children = (subcats as any[]).filter((s: any) => s.parent_id === parent.id)
+              const hasChildren = children.length > 0
+              return (
+                <div key={parent.id}>
+                  {hasChildren ? (
+                    <div style={{ padding: '8px 16px 4px', fontSize: 10, fontWeight: 800, color: '#E8A020', letterSpacing: '1.5px', textTransform: 'uppercase', fontFamily: 'DM Sans, sans-serif', borderBottom: '1px solid rgba(232,160,32,0.06)' }}>
+                      {parent.name}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setFilterCat(parent.slug); setOpenCatDropdown(false) }}
+                      style={{ width: '100%', padding: '9px 16px', background: filterCat === parent.slug ? 'rgba(245,200,66,0.08)' : 'transparent', border: 'none', borderBottom: '1px solid rgba(232,160,32,0.06)', color: filterCat === parent.slug ? '#F5C842' : '#E8A020', fontSize: 11, fontFamily: 'DM Sans, sans-serif', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                    >
+                      {parent.name}
+                      {filterCat === parent.slug && <span style={{ fontSize: 10, color: '#F5C842' }}>✓</span>}
+                    </button>
+                  )}
+                  {children.map((s: any) => (
+                    <button
+                      key={s.slug}
+                      onClick={() => { setFilterCat(s.slug); setOpenCatDropdown(false) }}
+                      style={{ width: '100%', padding: '9px 16px 9px 28px', background: filterCat === s.slug ? 'rgba(245,200,66,0.08)' : 'transparent', border: 'none', borderBottom: '1px solid rgba(232,160,32,0.04)', color: filterCat === s.slug ? '#F5C842' : '#C8B99A', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: filterCat === s.slug ? 700 : 400, cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                    >
+                      {s.name}
+                      {filterCat === s.slug && <span style={{ fontSize: 10, color: '#F5C842' }}>✓</span>}
+                    </button>
+                  ))}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
       {/* ONGLETS */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' as const }}>
         <button onClick={() => setTab('actifs')} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === 'actifs' ? 'rgba(245,200,66,0.4)' : 'rgba(255,255,255,0.06)', background: tab === 'actifs' ? 'rgba(245,200,66,0.12)' : 'transparent', color: tab === 'actifs' ? '#F5C842' : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
@@ -124,13 +189,18 @@ function ProduitsAdminInner() {
       </div>
 
       {/* LISTE PAR SOUS-CATEGORIE */}
-      {Object.keys(grouped).length === 0 && (
-        <div style={{ textAlign: 'center', color: '#7A6E58', padding: '40px 0', fontSize: 14 }}>
+      {!filterCat && (
+        <div style={{ textAlign: 'center', color: '#7A6E58', padding: '40px 0', fontSize: 14, fontFamily: 'DM Sans, sans-serif' }}>
+          Sélectionnez une catégorie pour afficher les produits
+        </div>
+      )}
+      {filterCat && Object.keys(grouped).length === 0 && (
+        <div style={{ textAlign: 'center', color: '#7A6E58', padding: '40px 0', fontSize: 14, fontFamily: 'DM Sans, sans-serif' }}>
           Aucun produit {tab === 'actifs' ? 'actif' : 'inactif'}
         </div>
       )}
 
-      {Object.entries(grouped).map(([sub, items]) => (
+      {filterCat && Object.entries(grouped).map(([sub, items]) => (
         <div key={sub} style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#E8A020', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid rgba(232,160,32,0.15)' }}>
             {subcatLabel(sub)} ({(items as Product[]).length})

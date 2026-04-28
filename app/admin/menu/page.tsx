@@ -251,6 +251,7 @@ export default function MenuAdmin() {
   const [uploadingMenuIcon, setUploadingMenuIcon] = useState(false)
   const [savingPlaceholder, setSavingPlaceholder] = useState(false)
   const [savedPlaceholder, setSavedPlaceholder] = useState(false)
+  const [openBoutonPrincipal, setOpenBoutonPrincipal] = useState(false)
 
   // Drag & drop state
   const [dragId, setDragId] = useState<string | null>(null)
@@ -468,7 +469,14 @@ export default function MenuAdmin() {
 
       {/* MENU — BOUTON PRINCIPAL */}
       <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: '22px 24px', marginBottom: 28 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 16 }}>Menu — Bouton principal</div>
+        <button
+          onClick={() => setOpenBoutonPrincipal(o => !o)}
+          style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 0, marginBottom: openBoutonPrincipal ? 16 : 0 }}
+        >
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase' }}>Menu — Bouton principal</span>
+          <span style={{ color: '#E8A020', fontSize: 16, transition: 'transform 0.2s', display: 'inline-block', transform: openBoutonPrincipal ? 'rotate(180deg)' : 'rotate(0deg)' }}>⌄</span>
+        </button>
+        {openBoutonPrincipal && (<>
 
         <label style={LBL}>Texte du placeholder</label>
         <input type="text" value={menuPlaceholder} onChange={e => setMenuPlaceholder(e.target.value)} style={{ ...INP_SM, marginBottom: 14 }} />
@@ -513,6 +521,7 @@ export default function MenuAdmin() {
         >
           {savedPlaceholder ? 'Enregistré' : savingPlaceholder ? 'Enregistrement...' : 'Enregistrer'}
         </button>
+        </>)}
       </div>
 
       {/* FORMULAIRE */}
