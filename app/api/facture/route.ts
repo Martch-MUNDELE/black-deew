@@ -40,6 +40,9 @@ export async function POST(req: NextRequest) {
   const siteName = settings?.find((s: any) => s.key === 'site_name')?.value || 'Black Deew'
   const siteBaseline = settings?.find((s: any) => s.key === 'site_baseline')?.value || 'AGADIR · LIVRAISON'
 
+  // Stocker le numéro de facture en base
+  await supabase.from('orders').update({ invoice_number: factureNum }).eq('id', order_id)
+
   const pdfBuffer = await renderToBuffer(
     FacturePDF({ order, items: order.order_items, slot, siteName, siteBaseline, factureNum }) as any
   )
