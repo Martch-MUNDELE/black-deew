@@ -2,6 +2,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getFactureUrl } from '@/app/actions/facture'
 
 const STATUSES = ['nouvelle', 'confirmée', 'en_preparation', 'en_livraison', 'livrée', 'annulée']
 const STATUS_LABELS: Record<string, string> = {
@@ -37,7 +38,7 @@ function cleanPhone(phone: string) {
   return p.startsWith('+') ? p : p.replace(/^0/, '212')
 }
 
-function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDate: (d: string) => string, shopAddress?: string): string | null {
+function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDate: (d: string) => string, shopAddress?: string, factureUrl?: string): string | null {
   const name = order.customer_name
   let msg: string | null = null
 
@@ -63,7 +64,8 @@ function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDat
   } else if (targetStatus === 'en_livraison') {
     msg = `Bonjour ${name}, votre commande Black Deew est en route ! Notre livreur arrive bientôt chez vous.`
   } else if (targetStatus === 'livrée') {
-    msg = `Merci ${name} ! Votre commande a bien été livrée. Bon appétit et à très bientôt chez Black Deew !`
+    const factureLine = factureUrl ? `\n\n🧾 Votre facture (72h) : ${factureUrl}` : ''
+    msg = `Merci ${name} ! Votre commande a bien été livrée. Bon appétit et à très bientôt chez Black Deew !${factureLine}`
   } else if (targetStatus === 'annulée') {
     msg = `Bonjour ${name}, nous sommes désolés mais votre commande a dû être annulée. Contactez-nous pour plus d'informations.`
   }
@@ -273,6 +275,23 @@ function CommandesAdminInner() {
                   )}
                 </div>
                 {pending && pending !== order.status && (() => {
+                  const btnStyle = { marginTop: 10, display: 'inline-block', float: 'right' as const, background: '#25D366', color: '#0A0804', borderRadius: 50, padding: '6px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'none', border: 'none' }
+                  if (pending === 'livrée') {
+                    return (
+                      <button
+                        style={btnStyle}
+                        onClick={async () => {
+                          const fUrl = await getFactureUrl(order.id)
+                          const waUrl = buildWhatsAppUrl(order, slots[order.slot_id] ?? null, 'livrée', formatDate, shopAddress, fUrl)
+                          if (waUrl) window.open(waUrl, '_blank')
+                          await updateStatus(order.id, pending)
+                          setPendingStatuses(prev => { const n = { ...prev }; delete n[order.id]; return n })
+                        }}
+                      >
+                        {WA_BUTTON_LABELS['livrée']}
+                      </button>
+                    )
+                  }
                   const url = buildWhatsAppUrl(order, slots[order.slot_id] ?? null, pending, formatDate, shopAddress)
                   if (!url) return null
                   return (
@@ -284,7 +303,7 @@ function CommandesAdminInner() {
                         await updateStatus(order.id, pending)
                         setPendingStatuses(prev => { const n = { ...prev }; delete n[order.id]; return n })
                       }}
-                      style={{ marginTop: 10, display: 'inline-block', float: 'right', background: '#25D366', color: '#0A0804', borderRadius: 50, padding: '6px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'none' }}
+                      style={btnStyle}
                     >
                       {WA_BUTTON_LABELS[pending] || 'Envoyer message WhatsApp'}
                     </a>
