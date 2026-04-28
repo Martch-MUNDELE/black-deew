@@ -53,12 +53,24 @@ function ProduitsAdminInner() {
     setProducts((prods as Product[]) || [])
   }
 
+  const searchProducts = async (q: string) => {
+    if (!q.trim()) { setProducts([]); return }
+    const { data: prods } = await supabase.from('products').select('*').ilike('name', '%' + q + '%').order('name')
+    setProducts((prods as Product[]) || [])
+  }
+
   useEffect(() => {
     loadCats()
   }, [])
 
   useEffect(() => {
-    loadProducts(filterCat)
+    if (!search) { if (filterCat) loadProducts(filterCat); else setProducts([]); return }
+    const t = setTimeout(() => searchProducts(search), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  useEffect(() => {
+    if (filterCat) { setSearch(''); loadProducts(filterCat) }
   }, [filterCat])
 
   const del = async (id: string) => {
@@ -88,7 +100,7 @@ function ProduitsAdminInner() {
     })))
   }
 
-  const filtered = products.filter(p => tab === 'actifs' ? p.active : !p.active).filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())).filter(p => !filterCat || p.subcategory === filterCat)
+  const filtered = products.filter(p => tab === 'actifs' ? p.active : !p.active)
 
   // Grouper par sous-catégorie dynamiquement
   const allSubs = subcats.length > 0
@@ -189,18 +201,18 @@ function ProduitsAdminInner() {
       </div>
 
       {/* LISTE PAR SOUS-CATEGORIE */}
-      {!filterCat && (
+      {!filterCat && !search && (
         <div style={{ textAlign: 'center', color: '#7A6E58', padding: '40px 0', fontSize: 14, fontFamily: 'DM Sans, sans-serif' }}>
-          Sélectionnez une catégorie pour afficher les produits
+          Recherchez un produit ou sélectionnez une catégorie
         </div>
       )}
-      {filterCat && Object.keys(grouped).length === 0 && (
+      {(filterCat || search) && Object.keys(grouped).length === 0 && (
         <div style={{ textAlign: 'center', color: '#7A6E58', padding: '40px 0', fontSize: 14, fontFamily: 'DM Sans, sans-serif' }}>
           Aucun produit {tab === 'actifs' ? 'actif' : 'inactif'}
         </div>
       )}
 
-      {filterCat && Object.entries(grouped).map(([sub, items]) => (
+      {(filterCat || search) && Object.entries(grouped).map(([sub, items]) => (
         <div key={sub} style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#E8A020', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid rgba(232,160,32,0.15)' }}>
             {subcatLabel(sub)} ({(items as Product[]).length})
