@@ -295,8 +295,8 @@ function CommandesAdminInner() {
                         href={waUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        onClick={async () => {
-                          await updateStatus(order.id, 'livrée')
+                        onClick={() => {
+                          updateStatus(order.id, 'livrée')
                           setPendingStatuses(prev => { const n = { ...prev }; delete n[order.id]; return n })
                         }}
                         style={btnStyle}
@@ -312,8 +312,8 @@ function CommandesAdminInner() {
                       href={url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      onClick={async () => {
-                        await updateStatus(order.id, pending)
+                      onClick={() => {
+                        updateStatus(order.id, pending)
                         setPendingStatuses(prev => { const n = { ...prev }; delete n[order.id]; return n })
                       }}
                       style={btnStyle}
