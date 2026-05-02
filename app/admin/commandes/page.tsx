@@ -283,7 +283,10 @@ function CommandesAdminInner() {
                         onClick={async () => {
                           const fUrl = await getFactureUrl(order.id)
                           const waUrl = buildWhatsAppUrl(order, slots[order.slot_id] ?? null, 'livrée', formatDate, shopAddress, fUrl)
-                          if (waUrl) window.open(waUrl, '_blank')
+                          if (waUrl) {
+                            const win = window.open('', '_blank')
+                            if (win) win.location.href = waUrl
+                          }
                           await updateStatus(order.id, pending)
                           setPendingStatuses(prev => { const n = { ...prev }; delete n[order.id]; return n })
                         }}

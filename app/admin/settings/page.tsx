@@ -14,6 +14,7 @@ const TABS = [
   { key: 'fond', label: 'Fond de page' },
   { key: 'hero', label: 'Image hero' },
   { key: 'arguments', label: 'Arguments' },
+  { key: 'notifications', label: 'Notifications' },
 ]
 
 const ICON_OPTIONS = [
@@ -54,6 +55,7 @@ function SettingsContent() {
   const [feature1, setFeature1] = useState<Feature>({ icon: 'chef', title: 'Préparé à Agadir', desc: 'Par chez vous à Agadir, repas cuisinés avec soin par nos équipes.' })
   const [feature2, setFeature2] = useState<Feature>({ icon: 'delivery', title: 'Livraison rapide', desc: 'On vous livre rapidement et directement à votre porte.' })
   const [feature3, setFeature3] = useState<Feature>({ icon: 'fresh', title: 'Frais du jour', desc: 'Profitez de produits toujours frais, choisis chaque jour.' })
+  const [notificationEmail, setNotificationEmail] = useState('')
   const supabase = createClient()
 
   useEffect(() => {
@@ -75,6 +77,7 @@ function SettingsContent() {
         if (s.key === 'background_gradient_start' && s.value) setBgGradStart(s.value)
         if (s.key === 'background_gradient_end' && s.value) setBgGradEnd(s.value)
         if (s.key === 'background_gradient_dir' && s.value) setBgGradDir(s.value)
+        if (s.key === 'notification_email') setNotificationEmail(s.value)
       })
     })
   }, [])
@@ -140,6 +143,7 @@ function SettingsContent() {
       supabase.from('settings').upsert({ key: 'background_gradient_start', value: bgGradStart }),
       supabase.from('settings').upsert({ key: 'background_gradient_end', value: bgGradEnd }),
       supabase.from('settings').upsert({ key: 'background_gradient_dir', value: bgGradDir }),
+      supabase.from('settings').upsert({ key: 'notification_email', value: notificationEmail }),
     ])
     setSaving(false)
     setSaved(true)
@@ -299,6 +303,23 @@ function SettingsContent() {
               <textarea value={feat.desc} onChange={e => setFeat({ ...feat, desc: e.target.value })} rows={2} style={{ ...inputStyle, resize: 'vertical' as const }} />
             </div>
           ))}
+        </div>
+      )}
+
+      {activeTab === 'notifications' && (
+        <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: '22px 24px', marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 16 }}>Notifications commandes</div>
+          <label style={labelStyle}>Email de notification (nouvelles commandes)</label>
+          <input
+            type="email"
+            value={notificationEmail}
+            onChange={e => setNotificationEmail(e.target.value)}
+            placeholder="ex: contact@black-deew.com"
+            style={inputStyle}
+          />
+          <div style={{ fontSize: 11, color: '#7A6E58', marginTop: 8, fontFamily: 'DM Sans, sans-serif' }}>
+            Si vide, l'email par défaut du serveur sera utilisé.
+          </div>
         </div>
       )}
 

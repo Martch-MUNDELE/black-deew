@@ -7,10 +7,11 @@ export async function sendOrderNotification(order: any) {
     `<tr><td style="padding:8px;border-bottom:1px solid #eee">${i.quantity}× ${i.product_name}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${(i.quantity * i.unit_price).toFixed(2)} DH</td></tr>`
   ).join('') || ''
 
+  const toEmail = process.env.ADMIN_EMAIL || 'heupel.martial@gmail.com'
   try {
     await resend.emails.send({
       from: 'Black Deew <onboarding@resend.dev>',
-      to: process.env.ADMIN_EMAIL!,
+      to: toEmail,
       subject: `🛒 Nouvelle commande — ${order.customer_name}`,
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
