@@ -109,6 +109,7 @@ function CommandesAdminInner() {
   const [pendingStatuses, setPendingStatuses] = useState<Record<string, string>>({})
   const [shopAddress, setShopAddress] = useState('')
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  const [factureUrls, setFactureUrls] = useState<Record<string, string>>({})
   const supabase = createClient()
 
   const load = async () => {
@@ -131,6 +132,12 @@ function CommandesAdminInner() {
         setSlots(map)
       }
     }
+    const livrees = all.filter(o => o.status === 'livrée' || o.status === 'en_livraison' || o.status === 'en_preparation' || o.status === 'confirmée' || o.status === 'nouvelle')
+    const urlMap: Record<string, string> = {}
+    await Promise.all(livrees.map(async o => {
+      urlMap[o.id] = await getFactureUrl(o.id)
+    }))
+    setFactureUrls(urlMap)
   }
 
   useEffect(() => {
@@ -281,12 +288,9 @@ function CommandesAdminInner() {
                       <button
                         style={btnStyle}
                         onClick={async () => {
-                          const fUrl = await getFactureUrl(order.id)
+                          const fUrl = factureUrls[order.id]
                           const waUrl = buildWhatsAppUrl(order, slots[order.slot_id] ?? null, 'livrée', formatDate, shopAddress, fUrl)
-                          if (waUrl) {
-                            const win = window.open('', '_blank')
-                            if (win) win.location.href = waUrl
-                          }
+                          if (waUrl) window.open(waUrl, '_blank')
                           await updateStatus(order.id, pending)
                           setPendingStatuses(prev => { const n = { ...prev }; delete n[order.id]; return n })
                         }}
