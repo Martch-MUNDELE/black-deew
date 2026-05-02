@@ -134,10 +134,9 @@ function CommandesAdminInner() {
     }
     const livrees = all.filter(o => o.status === 'livrée' || o.status === 'en_livraison' || o.status === 'en_preparation' || o.status === 'confirmée' || o.status === 'nouvelle')
     const urlMap: Record<string, string> = {}
-    await Promise.all(livrees.map(async o => {
-      const res = await fetch(`/api/facture-url?order_id=${o.id}`)
-      const json = await res.json()
-      if (json.url) urlMap[o.id] = json.url
+    await Promise.allSettled(livrees.map(async o => {
+      const url = await getFactureUrl(o.id)
+      if (url) urlMap[o.id] = url
     }))
     setFactureUrls(urlMap)
   }
@@ -291,6 +290,7 @@ function CommandesAdminInner() {
                         style={btnStyle}
                         onClick={async () => {
                           const fUrl = factureUrls[order.id]
+                          console.log('[livrée] factureUrls:', factureUrls, '| fUrl for order:', fUrl)
                           const waUrl = buildWhatsAppUrl(order, slots[order.slot_id] ?? null, 'livrée', formatDate, shopAddress, fUrl)
                           if (waUrl) window.open(waUrl, '_blank')
                           await updateStatus(order.id, pending)
