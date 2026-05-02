@@ -109,7 +109,6 @@ function CommandesAdminInner() {
   const [pendingStatuses, setPendingStatuses] = useState<Record<string, string>>({})
   const [shopAddress, setShopAddress] = useState('')
   const [highlightId, setHighlightId] = useState<string | null>(null)
-  const [factureUrls, setFactureUrls] = useState<Record<string, string>>({})
   const supabase = createClient()
 
   const load = async () => {
@@ -132,15 +131,6 @@ function CommandesAdminInner() {
         setSlots(map)
       }
     }
-    const urlMap: Record<string, string> = {}
-    const toPreload = all.filter(o => ['nouvelle','confirmée','en_preparation','en_livraison','livrée'].includes(o.status))
-    for (const o of toPreload) {
-      try {
-        const url = await getFactureUrl(o.id)
-        if (url) urlMap[o.id] = url
-      } catch {}
-    }
-    setFactureUrls(urlMap)
   }
 
   useEffect(() => {
@@ -287,22 +277,19 @@ function CommandesAdminInner() {
                 {pending && pending !== order.status && (() => {
                   const btnStyle = { marginTop: 10, display: 'inline-block', float: 'right' as const, background: '#25D366', color: '#0A0804', borderRadius: 50, padding: '6px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'none', border: 'none' }
                   if (pending === 'livrée') {
-                    const fUrl = factureUrls[order.id] || ''
-                    const waUrl = buildWhatsAppUrl(order, slots[order.slot_id] ?? null, 'livrée', formatDate, shopAddress, fUrl)
-                    if (!waUrl) return null
                     return (
-                      <a
-                        href={waUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => {
-                          updateStatus(order.id, 'livrée')
+                      <button
+                        style={btnStyle}
+                        onClick={async () => {
+                          const fUrl = await getFactureUrl(order.id)
+                          const waUrl = buildWhatsAppUrl(order, slots[order.slot_id] ?? null, 'livrée', formatDate, shopAddress, fUrl)
+                          if (waUrl) window.open(waUrl, '_blank')
+                          await updateStatus(order.id, pending)
                           setPendingStatuses(prev => { const n = { ...prev }; delete n[order.id]; return n })
                         }}
-                        style={btnStyle}
                       >
                         {WA_BUTTON_LABELS['livrée']}
-                      </a>
+                      </button>
                     )
                   }
                   const url = buildWhatsAppUrl(order, slots[order.slot_id] ?? null, pending, formatDate, shopAddress)
@@ -312,8 +299,8 @@ function CommandesAdminInner() {
                       href={url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      onClick={() => {
-                        updateStatus(order.id, pending)
+                      onClick={async () => {
+                        await updateStatus(order.id, pending)
                         setPendingStatuses(prev => { const n = { ...prev }; delete n[order.id]; return n })
                       }}
                       style={btnStyle}
