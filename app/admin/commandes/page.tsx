@@ -284,12 +284,16 @@ function CommandesAdminInner() {
                       <button
                         style={btnStyle}
                         onClick={async () => {
-                          const fUrl = factureUrls[order.id]
-                          console.log('[livrée] factureUrls:', factureUrls, '| fUrl for order:', fUrl)
+                          let fUrl = ''
+                          try {
+                            const res = await fetch(`/api/facture-url?order_id=${order.id}`)
+                            const json = await res.json()
+                            fUrl = json.url || ''
+                          } catch {}
                           const waUrl = buildWhatsAppUrl(order, slots[order.slot_id] ?? null, 'livrée', formatDate, shopAddress, fUrl)
-                          if (waUrl) window.open(waUrl, '_blank')
                           await updateStatus(order.id, pending)
                           setPendingStatuses(prev => { const n = { ...prev }; delete n[order.id]; return n })
+                          if (waUrl) window.open(waUrl, '_blank')
                         }}
                       >
                         {WA_BUTTON_LABELS['livrée']}
