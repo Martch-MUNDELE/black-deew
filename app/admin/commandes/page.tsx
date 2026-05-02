@@ -283,17 +283,19 @@ function CommandesAdminInner() {
                     return (
                       <button
                         style={btnStyle}
-                        onClick={async () => {
-                          let fUrl = ''
-                          try {
-                            const res = await fetch(`/api/facture-url?order_id=${order.id}`)
-                            const json = await res.json()
-                            fUrl = json.url || ''
-                          } catch {}
-                          const waUrl = buildWhatsAppUrl(order, slots[order.slot_id] ?? null, 'livrée', formatDate, shopAddress, fUrl)
-                          await updateStatus(order.id, pending)
-                          setPendingStatuses(prev => { const n = { ...prev }; delete n[order.id]; return n })
-                          if (waUrl) window.open(waUrl, '_blank')
+                        onClick={() => {
+                          const win = window.open('', '_blank')
+                          fetch(`/api/facture-url?order_id=${order.id}`)
+                            .then(res => res.json())
+                            .catch(() => ({}))
+                            .then(json => {
+                              const fUrl = json?.url || ''
+                              const waUrl = buildWhatsAppUrl(order, slots[order.slot_id] ?? null, 'livrée', formatDate, shopAddress, fUrl)
+                              if (win && waUrl) win.location.href = waUrl
+                              else if (win) win.close()
+                              updateStatus(order.id, 'livrée')
+                              setPendingStatuses(prev => { const n = { ...prev }; delete n[order.id]; return n })
+                            })
                         }}
                       >
                         {WA_BUTTON_LABELS['livrée']}
