@@ -24,12 +24,21 @@ export async function POST(req: NextRequest) {
   const subtotal = items.reduce((sum: number, item: any) => sum + item.unit_price * item.quantity, 0)
   const calculatedTotal = subtotal + (delivery_fee ?? 0)
 
+  const today = new Date().toISOString().split('T')[0]
+  const { count: orderCount } = await supabase.from('orders')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', today + 'T00:00:00.000Z')
+    .lte('created_at', today + 'T23:59:59.999Z')
+  const seqNum = String((orderCount ?? 0) + 1).padStart(4, '0')
+  const invoice_number = `BD-${today.replace(/-/g, '')}-${seqNum}`
+
   const { data: order, error } = await supabase.from('orders').insert({
     customer_name: name, customer_phone: phone, customer_address: address,
     customer_note: note, slot_id, total: calculatedTotal, payment_method: 'livraison', status: 'nouvelle',
     lat: lat || null, lng: lng || null, geo_address: geo_address || null,
     customer_email: (wantFacture && email) ? email : null,
     delivery_mode: delivery_mode || null, delivery_fee: delivery_fee ?? null, distance_km: distance_km ?? null,
+    invoice_number,
   }).select().single()
 
   if (error || !order) { return NextResponse.json({ error: 'Erreur création commande' }, { status: 500 }) }
