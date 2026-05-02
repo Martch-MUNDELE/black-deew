@@ -132,12 +132,7 @@ function CommandesAdminInner() {
         setSlots(map)
       }
     }
-    const livrees = all.filter(o => o.status === 'livrée' || o.status === 'en_livraison' || o.status === 'en_preparation' || o.status === 'confirmée' || o.status === 'nouvelle')
     const urlMap: Record<string, string> = {}
-    await Promise.allSettled(livrees.map(async o => {
-      const url = await getFactureUrl(o.id)
-      if (url) urlMap[o.id] = url
-    }))
     setFactureUrls(urlMap)
   }
 
