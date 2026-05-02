@@ -2,7 +2,6 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { getFactureUrl } from '@/app/actions/facture'
 
 const STATUSES = ['nouvelle', 'confirmée', 'en_preparation', 'en_livraison', 'livrée', 'annulée']
 const STATUS_LABELS: Record<string, string> = {
@@ -74,6 +73,12 @@ function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDat
   return `https://wa.me/${cleanPhone(order.customer_phone)}?text=${encodeURIComponent(msg)}`
 }
 
+// Envoie la mise à jour statut via sendBeacon — survit au passage en arrière-plan Safari iOS
+function sendStatusBeacon(orderId: string, status: string) {
+  const blob = new Blob([JSON.stringify({ orderId, status })], { type: 'application/json' })
+  navigator.sendBeacon('/api/update-order-status', blob)
+}
+
 const IconPhone = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.36 11.67a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.11 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16z"/>
@@ -107,6 +112,7 @@ function CommandesAdminInner() {
   const [counts, setCounts] = useState<Record<string, number>>({})
   const [slots, setSlots] = useState<Record<string, any>>({})
   const [pendingStatuses, setPendingStatuses] = useState<Record<string, string>>({})
+  const [factureUrls, setFactureUrls] = useState<Record<string, string>>({})
   const [shopAddress, setShopAddress] = useState('')
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const supabase = createClient()
@@ -154,12 +160,23 @@ function CommandesAdminInner() {
   }, [searchParams.toString()])
   useEffect(() => { load() }, [filter])
 
-  const updateStatus = async (id: string, status: string) => {
-    await supabase.from('orders').update({ status }).eq('id', id)
-    load()
+  const formatDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
+
+  // Pré-fetch URL facture dès sélection "livrée" dans le select
+  const prefetchFactureUrl = (orderId: string) => {
+    if (factureUrls[orderId]) return
+    fetch(`/api/facture-url?order_id=${orderId}`)
+      .then(r => r.json())
+      .then(({ url }) => { if (url) setFactureUrls(prev => ({ ...prev, [orderId]: url })) })
+      .catch(() => {})
   }
 
-  const formatDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
+  // Applique le changement de statut côté UI (optimiste) et recharge après délai
+  const applyStatusChange = (orderId: string, newStatus: string) => {
+    setOrders(prev => prev.filter(o => o.id !== orderId))
+    setPendingStatuses(prev => { const n = { ...prev }; delete n[orderId]; return n })
+    setTimeout(() => load(), 2000)
+  }
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto' }}>
@@ -260,7 +277,11 @@ function CommandesAdminInner() {
                     <div style={{ position: 'relative' }}>
                       <select
                         value={pending}
-                        onChange={e => setPendingStatuses(prev => ({ ...prev, [order.id]: e.target.value }))}
+                        onChange={e => {
+                          const newStatus = e.target.value
+                          setPendingStatuses(prev => ({ ...prev, [order.id]: newStatus }))
+                          if (newStatus === 'livrée') prefetchFactureUrl(order.id)
+                        }}
                         style={{ background: '#1A1510', border: '1px solid rgba(232,160,32,0.25)', color: pending ? (STATUS_COLORS[pending]?.color || '#E8A020') : '#7A6E58', borderRadius: 8, padding: '7px 32px 7px 12px', fontSize: 12, fontWeight: 700, outline: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', appearance: 'none', WebkitAppearance: 'none' }}
                       >
                         <option value="" disabled style={{ background: '#131009', color: '#7A6E58' }}>— Changer statut —</option>
@@ -276,32 +297,23 @@ function CommandesAdminInner() {
                 </div>
                 {pending && pending !== order.status && (() => {
                   const btnStyle = { marginTop: 10, display: 'inline-block', float: 'right' as const, background: '#25D366', color: '#0A0804', borderRadius: 50, padding: '6px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'none', border: 'none' }
-                  if (pending === 'livrée') {
-                    return (
-                      <button
-                        style={btnStyle}
-                        onClick={async () => {
-                          const fUrl = await getFactureUrl(order.id)
-                          const waUrl = buildWhatsAppUrl(order, slots[order.slot_id] ?? null, 'livrée', formatDate, shopAddress, fUrl)
-                          if (waUrl) window.open(waUrl, '_blank')
-                          await updateStatus(order.id, pending)
-                          setPendingStatuses(prev => { const n = { ...prev }; delete n[order.id]; return n })
-                        }}
-                      >
-                        {WA_BUTTON_LABELS['livrée']}
-                      </button>
-                    )
-                  }
-                  const url = buildWhatsAppUrl(order, slots[order.slot_id] ?? null, pending, formatDate, shopAddress)
-                  if (!url) return null
+                  const waUrl = buildWhatsAppUrl(
+                    order,
+                    slots[order.slot_id] ?? null,
+                    pending,
+                    formatDate,
+                    shopAddress,
+                    pending === 'livrée' ? factureUrls[order.id] : undefined
+                  )
+                  if (!waUrl) return null
                   return (
                     <a
-                      href={url}
+                      href={waUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      onClick={async () => {
-                        await updateStatus(order.id, pending)
-                        setPendingStatuses(prev => { const n = { ...prev }; delete n[order.id]; return n })
+                      onClick={() => {
+                        sendStatusBeacon(order.id, pending)
+                        applyStatusChange(order.id, pending)
                       }}
                       style={btnStyle}
                     >
