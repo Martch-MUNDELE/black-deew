@@ -135,7 +135,9 @@ function CommandesAdminInner() {
     const livrees = all.filter(o => o.status === 'livrée' || o.status === 'en_livraison' || o.status === 'en_preparation' || o.status === 'confirmée' || o.status === 'nouvelle')
     const urlMap: Record<string, string> = {}
     await Promise.all(livrees.map(async o => {
-      urlMap[o.id] = await getFactureUrl(o.id)
+      const res = await fetch(`/api/facture-url?order_id=${o.id}`)
+      const json = await res.json()
+      if (json.url) urlMap[o.id] = json.url
     }))
     setFactureUrls(urlMap)
   }
