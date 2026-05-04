@@ -88,19 +88,38 @@ export default function AdminNav() {
     })
     let active = true
     let handled = false
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+
+    const checkRole = async (email: string) => {
+      try {
+        const { data: admin } = await supabase
+          .from('admins')
+          .select('role')
+          .eq('email', email)
+          .single()
+        if (active) setIsSuperAdmin(admin?.role === 'superadmin')
+      } finally {
+        if (active) setRoleLoaded(true)
+      }
+    }
+
+    // fast-path : session déjà disponible (évite d'attendre INITIAL_SESSION)
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (!active || handled) return
       const email = session?.user?.email
       if (!email) return
       handled = true
-      const { data: admin } = await supabase
-        .from('admins')
-        .select('role')
-        .eq('email', email)
-        .single()
-      if (active) setIsSuperAdmin(admin?.role === 'superadmin')
-      if (active) setRoleLoaded(true)
+      checkRole(email)
     })
+
+    // fallback : changement d'état auth (connexion tardive ou token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active || handled) return
+      const email = session?.user?.email
+      if (!email) return
+      handled = true
+      checkRole(email)
+    })
+
     return () => {
       active = false
       subscription.unsubscribe()
