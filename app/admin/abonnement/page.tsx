@@ -25,12 +25,26 @@ export default function AbonnementPage() {
       const { data: { session } } = await supabase.auth.getSession()
       const email = session?.user?.email
       if (!email) { setLoading(false); return }
-      const { data: clients } = await supabase
+      // Vérifier si superadmin
+      const { data: selfAdmin } = await supabase
         .from('admins')
-        .select('email, auth_user_id')
+        .select('email, auth_user_id, role')
         .eq('email', email)
-        .limit(1)
-      const client = clients?.[0]
+        .single()
+      if (!selfAdmin) { setLoading(false); return }
+      // Superadmin → charger le premier admin client (role='admin')
+      // Admin normal → charger ses propres données
+      let client = selfAdmin
+      if (selfAdmin.role === 'superadmin') {
+        const { data: clientAdmin } = await supabase
+          .from('admins')
+          .select('email, auth_user_id')
+          .eq('role', 'admin')
+          .eq('status', 'active')
+          .limit(1)
+          .single()
+        if (clientAdmin) client = clientAdmin
+      }
 
       if (!client?.auth_user_id) { setLoading(false); return }
       setClientEmail(client.email)
