@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useCurrency } from '@/lib/currency'
 import type { Order } from '@/lib/types'
 
 function timeAgo(dateStr: string): string {
@@ -51,6 +52,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
   const [toast, setToast] = useState<{ name: string; total: number } | null>(null)
+  const currency = useCurrency()
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevOrderIds = useRef<Set<string>>(new Set())
   const isFirstLoad = useRef(true)
@@ -170,7 +172,7 @@ export default function AdminDashboard() {
               Nouvelle commande !
             </div>
             <div style={{ fontSize: 13, color: '#F5EDD6', fontWeight: 600 }}>
-              {toast.name} — {toast.total.toFixed(0)} DH
+              {toast.name} — {toast.total.toFixed(0)} {currency}
             </div>
           </div>
           <button
@@ -221,10 +223,10 @@ export default function AdminDashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
         <KpiCard
           label="CA aujourd'hui"
-          value={`${caToday.toFixed(0)} DH`}
+          value={`${caToday.toFixed(0)} ${currency}`}
           valueColor="#F5C842"
           trend={caToday >= caYest ? 'up' : 'down'}
-          sub={`vs ${caYest.toFixed(0)} DH hier`}
+          sub={`vs ${caYest.toFixed(0)} ${currency} hier`}
         />
         <KpiCard
           label="Commandes aujourd'hui"
@@ -280,7 +282,7 @@ export default function AdminDashboard() {
                         {o.customer_name}
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 11, color: '#F5C842', fontWeight: 600 }}>{(o.total || 0).toFixed(0)} DH</span>
+                        <span style={{ fontSize: 11, color: '#F5C842', fontWeight: 600 }}>{(o.total || 0).toFixed(0)} {currency}</span>
                         <span style={{ fontSize: 10, color: '#6A5A40' }}>{timeAgo(o.created_at)}</span>
                       </div>
                     </a>
@@ -331,7 +333,7 @@ export default function AdminDashboard() {
                   <g>
                     <rect x={xBar - 10} y={tipY} width={BAR_W + 20} height={20} rx={4} fill="#1F1A10" stroke="rgba(245,200,66,0.35)" strokeWidth={1} />
                     <text x={xCenter} y={tipY + 13.5} textAnchor="middle" fill="#F5C842" fontSize="9.5" fontFamily="DM Sans, sans-serif" fontWeight="700">
-                      {d.total.toFixed(0)} DH
+                      {d.total.toFixed(0)} {currency}
                     </text>
                   </g>
                 )}
@@ -376,7 +378,7 @@ export default function AdminDashboard() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#F5C842', fontFamily: 'Playfair Display, serif' }}>
-                  {(o.total || 0).toFixed(0)} DH
+                  {(o.total || 0).toFixed(0)} {currency}
                 </span>
                 <span style={{
                   fontSize: 10,

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useCart } from '@/store/cart'
 import { createClient } from '@/lib/supabase/client'
+import { useCurrency } from '@/lib/currency'
 import FeaturesBar from '@/components/FeaturesBar'
 import SlotPicker from '@/components/SlotPicker'
 import PhoneInput from '@/components/PhoneInput'
@@ -94,6 +95,7 @@ export default function PanierPage() {
   const { items, update, total, clear, add } = useCart()
   const router = useRouter()
   const supabase = createClient()
+  const currency = useCurrency()
 
   const [step, setStep] = useState<'cart' | 'info' | 'slot'>('cart')
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
@@ -387,7 +389,7 @@ export default function PanierPage() {
           ? "Calculé à l'étape suivante"
           : step1LiveFeeResult === 0
             ? 'Gratuit'
-            : `${step1LiveFeeResult} DH`
+            : `${step1LiveFeeResult} ${currency}`
 
   const step1FeeColor = step1FeeText === 'Gratuit' || step1FeeText === 'Retrait' ? '#7DD87A' : '#C8B99A'
 
@@ -464,7 +466,7 @@ export default function PanierPage() {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14, color: '#F5EDD6', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.product.name}</div>
-                  <div style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 14, color: '#F5C842' }}>{(item.product.price * item.quantity).toFixed(2)} DH</div>
+                  <div style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 14, color: '#F5C842' }}>{(item.product.price * item.quantity).toFixed(2)} {currency}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 0, background: 'rgba(255,255,255,0.04)', borderRadius: 50, border: '1px solid rgba(232,160,32,0.15)', flexShrink: 0 }}>
                   <button onClick={() => update(item.product.id, item.quantity - 1)} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'transparent', color: item.quantity === 1 ? '#FF6B6B' : '#C8B890', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, lineHeight: 1 }}>
@@ -481,7 +483,7 @@ export default function PanierPage() {
           <div style={{ marginTop: 4 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '11px 0', borderBottom: '1px solid rgba(232,160,32,0.06)', fontSize: 13, color: '#C8B99A' }}>
               <span>Sous-total produits</span>
-              <span style={{ color: '#F5EDD6', fontWeight: 600 }}>{total().toFixed(2)} DH</span>
+              <span style={{ color: '#F5EDD6', fontWeight: 600 }}>{total().toFixed(2)} {currency}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '11px 0', borderBottom: '1px solid rgba(232,160,32,0.06)', fontSize: 13, color: '#C8B99A' }}>
               <span>Frais de livraison</span>
@@ -489,28 +491,28 @@ export default function PanierPage() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '13px 0', fontSize: 15, fontWeight: 800, fontFamily: 'DM Sans, sans-serif' }}>
               <span style={{ color: '#C8B99A' }}>Total</span>
-              <span style={{ color: '#F5C842' }}>{grandTotal.toFixed(2)} DH</span>
+              <span style={{ color: '#F5C842' }}>{grandTotal.toFixed(2)} {currency}</span>
             </div>
           </div>
 
           {/* Badge livraison gratuite */}
           {deliverySettings.freeAbove > 0 && deliverySettings.mode !== 'pickup_only' && subTotal < deliverySettings.minOrder && subTotal < deliverySettings.freeAbove && (
             <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, background: 'rgba(91,197,122,0.06)', border: '1px solid rgba(91,197,122,0.2)', fontSize: 12, color: '#5BC57A', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              {giftIcon} Livraison offerte dès {deliverySettings.freeAbove} DH
+              {giftIcon} Livraison offerte dès {deliverySettings.freeAbove} {currency}
             </div>
           )}
 
           {/* Message minimum commande */}
           {deliverySettings.minOrder > 0 && subTotal < deliverySettings.minOrder && deliverySettings.mode !== 'pickup_only' && (
             <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(255,107,32,0.06)', border: '1px solid rgba(255,107,32,0.25)', fontSize: 13, color: '#F5A020', lineHeight: 1.5 }}>
-              Livraison disponible à partir de {deliverySettings.minOrder} DH — il vous manque {Math.ceil(deliverySettings.minOrder - subTotal)} DH
+              Livraison disponible à partir de {deliverySettings.minOrder} {currency} — il vous manque {Math.ceil(deliverySettings.minOrder - subTotal)} {currency}
             </div>
           )}
 
           {/* Message livraison gratuite */}
           {deliverySettings.freeAbove > 0 && subTotal >= deliverySettings.minOrder && subTotal < deliverySettings.freeAbove && deliverySettings.mode !== 'pickup_only' && (
             <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(91,197,122,0.06)', border: '1px solid rgba(91,197,122,0.25)', fontSize: 13, color: '#5BC57A', lineHeight: 1.5, display: 'flex', alignItems: 'center', gap: 8 }}>
-              {giftIcon} Livraison gratuite à partir de {deliverySettings.freeAbove} DH — Ajoutez {Math.ceil(deliverySettings.freeAbove - subTotal)} DH de plus !
+              {giftIcon} Livraison gratuite à partir de {deliverySettings.freeAbove} {currency} — Ajoutez {Math.ceil(deliverySettings.freeAbove - subTotal)} {currency} de plus !
             </div>
           )}
 
@@ -526,7 +528,7 @@ export default function PanierPage() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 10px 10px', marginTop: 'auto' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
                         {(p.discount ?? 0) > 0 && <span style={{ fontSize: 9, color: '#7A6E58', textDecoration: 'line-through', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>{p.price.toFixed(2)}</span>}
-                        <span style={{ fontSize: 12, fontWeight: 800, color: '#F5C842', fontFamily: 'Playfair Display, serif' }}>{(p.discount ?? 0) > 0 ? (p.price * (1 - (p.discount ?? 0) / 100)).toFixed(2) : p.price.toFixed(2)} DH</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: '#F5C842', fontFamily: 'Playfair Display, serif' }}>{(p.discount ?? 0) > 0 ? (p.price * (1 - (p.discount ?? 0) / 100)).toFixed(2) : p.price.toFixed(2)} {currency}</span>
                       </div>
                       <button type="button" onClick={() => add(p)} style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#F5C842,#FF6B20)', border: 'none', color: '#0A0804', fontSize: 18, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                     </div>
@@ -634,7 +636,7 @@ export default function PanierPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: 12, color: '#A89880' }}>Frais de livraison</span>
                       <span style={{ fontSize: 13, fontWeight: 700, color: deliveryResult.fee === 0 ? '#7DD87A' : '#F5C842' }}>
-                        {deliveryResult.fee === 0 ? 'Gratuit' : `${deliveryResult.fee} DH`}
+                        {deliveryResult.fee === 0 ? 'Gratuit' : `${deliveryResult.fee} ${currency}`}
                       </span>
                     </div>
                   )}
@@ -733,15 +735,15 @@ export default function PanierPage() {
           <div style={{ marginTop: 20, borderRadius: 12, border: '1px solid rgba(232,160,32,0.12)', background: 'rgba(255,255,255,0.02)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#C8B99A' }}>
               <span>Sous-total</span>
-              <span style={{ color: '#F5EDD6', fontWeight: 600 }}>{total().toFixed(2)} DH</span>
+              <span style={{ color: '#F5EDD6', fontWeight: 600 }}>{total().toFixed(2)} {currency}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#C8B99A' }}>
               <span>{isPickup ? 'Retrait sur place' : 'Frais de livraison'}</span>
-              <span style={{ color: '#7DD87A', fontWeight: 600 }}>{isPickup ? 'Gratuit' : deliveryFee === 0 ? 'Gratuit' : `${deliveryFee} DH`}</span>
+              <span style={{ color: '#7DD87A', fontWeight: 600 }}>{isPickup ? 'Gratuit' : deliveryFee === 0 ? 'Gratuit' : `${deliveryFee} ${currency}`}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, borderTop: '1px solid rgba(232,160,32,0.1)', paddingTop: 10, fontFamily: 'DM Sans, sans-serif' }}>
               <span style={{ color: '#C8B99A' }}>Total</span>
-              <span style={{ color: '#F5C842' }}>{grandTotal.toFixed(2)} DH</span>
+              <span style={{ color: '#F5C842' }}>{grandTotal.toFixed(2)} {currency}</span>
             </div>
           </div>
 
@@ -757,7 +759,7 @@ export default function PanierPage() {
           {step === 'cart' && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <span style={{ fontSize: 13, color: '#C8B99A', fontWeight: 500 }}>{items.reduce((acc, i) => acc + i.quantity, 0)} article{items.reduce((acc, i) => acc + i.quantity, 0) > 1 ? 's' : ''}</span>
-              <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 22, color: '#F5C842', letterSpacing: '-0.5px' }}>{grandTotal.toFixed(2)} DH</span>
+              <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 22, color: '#F5C842', letterSpacing: '-0.5px' }}>{grandTotal.toFixed(2)} {currency}</span>
             </div>
           )}
 

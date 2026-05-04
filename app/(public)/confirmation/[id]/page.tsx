@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useCart } from '@/store/cart'
 import { useCatalogue } from '@/store/catalogue'
+import { useCurrency } from '@/lib/currency'
 
 export default function ConfirmationPage() {
   const params = useParams()
@@ -12,6 +13,7 @@ export default function ConfirmationPage() {
   const [slot, setSlot] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
+  const currency = useCurrency()
   const clear = useCart(s => s.clear)
   const resetCatalogue = useCatalogue(s => s.reset)
   const router = useRouter()
@@ -136,7 +138,7 @@ export default function ConfirmationPage() {
           {/* Paiement */}
           <div style={{ padding: '12px 14px', background: 'rgba(232,160,32,0.06)', border: '1px solid rgba(232,160,32,0.15)', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 12, color: '#C8B890', fontWeight: 600 }}>Paiement à la livraison</span>
-            <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 16, color: '#F5C842' }}>{order.total?.toFixed(2)} DH</span>
+            <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 16, color: '#F5C842' }}>{order.total?.toFixed(2)} {currency}</span>
           </div>
         </div>
       )}
@@ -150,27 +152,27 @@ export default function ConfirmationPage() {
                 <span style={{ background: 'rgba(232,160,32,0.1)', color: '#E8A020', borderRadius: 6, padding: '2px 7px', fontSize: 11, fontWeight: 800, fontFamily: 'DM Sans, sans-serif' }}>{item.quantity}×</span>
                 <span style={{ fontSize: 13, color: '#F5EDD6', fontWeight: 500 }}>{item.product_name}</span>
               </div>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#C8B890', fontFamily: 'DM Sans, sans-serif' }}>{(item.unit_price * item.quantity).toFixed(2)} DH</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#C8B890', fontFamily: 'DM Sans, sans-serif' }}>{(item.unit_price * item.quantity).toFixed(2)} {currency}</span>
             </div>
           ))}
         </div>
         {order.delivery_fee > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, marginTop: 4 }}>
             <span style={{ fontSize: 13, color: '#C8B99A' }}>Sous-total produits</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#F5EDD6', fontFamily: 'DM Sans, sans-serif' }}>{(order.total - order.delivery_fee).toFixed(2)} DH</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#F5EDD6', fontFamily: 'DM Sans, sans-serif' }}>{(order.total - order.delivery_fee).toFixed(2)} {currency}</span>
           </div>
         )}
         {order.delivery_mode !== 'pickup' && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}>
             <span style={{ fontSize: 13, color: '#C8B99A' }}>Frais de livraison</span>
             <span style={{ fontSize: 13, fontWeight: 600, color: order.delivery_fee === 0 ? '#7DD87A' : '#F5C842', fontFamily: 'DM Sans, sans-serif' }}>
-              {order.delivery_fee === 0 ? 'Gratuit' : `${order.delivery_fee?.toFixed(2)} DH`}
+              {order.delivery_fee === 0 ? 'Gratuit' : `${order.delivery_fee?.toFixed(2)} ${currency}`}
             </span>
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(232,160,32,0.12)' }}>
           <span style={{ fontWeight: 700, fontSize: 15, color: '#F5EDD6' }}>Total</span>
-          <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 20, color: '#F5C842', letterSpacing: '-0.5px' }}>{order.total?.toFixed(2)} DH</span>
+          <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 20, color: '#F5C842', letterSpacing: '-0.5px' }}>{order.total?.toFixed(2)} {currency}</span>
         </div>
       </div>
 

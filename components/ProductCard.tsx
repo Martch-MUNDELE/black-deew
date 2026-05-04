@@ -2,12 +2,14 @@
 import { useState, useEffect } from 'react'
 import ProductOverlay from '@/components/ProductOverlay'
 import { useCart } from '@/store/cart'
+import { useCurrency } from '@/lib/currency'
 import type { Product } from '@/lib/types'
 
 export default function ProductCard({ product, featured = false, isOpen, allProducts = [] }: { product: Product, featured?: boolean, isOpen: boolean, allProducts?: Product[] }) {
   const [added, setAdded] = useState(false)
   const [showOverlay, setShowOverlay] = useState(false)
   const add = useCart(s => s.add)
+  const currency = useCurrency()
 
   useEffect(() => {
     if (document.getElementById('discount-glow-style')) return
@@ -37,11 +39,11 @@ export default function ProductCard({ product, featured = false, isOpen, allProd
           <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 17, color: '#F5EDD6' }}>{product.name}</div>
           {product.discount && product.discount > 0 ? (
             <div style={{ flexShrink: 0, marginLeft: 8, textAlign: 'right' }}>
-              <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, color: '#7A6E58', textDecoration: 'line-through' }}>{product.price} DH</div>
-              <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 18, color: '#F5C842' }}>{Math.ceil(product.price * (1 - product.discount / 100))} DH</div>
+              <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, color: '#7A6E58', textDecoration: 'line-through' }}>{product.price} {currency}</div>
+              <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 18, color: '#F5C842' }}>{Math.ceil(product.price * (1 - product.discount / 100))} {currency}</div>
             </div>
           ) : (
-            <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 18, background: 'linear-gradient(90deg,#F5C842,#FF6B20)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', flexShrink: 0, marginLeft: 8 }}>{product.price} DH</div>
+            <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 18, background: 'linear-gradient(90deg,#F5C842,#FF6B20)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', flexShrink: 0, marginLeft: 8 }}>{product.price} {currency}</div>
           )}
         </div>
       </div>
@@ -77,11 +79,11 @@ export default function ProductCard({ product, featured = false, isOpen, allProd
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {product.discount && product.discount > 0 ? (
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-              <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, color: '#7A6E58', textDecoration: 'line-through' }}>{product.price} DH</span>
-              <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 14, color: '#F5C842' }}>{Math.ceil(product.price * (1 - product.discount / 100))} DH</span>
+              <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 11, color: '#7A6E58', textDecoration: 'line-through' }}>{product.price} {currency}</span>
+              <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 14, color: '#F5C842' }}>{Math.ceil(product.price * (1 - product.discount / 100))} {currency}</span>
             </div>
           ) : (
-            <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 15, background: 'linear-gradient(90deg,#F5C842,#E8901A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{product.price} DH</div>
+            <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 15, background: 'linear-gradient(90deg,#F5C842,#E8901A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{product.price} {currency}</div>
           )}
           <button onClick={handleAdd} disabled={!isOpen} style={{ width: 34, height: 34, background: !isOpen ? 'rgba(255,255,255,0.05)' : added ? 'rgba(232,160,32,0.15)' : 'linear-gradient(135deg,#F5C842,#FF6B20)', border: 'none', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: added ? 14 : 20, fontWeight: 700, color: !isOpen ? '#555' : added ? '#E8A020' : '#080603', cursor: isOpen ? 'pointer' : 'not-allowed', flexShrink: 0, boxShadow: (!isOpen || added) ? 'none' : '0 3px 12px rgba(232,160,32,0.3)', transition: 'all 0.2s' }}>
             {added ? '✓' : '+'}

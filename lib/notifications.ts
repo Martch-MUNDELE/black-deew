@@ -2,9 +2,9 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-export async function sendOrderNotification(order: any) {
+export async function sendOrderNotification(order: any, currency = 'DH') {
   const itemsHtml = order.items?.map((i: any) =>
-    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${i.quantity}× ${i.product_name}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${(i.quantity * i.unit_price).toFixed(2)} DH</td></tr>`
+    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${i.quantity}× ${i.product_name}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${(i.quantity * i.unit_price).toFixed(2)} ${currency}</td></tr>`
   ).join('') || ''
 
   const toEmail = process.env.ADMIN_EMAIL || 'heupel.martial@gmail.com'
@@ -26,7 +26,7 @@ export async function sendOrderNotification(order: any) {
             <thead><tr><th style="text-align:left;padding:8px;background:#f5f5f0">Produit</th><th style="text-align:right;padding:8px;background:#f5f5f0">Prix</th></tr></thead>
             <tbody>${itemsHtml}</tbody>
           </table>
-          <p style="font-size:18px;font-weight:700;color:#2D6A4F">Total : ${order.total?.toFixed(2)} DH — Cash à la livraison</p>
+          <p style="font-size:18px;font-weight:700;color:#2D6A4F">Total : ${order.total?.toFixed(2)} ${currency} — Cash à la livraison</p>
         </div>
       `
     })

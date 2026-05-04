@@ -3,6 +3,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LeafletMap from '@/components/LeafletMap'
+import { useCurrency } from '@/lib/currency'
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371
@@ -39,6 +40,7 @@ function LivraisonContent() {
   const router = useRouter()
   const activeTab = searchParams.get('tab') || 'mode'
   const supabase = createClient()
+  const currency = useCurrency()
 
   const [deliveryMode, setDeliveryMode] = useState<'all' | 'delivery_only' | 'pickup_only'>('all')
   const [shopLat, setShopLat] = useState('30.4202')
@@ -325,8 +327,8 @@ function LivraisonContent() {
                           <label style={labelStyle}>À (km)</label>
                           <input type="number" value={zone.max_km} onChange={e => updateZone(zone.id, 'max_km', parseFloat(e.target.value) || 0)} min="0" step="0.1" style={{ ...inputStyle, borderColor: (maxRadiusNum > 0 && zone.max_km > maxRadiusNum) ? 'rgba(255,107,107,0.5)' : undefined }} />
                         </div>
-                        <div><label style={labelStyle}>Prix (DH)</label><input type="number" value={zone.price} onChange={e => updateZone(zone.id, 'price', parseFloat(e.target.value) || 0)} min="0" style={inputStyle} /></div>
-                        {minOrderStrategy === 'per_zone' && <div><label style={labelStyle}>Min. commande (DH)</label><input type="number" value={zone.min_order} onChange={e => updateZone(zone.id, 'min_order', parseFloat(e.target.value) || 0)} min="0" style={inputStyle} /></div>}
+                        <div><label style={labelStyle}>Prix ({currency})</label><input type="number" value={zone.price} onChange={e => updateZone(zone.id, 'price', parseFloat(e.target.value) || 0)} min="0" style={inputStyle} /></div>
+                        {minOrderStrategy === 'per_zone' && <div><label style={labelStyle}>Min. commande ({currency})</label><input type="number" value={zone.min_order} onChange={e => updateZone(zone.id, 'min_order', parseFloat(e.target.value) || 0)} min="0" style={inputStyle} /></div>}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <button onClick={() => updateZone(zone.id, 'active', !zone.active)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
@@ -352,12 +354,12 @@ function LivraisonContent() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 {minOrderStrategy === 'global' ? (
-                  <><label style={labelStyle}>Commande minimum pour livraison (DH)</label><input type="number" value={minOrder} onChange={e => setMinOrder(e.target.value)} min="0" style={inputStyle} /></>
+                  <><label style={labelStyle}>Commande minimum pour livraison ({currency})</label><input type="number" value={minOrder} onChange={e => setMinOrder(e.target.value)} min="0" style={inputStyle} /></>
                 ) : (
                   <><div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.8px' }}>Commande minimum</div><div style={{ fontSize: 12, color: '#7A6E58', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(232,160,32,0.1)', background: 'rgba(255,255,255,0.02)' }}>Défini par tranche tarifaire</div></>
                 )}
               </div>
-              <div><label style={labelStyle}>Livraison gratuite à partir de (DH)</label><input type="number" value={freeAbove} onChange={e => setFreeAbove(e.target.value)} min="0" style={inputStyle} /><div style={{ fontSize: 11, color: '#8A7A60', marginTop: 5 }}>0 = désactivé</div></div>
+              <div><label style={labelStyle}>Livraison gratuite à partir de ({currency})</label><input type="number" value={freeAbove} onChange={e => setFreeAbove(e.target.value)} min="0" style={inputStyle} /><div style={{ fontSize: 11, color: '#8A7A60', marginTop: 5 }}>0 = désactivé</div></div>
             </div>
           </div>
 
@@ -391,7 +393,7 @@ function LivraisonContent() {
                     <div style={{ fontSize: 13 }}><span style={{ color: '#A89880' }}>Distance : </span><strong style={{ color: '#F5EDD6' }}>{simResult.dist?.toFixed(2)} km</strong></div>
                     <div style={{ fontSize: 13 }}><span style={{ color: '#A89880' }}>Zone : </span><strong style={{ color: simResult.inZone ? '#5BC57A' : '#FF6B6B' }}>{simResult.inZone ? 'Dans la zone ✓' : 'Hors zone ✗'}</strong></div>
                     {simResult.zone && <div style={{ fontSize: 13 }}><span style={{ color: '#A89880' }}>Tranche : </span><strong style={{ color: '#F5EDD6' }}>{simResult.zone.min_km}–{simResult.zone.max_km} km</strong></div>}
-                    {simResult.zone && <div style={{ fontSize: 13 }}><span style={{ color: '#A89880' }}>Frais : </span><strong style={{ color: '#F5C842' }}>{simResult.fee} DH</strong></div>}
+                    {simResult.zone && <div style={{ fontSize: 13 }}><span style={{ color: '#A89880' }}>Frais : </span><strong style={{ color: '#F5C842' }}>{simResult.fee} {currency}</strong></div>}
                   </div>
                   {(!simResult.inZone || simResult.noZone) && (
                     <div style={{ fontSize: 12, color: '#A89880', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8 }}>

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useParams } from 'next/navigation'
 import ImageUpload from '@/components/ImageUpload'
+import { useCurrency } from '@/lib/currency'
 
 const FALLBACK_SUBCATS = [
   { slug: 'chaudes', name: 'Boissons Chaudes' },
@@ -19,6 +20,7 @@ export default function ModifierProduit() {
   const params = useParams()
   const supabase = createClient()
   const admin = supabase
+  const currency = useCurrency()
   const [form, setForm] = useState<{ name: string, description: string, ingredients: string, price: number, subcategory: string, image_url: string, active: boolean, discount: number | null }>({ name: '', description: '', ingredients: '', price: 0, subcategory: 'sandwichs_chauds', image_url: '', active: true, discount: null })
   const [subcats, setSubcats] = useState<{ slug: string; name: string; label: string }[]>(FALLBACK_SUBCATS.map(s => ({ ...s, label: s.name })))
   const [saving, setSaving] = useState(false)
@@ -69,7 +71,7 @@ export default function ModifierProduit() {
         <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: '#F5EDD6', margin: 0 }}>Modifier le produit</h1>
       </div>
       <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {[{ key: 'name', label: 'Nom', type: 'text' }, { key: 'description', label: 'Description', type: 'text' }, { key: 'ingredients', label: 'Ingrédients', type: 'text' }, { key: 'price', label: 'Prix (DH)', type: 'number' }].map(f => (
+        {[{ key: 'name', label: 'Nom', type: 'text' }, { key: 'description', label: 'Description', type: 'text' }, { key: 'ingredients', label: 'Ingrédients', type: 'text' }, { key: 'price', label: `Prix (${currency})`, type: 'number' }].map(f => (
           <div key={f.key}>
             <label style={labelStyle}>{f.label}</label>
             <input type={f.type} value={(form as any)[f.key] || ''} onChange={e => setForm(p => ({ ...p, [f.key]: f.type === 'number' ? parseFloat(e.target.value) : e.target.value }))} style={inputStyle} />
@@ -115,8 +117,8 @@ export default function ModifierProduit() {
               </div>
               {discountedPreview !== null && savingsPreview !== null && (
                 <div style={{ padding: '10px 14px', background: 'rgba(255,80,80,0.06)', borderRadius: 8, border: '1px solid rgba(255,80,80,0.12)' }}>
-                  <div style={{ fontSize: 12, color: '#FF8080', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>Prix remisé : {discountedPreview} DH</div>
-                  <div style={{ fontSize: 12, color: '#7A6E58', fontFamily: 'DM Sans, sans-serif', marginTop: 4 }}>Économie : {savingsPreview} DH</div>
+                  <div style={{ fontSize: 12, color: '#FF8080', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>Prix remisé : {discountedPreview} {currency}</div>
+                  <div style={{ fontSize: 12, color: '#7A6E58', fontFamily: 'DM Sans, sans-serif', marginTop: 4 }}>Économie : {savingsPreview} {currency}</div>
                 </div>
               )}
             </div>

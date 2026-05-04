@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: border, marginHorizontal: 32, marginBottom: 20 },
 })
 
-export function FacturePDF({ order, items, slot, siteName, siteBaseline, factureNum }: { order: any, items: any[], slot: any, siteName?: string, siteBaseline?: string, factureNum?: string }) {
+export function FacturePDF({ order, items, slot, siteName, siteBaseline, factureNum, currency = 'DH' }: { order: any, items: any[], slot: any, siteName?: string, siteBaseline?: string, factureNum?: string, currency?: string }) {
   const date = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
   const slotDate = slot?.date
     ? new Date(slot.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -127,7 +127,7 @@ export function FacturePDF({ order, items, slot, siteName, siteBaseline, facture
               <View key={i} style={i < items.length - 1 ? styles.itemRow : styles.itemRowLast}>
                 <Text style={styles.itemQty}>{item.quantity}x</Text>
                 <Text style={styles.itemName}>{item.product_name}</Text>
-                <Text style={styles.itemPrice}>{(item.quantity * item.unit_price).toFixed(2)} DH</Text>
+                <Text style={styles.itemPrice}>{(item.quantity * item.unit_price).toFixed(2)} {currency}</Text>
               </View>
             ))}
           </View>
@@ -143,11 +143,11 @@ export function FacturePDF({ order, items, slot, siteName, siteBaseline, facture
             <View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
                 <Text style={{ fontSize: 10, color: '#C8B99A', fontFamily: 'Helvetica' }}>Sous-total</Text>
-                <Text style={{ fontSize: 10, color: '#F5EDD6', fontFamily: 'Helvetica' }}>{(order.total - order.delivery_fee).toFixed(2)} DH</Text>
+                <Text style={{ fontSize: 10, color: '#F5EDD6', fontFamily: 'Helvetica' }}>{(order.total - order.delivery_fee).toFixed(2)} {currency}</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
                 <Text style={{ fontSize: 10, color: '#C8B99A', fontFamily: 'Helvetica' }}>Frais de livraison</Text>
-                <Text style={{ fontSize: 10, color: '#F5C842', fontFamily: 'Helvetica-Bold' }}>{order.delivery_fee.toFixed(2)} DH</Text>
+                <Text style={{ fontSize: 10, color: '#F5C842', fontFamily: 'Helvetica-Bold' }}>{order.delivery_fee.toFixed(2)} {currency}</Text>
               </View>
             </View>
           ) : (
@@ -158,7 +158,7 @@ export function FacturePDF({ order, items, slot, siteName, siteBaseline, facture
           )}
           <View style={styles.totalCard}>
             <Text style={styles.totalLabel}>Total à payer</Text>
-            <Text style={styles.totalValue}>{order.total?.toFixed(2)} DH</Text>
+            <Text style={styles.totalValue}>{order.total?.toFixed(2)} {currency}</Text>
           </View>
 
         </View>

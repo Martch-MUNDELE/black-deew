@@ -1,11 +1,13 @@
 'use client'
 import { useState } from 'react'
+import { useCurrency } from '@/lib/currency'
 import type { Product } from '@/lib/types'
 import FeaturedCardButton from '@/components/FeaturedCardButton'
 import ProductOverlay from '@/components/ProductOverlay'
 
 export default function FeaturedCardClient({ product, allProducts }: { product: Product, allProducts: Product[] }) {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const currency = useCurrency()
 
   return (
     <>
@@ -32,7 +34,7 @@ export default function FeaturedCardClient({ product, allProducts }: { product: 
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
             <div>
               <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 28, color: '#F5C842', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>{product.price}</span>
-              <span style={{ fontSize: 11, color: '#E8A020', fontWeight: 600, fontFamily: 'DM Sans, sans-serif', marginLeft: 3 }}>DH</span>
+              <span style={{ fontSize: 11, color: '#E8A020', fontWeight: 600, fontFamily: 'DM Sans, sans-serif', marginLeft: 3 }}>{currency}</span>
             </div>
             <div style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 22, color: '#fff', lineHeight: 1.1, textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>{product.name}</div>
           </div>

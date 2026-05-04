@@ -1,11 +1,13 @@
 'use client'
 import { useState, useRef } from 'react'
 import { useCart } from '@/store/cart'
+import { useCurrency } from '@/lib/currency'
 import type { Product } from '@/lib/types'
 
 export default function ProductOverlay({ product, allProducts, onClose }: { product: Product, allProducts: Product[], onClose: () => void }) {
   const { add, items, update } = useCart()
   const [current, setCurrent] = useState(product)
+  const currency = useCurrency()
   const quantity = items.find(i => i.product.id === current.id)?.quantity || 0
   const [added, setAdded] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
@@ -56,15 +58,15 @@ export default function ProductOverlay({ product, allProducts, onClose }: { prod
               {discountedPrice !== null ? (
                 <>
                   <span style={{ background: 'rgba(245,200,66,0.15)', border: '1px solid rgba(245,200,66,0.3)', color: '#F5C842', fontSize: 10, fontWeight: 800, borderRadius: 5, padding: '2px 7px', marginRight: 6, fontFamily: 'DM Sans, sans-serif', animation: 'heartbeat 1.4s ease-in-out infinite', display: 'inline-block' }}>-{current.discount}%</span>
-                  <span style={{ fontSize: 13, color: '#7A6E58', textDecoration: 'line-through', fontFamily: 'DM Sans, sans-serif' }}>{current.price} DH</span>
+                  <span style={{ fontSize: 13, color: '#7A6E58', textDecoration: 'line-through', fontFamily: 'DM Sans, sans-serif' }}>{current.price} {currency}</span>
                   <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 800, fontSize: 28, color: '#F5C842' }}>{discountedPrice}</span>
-                  <span style={{ fontSize: 12, color: '#E8A020', fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>DH</span>
+                  <span style={{ fontSize: 12, color: '#E8A020', fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>{currency}</span>
                   <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 20, color: '#F5EDD6', lineHeight: 1.1 }}>{current.name}</span>
                 </>
               ) : (
                 <>
                   <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 28, color: '#F5C842' }}>{current.price}</span>
-                  <span style={{ fontSize: 12, color: '#E8A020', fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>DH</span>
+                  <span style={{ fontSize: 12, color: '#E8A020', fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>{currency}</span>
                   <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 20, color: '#F5EDD6', lineHeight: 1.1 }}>{current.name}</span>
                 </>
               )}
@@ -108,7 +110,7 @@ export default function ProductOverlay({ product, allProducts, onClose }: { prod
                       {p.image_url && <img src={p.image_url + (p.image_url.includes('supabase.co') ? '?width=100&quality=70' : '')} alt={p.name} loading="eager" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                     </div>
                     <div style={{ fontSize: 10, fontWeight: 600, color: '#C8B99A', fontFamily: 'DM Sans, sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                    <div style={{ fontSize: 10, color: '#E8A020', fontWeight: 700, fontFamily: 'DM Sans, sans-serif' }}>{p.price} DH</div>
+                    <div style={{ fontSize: 10, color: '#E8A020', fontWeight: 700, fontFamily: 'DM Sans, sans-serif' }}>{p.price} {currency}</div>
                   </div>
                 ))}
               </div>

@@ -39,12 +39,13 @@ export async function POST(req: NextRequest) {
   const logoUrl = settings?.find((s: any) => s.key === 'site_logo')?.value || ''
   const siteName = settings?.find((s: any) => s.key === 'site_name')?.value || 'Black Deew'
   const siteBaseline = settings?.find((s: any) => s.key === 'site_baseline')?.value || 'AGADIR · LIVRAISON'
+  const currency = settings?.find((s: any) => s.key === 'currency')?.value || 'DH'
 
   // Stocker le numéro de facture en base
   await supabase.from('orders').update({ invoice_number: factureNum }).eq('id', order_id)
 
   const pdfBuffer = await renderToBuffer(
-    FacturePDF({ order, items: order.order_items, slot, siteName, siteBaseline, factureNum }) as any
+    FacturePDF({ order, items: order.order_items, slot, siteName, siteBaseline, factureNum, currency }) as any
   )
 
   await resend.emails.send({
@@ -72,8 +73,8 @@ export async function POST(req: NextRequest) {
       <p style="color:#C8B99A;font-size:14px;margin:0 0 24px;line-height:1.6">Merci pour votre commande ! Veuillez trouver ci-joint votre facture.</p>
       <div style="background:rgba(232,160,32,0.06);border:1px solid rgba(232,160,32,0.15);border-radius:12px;padding:20px;text-align:center;margin-bottom:24px">
         <div style="font-size:11px;color:#E8A020;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">Total de votre commande</div>
-        <div style="font-family:Georgia,serif;font-size:36px;font-weight:900;color:#F5C842">${order.total.toFixed(2)} <span style="font-size:16px">DH</span></div>
-        ${order.delivery_mode === 'pickup' ? `<div style="font-size:12px;color:#5BC57A;margin-top:6px">Retrait sur place — Frais : Gratuit</div>` : order.delivery_fee > 0 ? `<div style="font-size:12px;color:#C8B99A;margin-top:6px">Sous-total : ${(order.total - order.delivery_fee).toFixed(2)} DH &nbsp;|&nbsp; Frais de livraison : <span style="color:#F5C842;font-weight:700">${order.delivery_fee.toFixed(2)} DH</span></div>` : `<div style="font-size:12px;color:#5BC57A;margin-top:6px">Livraison gratuite</div>`}
+        <div style="font-family:Georgia,serif;font-size:36px;font-weight:900;color:#F5C842">${order.total.toFixed(2)} <span style="font-size:16px">${currency}</span></div>
+        ${order.delivery_mode === 'pickup' ? `<div style="font-size:12px;color:#5BC57A;margin-top:6px">Retrait sur place — Frais : Gratuit</div>` : order.delivery_fee > 0 ? `<div style="font-size:12px;color:#C8B99A;margin-top:6px">Sous-total : ${(order.total - order.delivery_fee).toFixed(2)} ${currency} &nbsp;|&nbsp; Frais de livraison : <span style="color:#F5C842;font-weight:700">${order.delivery_fee.toFixed(2)} ${currency}</span></div>` : `<div style="font-size:12px;color:#5BC57A;margin-top:6px">Livraison gratuite</div>`}
         <div style="font-size:12px;color:#888;margin-top:4px">Paiement à la livraison en cash</div>
       </div>
       <p style="color:#7A6E58;font-size:12px;line-height:1.6;margin:0">

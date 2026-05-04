@@ -2,6 +2,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useCurrency } from '@/lib/currency'
 
 const STATUSES = ['nouvelle', 'confirmée', 'en_preparation', 'en_livraison', 'livrée', 'annulée']
 const STATUS_LABELS: Record<string, string> = {
@@ -37,13 +38,13 @@ function cleanPhone(phone: string) {
   return p.startsWith('+') ? p : p.replace(/^0/, '212')
 }
 
-function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDate: (d: string) => string, shopAddress?: string, factureUrl?: string): string | null {
+function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDate: (d: string) => string, shopAddress?: string, factureUrl?: string, currency = 'DH'): string | null {
   const name = order.customer_name
   let msg: string | null = null
 
   if (targetStatus === 'confirmée') {
     const itemsList = order.order_items?.map((i: any) =>
-      `${i.quantity} x ${i.product_name} — ${(i.unit_price * i.quantity).toFixed(2)} DH`
+      `${i.quantity} x ${i.product_name} — ${(i.unit_price * i.quantity).toFixed(2)} ${currency}`
     ).join('\n') || ''
     const slotDate = slot ? formatDate(slot.date) : 'À confirmer'
     const slotTime = slot ? `${slot.time_start?.slice(0, 5)} à ${slot.time_end?.slice(0, 5)}` : ''
@@ -55,9 +56,9 @@ function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDat
     } else if (order.delivery_fee === 0) {
       deliveryLines = '\nLivraison gratuite'
     } else if (order.delivery_fee > 0) {
-      deliveryLines = `\nFrais de livraison : ${order.delivery_fee} DH`
+      deliveryLines = `\nFrais de livraison : ${order.delivery_fee} ${currency}`
     }
-    msg = `Bonjour ${name},\n\nVotre commande Black Deew est confirmée.\n\n${itemsList}${deliveryLines}\n\nTotal : ${order.total.toFixed(2)} DH - paiement cash à la livraison\nCréneau : ${slotDate} de ${slotTime}\n\nVotre adresse de livraison :\n${address}${mapsLine}\n\nMerci pour votre confiance !\nBlack Deew`
+    msg = `Bonjour ${name},\n\nVotre commande Black Deew est confirmée.\n\n${itemsList}${deliveryLines}\n\nTotal : ${order.total.toFixed(2)} ${currency} - paiement cash à la livraison\nCréneau : ${slotDate} de ${slotTime}\n\nVotre adresse de livraison :\n${address}${mapsLine}\n\nMerci pour votre confiance !\nBlack Deew`
   } else if (targetStatus === 'en_preparation') {
     msg = `Bonjour ${name}, votre commande Black Deew est en cours de préparation. Encore un peu de patience !`
   } else if (targetStatus === 'en_livraison') {
@@ -106,6 +107,7 @@ const IconCal = () => (
 
 function CommandesAdminInner() {
   const [orders, setOrders] = useState<any[]>([])
+  const currency = useCurrency()
   const searchParams = useSearchParams()
   const [filter, setFilter] = useState(() => searchParams.get('tab') || 'nouvelle')
   const [highlightIdParam] = useState(() => searchParams.get('highlight'))
@@ -222,7 +224,7 @@ function CommandesAdminInner() {
                   <div style={{ fontSize: 10, color: '#A89880', marginTop: 2 }}>#{order.id.slice(0,8).toUpperCase()} · {new Date(order.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: '#F5C842', fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap' }}>{order.total.toFixed(2)} <span style={{ fontSize: 13 }}>DH</span></div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#F5C842', fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap' }}>{order.total.toFixed(2)} <span style={{ fontSize: 13 }}>{currency}</span></div>
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: 4 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 50, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`, display: 'inline-block' }}>{STATUS_LABELS[order.status]}</span>
                     {order.delivery_mode && (
@@ -250,7 +252,7 @@ function CommandesAdminInner() {
                     ? 'Retrait sur place'
                     : order.delivery_fee === 0
                       ? `Livraison gratuite · ${order.distance_km ? Number(order.distance_km).toFixed(2) : '?'} km`
-                      : `Livraison · ${order.distance_km ? Number(order.distance_km).toFixed(2) : '?'} km · ${order.delivery_fee} DH`}
+                      : `Livraison · ${order.distance_km ? Number(order.distance_km).toFixed(2) : '?'} km · ${order.delivery_fee} ${currency}`}
                 </div>
               )}
 
@@ -303,7 +305,8 @@ function CommandesAdminInner() {
                     pending,
                     formatDate,
                     shopAddress,
-                    pending === 'livrée' ? factureUrls[order.id] : undefined
+                    pending === 'livrée' ? factureUrls[order.id] : undefined,
+                    currency
                   )
                   if (!waUrl) return null
                   return (

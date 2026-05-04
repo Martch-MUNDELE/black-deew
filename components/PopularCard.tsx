@@ -2,6 +2,7 @@
 import React from 'react'
 import { useEffect, useState } from 'react'
 import { useCatalogue } from '@/store/catalogue'
+import { useCurrency } from '@/lib/currency'
 import { createClient } from '@/lib/supabase/client'
 import type { Product } from '@/lib/types'
 import FeaturedCardButton from '@/components/FeaturedCardButton'
@@ -9,6 +10,7 @@ import ProductOverlay from '@/components/ProductOverlay'
 
 export default function PopularCard({ fallback }: { fallback?: React.ReactNode }) {
   const { activeSous, hasSelected } = useCatalogue()
+  const currency = useCurrency()
   const [product, setProduct] = useState<Product | null>(null)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [allProducts, setAllProducts] = useState<Product[]>([])
@@ -52,7 +54,7 @@ export default function PopularCard({ fallback }: { fallback?: React.ReactNode }
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
           <div>
             <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 'clamp(26px, 8vw, 36px)', color: '#FF6B20', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>{product.price}</span>
-            <span style={{ fontSize: 13, color: '#FF8C42', fontWeight: 600, fontFamily: 'DM Sans, sans-serif', marginLeft: 3 }}>DH</span>
+            <span style={{ fontSize: 13, color: '#FF8C42', fontWeight: 600, fontFamily: 'DM Sans, sans-serif', marginLeft: 3 }}>{currency}</span>
           </div>
           <div style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 'clamp(18px, 5.5vw, 24px)', color: '#fff', lineHeight: 1.1, textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>{product.name}</div>
         </div>

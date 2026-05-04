@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import Logo from '@/components/Logo'
+import { useCurrency } from '@/lib/currency'
 
 const NAV_GROUPS = [
   {
@@ -48,6 +49,7 @@ const NAV_GROUPS = [
         { label: 'Fond de page', anchor: 'fond', url: '/admin/settings?tab=fond' },
         { label: 'Image hero', anchor: 'hero', url: '/admin/settings?tab=hero' },
         { label: 'Arguments produit', anchor: 'arguments', url: '/admin/settings?tab=arguments' },
+        { label: 'Devise', anchor: 'devise', url: '/admin/settings?tab=devise' },
       ]},
     ],
   },
@@ -58,6 +60,7 @@ export default function AdminNav() {
   const router = useRouter()
   const supabase = createClient()
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const currency = useCurrency()
   const [siteName, setSiteName] = useState('Black Deew')
   const [siteLogo, setSiteLogo] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -190,7 +193,7 @@ export default function AdminNav() {
               Nouvelle commande !
             </div>
             <div style={{ fontSize: 13, color: '#F5EDD6', fontWeight: 600 }}>
-              {toast.name} — {toast.total.toFixed(0)} DH
+              {toast.name} — {toast.total.toFixed(0)} {currency}
             </div>
           </div>
           <button
@@ -327,7 +330,7 @@ export default function AdminNav() {
                         }}>
                           {sub.map((s: any) => (
                             <div
-                              key={s.anchor}
+                              key={s.anchor || s.label}
                               onClick={() => {
                                 close()
                                 if (s.url) {

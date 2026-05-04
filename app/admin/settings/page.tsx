@@ -15,6 +15,7 @@ const TABS = [
   { key: 'hero', label: 'Image hero' },
   { key: 'arguments', label: 'Arguments' },
   { key: 'notifications', label: 'Notifications' },
+  { key: 'devise', label: 'Devise' },
 ]
 
 const ICON_OPTIONS = [
@@ -56,6 +57,7 @@ function SettingsContent() {
   const [feature2, setFeature2] = useState<Feature>({ icon: 'delivery', title: 'Livraison rapide', desc: 'On vous livre rapidement et directement à votre porte.' })
   const [feature3, setFeature3] = useState<Feature>({ icon: 'fresh', title: 'Frais du jour', desc: 'Profitez de produits toujours frais, choisis chaque jour.' })
   const [notificationEmail, setNotificationEmail] = useState('')
+  const [currency, setCurrency] = useState('DH')
   const supabase = createClient()
 
   useEffect(() => {
@@ -78,6 +80,7 @@ function SettingsContent() {
         if (s.key === 'background_gradient_end' && s.value) setBgGradEnd(s.value)
         if (s.key === 'background_gradient_dir' && s.value) setBgGradDir(s.value)
         if (s.key === 'notification_email') setNotificationEmail(s.value)
+        if (s.key === 'currency') setCurrency(s.value)
       })
     })
   }, [])
@@ -144,6 +147,7 @@ function SettingsContent() {
       supabase.from('settings').upsert({ key: 'background_gradient_end', value: bgGradEnd }),
       supabase.from('settings').upsert({ key: 'background_gradient_dir', value: bgGradDir }),
       supabase.from('settings').upsert({ key: 'notification_email', value: notificationEmail }),
+      supabase.from('settings').upsert({ key: 'currency', value: currency }),
     ])
     setSaving(false)
     setSaved(true)
@@ -319,6 +323,23 @@ function SettingsContent() {
           />
           <div style={{ fontSize: 11, color: '#7A6E58', marginTop: 8, fontFamily: 'DM Sans, sans-serif' }}>
             Si vide, l'email par défaut du serveur sera utilisé.
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'devise' && (
+        <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: '22px 24px', marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 16 }}>Devise affichée</div>
+          <label style={labelStyle}>Sélectionner la devise</label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, marginTop: 4 }}>
+            {(['DH', 'USD', 'FC', 'EUR', 'XOF', 'GBP'] as const).map(opt => (
+              <button key={opt} onClick={() => setCurrency(opt)} style={{ padding: '9px 20px', borderRadius: 50, border: '1px solid', borderColor: currency === opt ? 'rgba(232,160,32,0.5)' : 'rgba(255,255,255,0.08)', background: currency === opt ? 'rgba(232,160,32,0.12)' : 'transparent', color: currency === opt ? '#E8A020' : '#C8B99A', cursor: 'pointer', fontSize: 13, fontWeight: currency === opt ? 700 : 500, fontFamily: 'DM Sans, sans-serif' }}>
+                {opt}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: '#7A6E58', marginTop: 10, fontFamily: 'DM Sans, sans-serif' }}>
+            Devise actuellement sélectionnée : <strong style={{ color: '#E8A020' }}>{currency}</strong>
           </div>
         </div>
       )}

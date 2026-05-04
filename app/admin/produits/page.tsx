@@ -3,6 +3,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useCurrency } from '@/lib/currency'
 
 type Product = { id: string; name: string; price: number; image_url: string; subcategory: string; active: boolean; featured: boolean; popular: boolean }
 
@@ -26,6 +27,7 @@ function ProduitsAdminInner() {
   const [products, setProducts] = useState<Product[]>([])
   const [subcats, setSubcats] = useState<{slug: string, name: string}[]>([])
   const [parentCats, setParentCats] = useState<{id: string, slug: string, name: string}[]>([])
+  const currency = useCurrency()
   const searchParams = useSearchParams()
   const [tab, setTab] = useState(() => searchParams.get('tab') || 'actifs')
   const [search, setSearch] = useState('')
@@ -223,7 +225,7 @@ function ProduitsAdminInner() {
                 {p.image_url && <img src={p.image_url} alt={p.name} style={{ width: 52, height: 52, borderRadius: 10, objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(232,160,32,0.1)' }} />}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: '#F5EDD6' }}>{p.name}</div>
-                  <div style={{ fontSize: 11, color: '#C8B99A', marginTop: 2 }}>{p.price} DH</div>
+                  <div style={{ fontSize: 11, color: '#C8B99A', marginTop: 2 }}>{p.price} {currency}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <button onClick={() => setFeatured(p.id)} title="Mettre à la une" style={{ width: 34, height: 34, borderRadius: 8, border: p.featured ? '1px solid rgba(245,200,66,0.6)' : '1px solid rgba(255,255,255,0.08)', background: p.featured ? 'rgba(245,200,66,0.15)' : 'transparent', color: p.featured ? '#F5C842' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
