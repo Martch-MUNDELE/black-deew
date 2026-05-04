@@ -166,7 +166,7 @@ export default function AdminNav() {
   const allGroups = [
     ...NAV_GROUPS,
     { label: 'FACTURATION', links: [{ href: '/admin/abonnement', label: 'Mon abonnement' }] },
-    ...(roleLoaded && isSuperAdmin
+    ...(isSuperAdmin
       ? [{ label: 'ADMIN', links: [{ href: '/admin/superadmin', label: 'Super Admin', sub: [
         { label: 'Administrateurs', url: '/admin/superadmin' },
         { label: 'Journal', url: '/admin/superadmin' },
