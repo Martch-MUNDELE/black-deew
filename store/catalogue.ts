@@ -7,6 +7,7 @@ interface CatalogueStore {
   setGroupe: (groupe: string, sous?: string) => void
   setSous: (sous: string) => void
   setHasSelected: (v: boolean) => void
+  reset: () => void
 }
 export const useCatalogue = create<CatalogueStore>()((set) => ({
   activeGroupe: '',
@@ -15,4 +16,5 @@ export const useCatalogue = create<CatalogueStore>()((set) => ({
   setGroupe: (groupe, sous) => set({ activeGroupe: groupe, activeSous: sous || '' }),
   setSous: (sous) => set({ activeSous: sous }),
   setHasSelected: (v) => set({ hasSelected: v }),
+  reset: () => set({ activeGroupe: '', activeSous: '', hasSelected: false }),
 }))

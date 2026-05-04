@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
-import Link from 'next/link'
+import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useCart } from '@/store/cart'
+import { useCatalogue } from '@/store/catalogue'
 
 export default function ConfirmationPage() {
   const params = useParams()
@@ -13,6 +13,9 @@ export default function ConfirmationPage() {
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
   const clear = useCart(s => s.clear)
+  const resetCatalogue = useCatalogue(s => s.reset)
+  const router = useRouter()
+  const handleRetour = () => { resetCatalogue(); router.push('/') }
 
   useEffect(() => { clear() }, [])
 
@@ -40,7 +43,7 @@ export default function ConfirmationPage() {
   if (!order) return (
     <div style={{ textAlign: 'center', padding: '80px 20px' }}>
       <p style={{ color: '#C8B99A' }}>Commande introuvable</p>
-      <Link href="/" style={{ color: '#E8A020' }}>Retour à l'accueil</Link>
+      <button onClick={handleRetour} style={{ color: '#E8A020', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}>Retour à l'accueil</button>
     </div>
   )
 
@@ -151,15 +154,27 @@ export default function ConfirmationPage() {
             </div>
           ))}
         </div>
+        {order.delivery_fee > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, marginTop: 4 }}>
+            <span style={{ fontSize: 13, color: '#C8B99A' }}>Sous-total produits</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#F5EDD6', fontFamily: 'DM Sans, sans-serif' }}>{(order.total - order.delivery_fee).toFixed(2)} DH</span>
+          </div>
+        )}
+        {order.delivery_mode !== 'pickup' && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}>
+            <span style={{ fontSize: 13, color: '#C8B99A' }}>Frais de livraison</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: order.delivery_fee === 0 ? '#7DD87A' : '#F5C842', fontFamily: 'DM Sans, sans-serif' }}>
+              {order.delivery_fee === 0 ? 'Gratuit' : `${order.delivery_fee?.toFixed(2)} DH`}
+            </span>
+          </div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(232,160,32,0.12)' }}>
           <span style={{ fontWeight: 700, fontSize: 15, color: '#F5EDD6' }}>Total</span>
           <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 20, color: '#F5C842', letterSpacing: '-0.5px' }}>{order.total?.toFixed(2)} DH</span>
         </div>
       </div>
 
-      <Link href="/" style={{ textDecoration: 'none', display: 'block', textAlign: 'center', background: 'linear-gradient(135deg,#F5C842,#FF6B20)', color: '#0A0804', padding: '16px', borderRadius: 50, fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 15, boxShadow: '0 4px 20px rgba(232,160,32,0.25)' }}>
-        Commander autre chose
-      </Link>
+      <button onClick={handleRetour} style={{ textDecoration: 'none', display: 'block', width: '100%', textAlign: 'center', background: 'linear-gradient(135deg,#F5C842,#FF6B20)', color: '#0A0804', padding: '16px', borderRadius: 50, fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 15, boxShadow: '0 4px 20px rgba(232,160,32,0.25)', border: 'none', cursor: 'pointer' }}>Commander autre chose</button>
 
     </div>
   )

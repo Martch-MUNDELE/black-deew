@@ -298,11 +298,28 @@ export default function PanierPage() {
     } catch {}
   }
 
-  const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [geocodeError, setGeocodeError] = useState('')
+  const [geocodeLoading, setGeocodeLoading] = useState(false)
   const handleAddressChange = (val: string) => {
     updateForm(f => ({ ...f, address: val, lat: null, lng: null }))
-    if (geocodeTimer.current) clearTimeout(geocodeTimer.current)
-    geocodeTimer.current = setTimeout(() => geocodeAddress(val), 1200)
+    setGeocodeError('')
+  }
+  const handleValidateAddress = async () => {
+    if (!form.address.trim() || form.address.length < 6) return
+    setGeocodeLoading(true)
+    setGeocodeError('')
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(form.address)}&format=json&limit=1&accept-language=fr`, { headers: { 'User-Agent': 'BlackDeew/1.0' } })
+      const data = await res.json()
+      if (data && data.length > 0) {
+        updateForm(f => ({ ...f, lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), geo_address: f.address }))
+      } else {
+        setGeocodeError('Adresse introuvable. Essayez de préciser (quartier, ville) ou utilisez la géolocalisation.')
+      }
+    } catch {
+      setGeocodeError('Erreur lors de la recherche. Vérifiez votre connexion.')
+    }
+    setGeocodeLoading(false)
   }
 
   // ── Order submission ───────────────────────────────────────────────────────
@@ -591,6 +608,12 @@ export default function PanierPage() {
                 rows={3}
                 style={{ ...inputStyle, resize: 'none', lineHeight: 1.6, fontSize: 13 }}
               />
+              {form.address && !form.lat && (
+                <button type="button" onClick={handleValidateAddress} disabled={geocodeLoading} style={{ width: '100%', marginTop: 8, padding: '11px 16px', borderRadius: 12, border: '1.5px solid rgba(232,160,32,0.3)', background: 'rgba(232,160,32,0.06)', color: '#E8A020', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 13, cursor: geocodeLoading ? 'wait' : 'pointer', boxSizing: 'border-box' }}>
+                  {geocodeLoading ? 'Recherche en cours...' : 'Valider mon adresse'}
+                </button>
+              )}
+              {geocodeError && <div style={{ fontSize: 12, color: '#FF6B6B', marginTop: 6 }}>{geocodeError}</div>}
 
               {/* Résultat calcul livraison */}
               {deliveryLoaded && form.address && deliveryResult && (
