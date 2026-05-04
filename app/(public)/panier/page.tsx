@@ -630,12 +630,14 @@ export default function PanierPage() {
                       <span style={{ fontSize: 13, fontWeight: 700, color: '#F5EDD6' }}>{deliveryResult.distance.toFixed(2)} km</span>
                     </div>
                   )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: '#A89880' }}>Frais de livraison</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: deliveryResult.fee === 0 ? '#7DD87A' : '#F5C842' }}>
-                      {deliveryResult.fee === 0 ? 'Gratuit' : `${deliveryResult.fee} DH`}
-                    </span>
-                  </div>
+                  {deliveryResult.reason !== 'out_of_zone' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: '#A89880' }}>Frais de livraison</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: deliveryResult.fee === 0 ? '#7DD87A' : '#F5C842' }}>
+                        {deliveryResult.fee === 0 ? 'Gratuit' : `${deliveryResult.fee} DH`}
+                      </span>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 12, color: '#A89880' }}>Zone</span>
                     <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: deliveryResult.inZone ? 'rgba(91,197,122,0.15)' : 'rgba(255,107,107,0.15)', color: deliveryResult.inZone ? '#5BC57A' : '#FF6B6B' }}>
