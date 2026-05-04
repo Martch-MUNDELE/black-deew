@@ -86,18 +86,25 @@ export default function AdminNav() {
         if (s.key === 'site_logo') setSiteLogo(s.value || '')
       })
     })
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    let active = true
+    let handled = false
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!active || handled) return
       const email = session?.user?.email
-      if (email) {
-        const { data: admin } = await supabase
-          .from('admins')
-          .select('role')
-          .eq('email', email)
-          .single()
-        setIsSuperAdmin(admin?.role === 'superadmin')
-      }
-      setRoleLoaded(true)
+      if (!email) return
+      handled = true
+      const { data: admin } = await supabase
+        .from('admins')
+        .select('role')
+        .eq('email', email)
+        .single()
+      if (active) setIsSuperAdmin(admin?.role === 'superadmin')
+      if (active) setRoleLoaded(true)
     })
+    return () => {
+      active = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
