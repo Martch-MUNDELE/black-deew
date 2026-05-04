@@ -38,7 +38,7 @@ export default function AbonnementPage() {
       if (selfAdmin.role === 'superadmin') {
         const { data: clientAdmin } = await supabase
           .from('admins')
-          .select('email, auth_user_id')
+          .select('email, auth_user_id, role')
           .eq('role', 'admin')
           .eq('status', 'active')
           .limit(1)
