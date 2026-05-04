@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   const { data: settings } = await supabase.from('settings').select('*')
   const logoUrl = settings?.find((s: any) => s.key === 'site_logo')?.value || ''
   const siteName = settings?.find((s: any) => s.key === 'site_name')?.value || 'Black Deew'
-  const siteBaseline = settings?.find((s: any) => s.key === 'site_baseline')?.value || 'AGADIR · LIVRAISON'
+  const siteBaseline = settings?.find((s: any) => s.key === 'site_baseline')?.value || 'KINSHASA · LIVRAISON'
   const currency = settings?.find((s: any) => s.key === 'currency')?.value || 'DH'
 
   // Stocker le numéro de facture en base
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   )
 
   await resend.emails.send({
-    from: 'Black Deew <onboarding@resend.dev>',
+    from: `${siteName} <onboarding@resend.dev>`,
     to: order.customer_email,
     subject: `🧾 Facture ${factureNum} — ${siteName}`,
     html: `<!DOCTYPE html>
@@ -83,8 +83,8 @@ export async function POST(req: NextRequest) {
     </div>
     <div style="border-top:1px solid rgba(232,160,32,0.1);padding-top:20px;text-align:center">
       <div style="font-size:11px;color:#555;line-height:1.8">
-        ${siteName} — Agadir, Maroc<br>
-        <span style="color:#E8A020">Saveurs du Souss, livrées chez toi.</span>
+        ${siteName} — Kinshasa, RDC<br>
+        <span style="color:#E8A020">Livraison à domicile à Kinshasa.</span>
       </div>
     </div>
   </div>

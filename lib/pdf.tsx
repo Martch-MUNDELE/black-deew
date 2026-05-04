@@ -167,7 +167,7 @@ export function FacturePDF({ order, items, slot, siteName, siteBaseline, facture
         <View style={styles.divider}/>
         <View style={styles.footer}>
           <Text style={styles.footerLeft}>Merci pour votre confiance !</Text>
-          <Text style={styles.footerRight}>Black Deew — Agadir, Maroc</Text>
+          <Text style={styles.footerRight}>{siteName ?? 'Black Deew'} — Kinshasa, RDC</Text>
         </View>
 
       </Page>
