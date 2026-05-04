@@ -21,6 +21,18 @@ export default function AdminLogin() {
         if (s.key === 'site_logo') setSiteLogo(s.value || '')
       })
     })
+    // Détecter access_token dans l'URL (magic link / reset password)
+    const hash = window.location.hash
+    if (hash && hash.includes('access_token')) {
+      const params = new URLSearchParams(hash.replace('#', ''))
+      const access_token = params.get('access_token')
+      const refresh_token = params.get('refresh_token') || ''
+      if (access_token) {
+        supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
+          if (!error) router.push('/admin')
+        })
+      }
+    }
   }, [])
 
   const login = async () => {
