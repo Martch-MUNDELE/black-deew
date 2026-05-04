@@ -53,7 +53,7 @@ function SettingsContent() {
   const [siteLogo, setSiteLogo] = useState('')
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [logoDimensions, setLogoDimensions] = useState<{w:number,h:number}|null>(null)
-  const [feature1, setFeature1] = useState<Feature>({ icon: 'chef', title: 'Préparé à Agadir', desc: 'Par chez vous à Agadir, repas cuisinés avec soin par nos équipes.' })
+  const [feature1, setFeature1] = useState<Feature>({ icon: 'chef', title: 'Préparé à Kinshasa', desc: 'Par chez vous à Kinshasa, repas cuisinés avec soin par nos équipes.' })
   const [feature2, setFeature2] = useState<Feature>({ icon: 'delivery', title: 'Livraison rapide', desc: 'On vous livre rapidement et directement à votre porte.' })
   const [feature3, setFeature3] = useState<Feature>({ icon: 'fresh', title: 'Frais du jour', desc: 'Profitez de produits toujours frais, choisis chaque jour.' })
   const [notificationEmail, setNotificationEmail] = useState('')

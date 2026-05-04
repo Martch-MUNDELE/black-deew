@@ -51,7 +51,7 @@ export default function BackgroundSmoke() {
     <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', inset: 0, maxWidth: 600, margin: '0 auto' }}>
 
-        {/* Background Agadir nuit — zIndex 0 */}
+        {/* Background Kinshasa nuit — zIndex 0 */}
         <img
           src={backgroundImage}
           alt=""

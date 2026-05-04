@@ -41,13 +41,11 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     adminData = data
 
-    await supabase.from('admin_credentials').upsert({ admin_id: adminData.id, temp_password: password, must_change: true }, { onConflict: 'admin_id' })
   } else {
     const { data, error } = await supabase.from('admins').insert({ email, role: 'admin', status: 'active' }).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     adminData = data
 
-    await supabase.from('admin_credentials').insert({ admin_id: adminData.id, temp_password: password, must_change: true })
   }
 
   await supabase.from('admin_logs').insert({ action: 'CREATE_ADMIN', performed_by: performedBy, target_email: email, details: deletedAdmin ? 'Admin réactivé' : 'Nouvel admin créé' })

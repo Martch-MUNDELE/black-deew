@@ -21,11 +21,14 @@ export default function AbonnementPage() {
 
   useEffect(() => {
     const load = async () => {
-      // Charger le premier client admin du site
+      // Charger l'admin connecté
+      const { data: { session } } = await supabase.auth.getSession()
+      const email = session?.user?.email
+      if (!email) { setLoading(false); return }
       const { data: clients } = await supabase
         .from('admins')
         .select('email, auth_user_id')
-        .eq('role', 'admin')
+        .eq('email', email)
         .limit(1)
       const client = clients?.[0]
 

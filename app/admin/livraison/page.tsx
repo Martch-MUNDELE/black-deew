@@ -45,7 +45,7 @@ function LivraisonContent() {
   const [deliveryMode, setDeliveryMode] = useState<'all' | 'delivery_only' | 'pickup_only'>('all')
   const [shopLat, setShopLat] = useState('30.4202')
   const [shopLng, setShopLng] = useState('-9.5981')
-  const [shopAddress, setShopAddress] = useState('Agadir, Maroc')
+  const [shopAddress, setShopAddress] = useState('Kinshasa, RDC')
   const [maxRadius, setMaxRadius] = useState('10')
   const [tolerance, setTolerance] = useState('0.3')
   const [minOrder, setMinOrder] = useState('50')
@@ -378,7 +378,7 @@ function LivraisonContent() {
         <div style={sectionStyle}>
           <div style={sectionTitleStyle}>Simulateur de test</div>
           <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-            <input value={simAddress} onChange={e => setSimAddress(e.target.value)} onKeyDown={e => e.key === 'Enter' && simulate()} placeholder="Ex : 12 rue Allal Ben Abdellah, Agadir" style={{ ...inputStyle, flex: 1 }} />
+            <input value={simAddress} onChange={e => setSimAddress(e.target.value)} onKeyDown={e => e.key === 'Enter' && simulate()} placeholder="Ex : 12 avenue Kasa-Vubu, Kinshasa" style={{ ...inputStyle, flex: 1 }} />
             <button onClick={simulate} disabled={simLoading} style={{ padding: '10px 18px', borderRadius: 10, border: 'none', flexShrink: 0, background: 'linear-gradient(135deg,#F5C842,#FF6B20)', color: '#0A0804', fontSize: 12, fontWeight: 700, cursor: simLoading ? 'wait' : 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
               {simLoading ? '...' : 'Tester'}
             </button>

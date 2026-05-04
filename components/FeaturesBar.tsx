@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 type Feature = { icon: string; title: string; desc: string }
 
 const DEFAULTS: Feature[] = [
-  { icon: 'chef', title: 'Préparé à Agadir', desc: 'Par chez vous à Agadir, repas cuisinés avec soin par nos équipes.' },
+  { icon: 'chef', title: 'Préparé à Kinshasa', desc: 'Par chez vous à Kinshasa, repas cuisinés avec soin par nos équipes.' },
   { icon: 'delivery', title: 'Livraison rapide', desc: 'On vous livre rapidement et directement à votre porte.' },
   { icon: 'fresh', title: 'Frais du jour', desc: 'Profitez de produits toujours frais, choisis chaque jour.' },
 ]
