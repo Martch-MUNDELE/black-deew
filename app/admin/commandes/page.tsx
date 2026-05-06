@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/lib/currency'
 
+const PAGE_SIZE = 50
 const STATUSES = ['nouvelle', 'confirmée', 'en_preparation', 'en_livraison', 'livrée', 'annulée']
 const STATUS_LABELS: Record<string, string> = {
   nouvelle: 'Nouvelle', confirmée: 'Confirmée', en_preparation: 'Préparation',
@@ -117,20 +118,38 @@ function CommandesAdminInner() {
   const [factureUrls, setFactureUrls] = useState<Record<string, string>>({})
   const [shopAddress, setShopAddress] = useState('')
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
+  const [totalCount, setTotalCount] = useState(0)
   const supabase = createClient()
 
   const load = async () => {
-    const { data: all } = await supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false })
-    if (!all) return
+    // Counts par statut + retrait — head:true ne ramène pas les rows, juste le count
+    const countResults = await Promise.all([
+      ...STATUSES.map(s => supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', s)),
+      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('delivery_mode', 'pickup'),
+    ])
     const c: Record<string, number> = {}
-    all.forEach(o => {
-      c[o.status] = (c[o.status] || 0) + 1
-      if (o.delivery_mode === 'pickup') c['retrait'] = (c['retrait'] || 0) + 1
-    })
+    STATUSES.forEach((s, i) => { c[s] = countResults[i].count || 0 })
+    c['retrait'] = countResults[STATUSES.length].count || 0
     setCounts(c)
-    setOrders(filter === 'retrait' ? all.filter(o => o.delivery_mode === 'pickup') : all.filter(o => o.status === filter))
 
-    const slotIds = [...new Set(all.filter(o => o.slot_id).map(o => o.slot_id as string))]
+    // Page courante via .range() côté serveur
+    const from = page * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+    let query = supabase
+      .from('orders')
+      .select('*, order_items(*)', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(from, to)
+    if (filter === 'retrait') query = query.eq('delivery_mode', 'pickup')
+    else query = query.eq('status', filter)
+
+    const { data, count } = await query
+    if (!data) return
+    setOrders(data)
+    setTotalCount(count || 0)
+
+    const slotIds = [...new Set(data.filter(o => o.slot_id).map(o => o.slot_id as string))]
     if (slotIds.length > 0) {
       const { data: slotData } = await supabase.from('delivery_slots').select('*').in('id', slotIds)
       if (slotData) {
@@ -158,9 +177,12 @@ function CommandesAdminInner() {
 
   useEffect(() => {
     const tab = searchParams.get('tab')
-    if (tab && tab !== filter) setFilter(tab)
+    if (tab && tab !== filter) {
+      setFilter(tab)
+      setPage(0)
+    }
   }, [searchParams.toString()])
-  useEffect(() => { load() }, [filter])
+  useEffect(() => { load() }, [filter, page])
 
   const formatDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
 
@@ -192,13 +214,13 @@ function CommandesAdminInner() {
           const sc = STATUS_COLORS[s]
           const active = filter === s
           return (
-            <button key={s} onClick={() => setFilter(s)} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 50, border: '1px solid', borderColor: active ? sc.border : 'rgba(255,255,255,0.06)', background: active ? sc.bg : 'transparent', color: active ? sc.color : '#C8B99A', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
+            <button key={s} onClick={() => { setFilter(s); setPage(0) }} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 50, border: '1px solid', borderColor: active ? sc.border : 'rgba(255,255,255,0.06)', background: active ? sc.bg : 'transparent', color: active ? sc.color : '#C8B99A', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
               {STATUS_LABELS[s]}
               {counts[s] ? <span style={{ background: active ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)', padding: '0 6px', borderRadius: 50, fontSize: 10 }}>{counts[s]}</span> : null}
             </button>
           )
         })}
-        <button onClick={() => setFilter('retrait')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 50, border: '1px solid', borderColor: filter === 'retrait' ? 'rgba(232,160,32,0.25)' : 'rgba(255,255,255,0.06)', background: filter === 'retrait' ? 'rgba(232,160,32,0.1)' : 'transparent', color: filter === 'retrait' ? '#E8A020' : '#C8B99A', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
+        <button onClick={() => { setFilter('retrait'); setPage(0) }} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 50, border: '1px solid', borderColor: filter === 'retrait' ? 'rgba(232,160,32,0.25)' : 'rgba(255,255,255,0.06)', background: filter === 'retrait' ? 'rgba(232,160,32,0.1)' : 'transparent', color: filter === 'retrait' ? '#E8A020' : '#C8B99A', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
           Retrait
           {counts['retrait'] ? <span style={{ background: filter === 'retrait' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)', padding: '0 6px', borderRadius: 50, fontSize: 10 }}>{counts['retrait']}</span> : null}
         </button>
@@ -330,6 +352,46 @@ function CommandesAdminInner() {
           )
         })}
       </div>
+
+      {/* PAGINATION */}
+      {totalCount > PAGE_SIZE && (() => {
+        const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+        const isFirst = page === 0
+        const isLast = page >= totalPages - 1
+        const navStyle = (disabled: boolean) => ({
+          padding: '8px 16px',
+          borderRadius: 50,
+          border: '1px solid rgba(232,160,32,0.25)',
+          background: disabled ? 'transparent' : 'rgba(232,160,32,0.06)',
+          color: disabled ? '#7A6E58' : '#E8A020',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.5 : 1,
+          fontSize: 12,
+          fontWeight: 600,
+          fontFamily: 'DM Sans, sans-serif',
+        })
+        return (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+            <button
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={isFirst}
+              style={navStyle(isFirst)}
+            >
+              ← Précédent
+            </button>
+            <span style={{ fontSize: 12, color: '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>
+              Page {page + 1} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={isLast}
+              style={navStyle(isLast)}
+            >
+              Suivant →
+            </button>
+          </div>
+        )
+      })()}
     </div>
   )
 }
