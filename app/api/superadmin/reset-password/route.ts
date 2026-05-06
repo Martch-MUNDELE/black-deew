@@ -6,6 +6,7 @@ export async function POST(req: NextRequest) {
   const { data } = await supabase.from('admins').select('email, auth_user_id').eq('id', adminId).single()
   if (!data?.auth_user_id) return NextResponse.json({ error: 'auth_user_id manquant' }, { status: 400 })
   await supabase.auth.admin.updateUserById(data.auth_user_id, { password: newPassword })
+  await supabase.from('admin_credentials').upsert({ email: data.email, temp_password: newPassword }, { onConflict: 'email' })
   await supabase.from('admin_logs').insert({ action: 'RESET_PASSWORD', performed_by: performedBy, target_email: data?.email })
   return NextResponse.json({ success: true })
 }

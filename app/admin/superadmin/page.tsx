@@ -110,7 +110,7 @@ export default function SuperAdminPage() {
     setAdmins(a || [])
     setLogs(l || [])
     const cmap: Record<string, string> = {}
-    ;(c || []).forEach((x: any) => { cmap[x.admin_id] = x.temp_password })
+    ;(c || []).forEach((x: any) => { if (x.email && x.temp_password) cmap[x.email] = x.temp_password })
     setCredentials(cmap)
   }
 
@@ -175,6 +175,7 @@ export default function SuperAdminPage() {
     if (!confirm(`Réinitialiser le mot de passe de ${admin.email} ?`)) return
     const newPwd = generatePassword()
     await fetch('/api/superadmin/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminId: admin.id, newPassword: newPwd, performedBy: currentUser?.email }) })
+    setCredentials(prev => ({ ...prev, [admin.email]: newPwd }))
     setMsg(`🔑 Nouveau mot de passe pour ${admin.email} : ${newPwd}`)
     await load()
   }
@@ -186,7 +187,7 @@ export default function SuperAdminPage() {
   }
 
   const sendCredentials = async (admin: any) => {
-    const pwd = credentials[admin.id]
+    const pwd = credentials[admin.email]
     if (!pwd) { setMsg('Aucun mot de passe temporaire disponible'); return }
     await fetch('/api/superadmin/send-credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: admin.email, password: pwd }) })
     setMsg(`📧 Identifiants envoyés à ${admin.email}`)
@@ -290,7 +291,7 @@ export default function SuperAdminPage() {
           {admins.filter(a => a.status !== 'deleted').map(admin => {
             const sc = STATUS_COLORS[admin.status] || STATUS_COLORS.active
             const rc = ROLE_COLORS[admin.role] || ROLE_COLORS.admin
-            const pwd = credentials[admin.id]
+            const pwd = credentials[admin.email]
             return (
               <div key={admin.id} style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.1)', borderRadius: 14, padding: '16px 18px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
