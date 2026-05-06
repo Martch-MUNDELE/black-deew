@@ -59,7 +59,7 @@ export default function PeriodesPage() {
     }
     setLoading(true)
     const update: any = { status: newStatus, updated_at: new Date().toISOString() }
-    if (newStatus === 'paye') update.paid_at = new Date().toISOString()
+    if (newStatus === 'paye') { update.paid_at = new Date().toISOString(); update.total_paid = period.total_due }
     if (newStatus === 'cloture') update.locked_at = new Date().toISOString()
     await supabase.from('billing_periods').update(update).eq('id', period.id)
 

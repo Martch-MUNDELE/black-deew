@@ -135,6 +135,9 @@ export default function AbonnementPage() {
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#F5EDD6' }}>Total estimé</span>
                   <span style={{ fontSize: 20, fontWeight: 800, color: '#F5C842', fontFamily: 'Playfair Display, serif' }}>{formatCurrency(period.total_due)}</span>
                 </div>
+                <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
+                  <a href={`/api/releve?period_id=${period.id}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, fontWeight: 700, padding: '6px 14px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.06)', color: '#E8A020', textDecoration: 'none', fontFamily: 'DM Sans, sans-serif' }}>📄 Télécharger le relevé</a>
+                </div>
               </>
             )}
           </div>
@@ -157,9 +160,10 @@ export default function AbonnementPage() {
                       <div style={{ fontSize: 12, color: '#C8B99A', marginBottom: 3 }}>{formatDateShort(p.period_start)} → {formatDateShort(p.period_end)}</div>
                       <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 50, background: sc.bg, color: sc.color }}>{BILLING_STATUS_LABELS[p.status]}</span>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: '#F5C842' }}>{formatCurrency(p.total_due)}</div>
                       {p.total_paid > 0 && <div style={{ fontSize: 11, color: '#5BC57A' }}>Payé : {formatCurrency(p.total_paid)}</div>}
+                      <a href={`/api/releve?period_id=${p.id}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.06)', color: '#E8A020', textDecoration: 'none', fontFamily: 'DM Sans, sans-serif' }}>📄 Relevé PDF</a>
                     </div>
                   </div>
                 )
