@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useCurrency } from '@/lib/currency'
 import { BILLING_MODE_LABELS, BILLING_STATUS_LABELS, type ClientContract, type BillingPeriod } from '@/lib/types/billing'
 
 const supabase = createClient()
@@ -18,6 +19,7 @@ export default function AbonnementPage() {
   const [history, setHistory]   = useState<BillingPeriod[]>([])
   const [loading, setLoading]   = useState(true)
   const [clientEmail, setClientEmail] = useState('')
+  const currency = useCurrency()
 
   useEffect(() => {
     const load = async () => {
@@ -66,8 +68,8 @@ export default function AbonnementPage() {
     new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
   const formatDateShort = (d: string) =>
     new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
-  const formatMAD = (n: number) =>
-    `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD`
+  const formatCurrency = (n: number) =>
+    `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${currency}`
 
   const s: Record<string, React.CSSProperties> = {
     page:  { maxWidth: 560, margin: '0 auto', padding: '24px 16px', fontFamily: 'DM Sans, sans-serif' },
@@ -79,7 +81,7 @@ export default function AbonnementPage() {
   }
 
   if (loading) return (
-    <div style={{ ...s.page, paddingTop: 60, textAlign: 'center', color: '#7A6E58', fontSize: 13 }}>Chargement…</div>
+    <div style={{ maxWidth: 560, margin: '0 auto', padding: '60px 16px', textAlign: 'center', color: '#7A6E58', fontSize: 13 }}>Chargement…</div>
   )
 
   return (
@@ -116,22 +118,22 @@ export default function AbonnementPage() {
               <div style={{ fontSize: 13, color: '#7A6E58' }}>Aucune période ouverte.</div>
             ) : (
               <>
-                <div style={s.row}><span style={s.key}>Abonnement fixe</span><span style={s.val}>{formatMAD(period.flat_fee_amount)}</span></div>
+                <div style={s.row}><span style={s.key}>Abonnement fixe</span><span style={s.val}>{formatCurrency(period.flat_fee_amount)}</span></div>
                 <div style={s.row}><span style={s.key}>Mode de commission</span><span style={s.val}>{BILLING_MODE_LABELS[contract.billing_mode]}</span></div>
                 <div style={s.row}><span style={s.key}>Commandes prises en compte</span><span style={s.val}>{period.orders_count}</span></div>
-                <div style={s.row}><span style={s.key}>Base de calcul</span><span style={s.val}>{formatMAD(period.orders_base_amount)}</span></div>
-                <div style={s.row}><span style={s.key}>Commission calculée</span><span style={s.val}>{formatMAD(period.commission_amount)}</span></div>
+                <div style={s.row}><span style={s.key}>Base de calcul</span><span style={s.val}>{formatCurrency(period.orders_base_amount)}</span></div>
+                <div style={s.row}><span style={s.key}>Commission calculée</span><span style={s.val}>{formatCurrency(period.commission_amount)}</span></div>
                 {period.adjustments_total !== 0 && (
                   <div style={s.row}>
                     <span style={s.key}>Ajustements</span>
                     <span style={{ ...s.val, color: period.adjustments_total < 0 ? '#5BC57A' : '#FF6B6B' }}>
-                      {period.adjustments_total > 0 ? '+' : ''}{formatMAD(period.adjustments_total)}
+                      {period.adjustments_total > 0 ? '+' : ''}{formatCurrency(period.adjustments_total)}
                     </span>
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 14, marginTop: 4, borderTop: '1px solid rgba(232,160,32,0.15)' }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#F5EDD6' }}>Total estimé</span>
-                  <span style={{ fontSize: 20, fontWeight: 800, color: '#F5C842', fontFamily: 'Playfair Display, serif' }}>{formatMAD(period.total_due)}</span>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: '#F5C842', fontFamily: 'Playfair Display, serif' }}>{formatCurrency(period.total_due)}</span>
                 </div>
               </>
             )}
@@ -139,7 +141,7 @@ export default function AbonnementPage() {
 
           <div style={s.card}>
             <div style={{ ...s.label, marginBottom: 14 }}>Contrat</div>
-            <div style={s.row}><span style={s.key}>Abonnement mensuel</span><span style={s.val}>{formatMAD(contract.flat_fee_amount)}</span></div>
+            <div style={s.row}><span style={s.key}>Abonnement mensuel</span><span style={s.val}>{formatCurrency(contract.flat_fee_amount)}</span></div>
             <div style={s.row}><span style={s.key}>Mode de rémunération</span><span style={s.val}>{BILLING_MODE_LABELS[contract.billing_mode]}</span></div>
             <div style={{ ...s.row, borderBottom: 'none' }}><span style={s.key}>Actif depuis</span><span style={s.val}>{formatDate(contract.started_at)}</span></div>
           </div>
@@ -156,8 +158,8 @@ export default function AbonnementPage() {
                       <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 50, background: sc.bg, color: sc.color }}>{BILLING_STATUS_LABELS[p.status]}</span>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#F5C842' }}>{formatMAD(p.total_due)}</div>
-                      {p.total_paid > 0 && <div style={{ fontSize: 11, color: '#5BC57A' }}>Payé : {formatMAD(p.total_paid)}</div>}
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#F5C842' }}>{formatCurrency(p.total_due)}</div>
+                      {p.total_paid > 0 && <div style={{ fontSize: 11, color: '#5BC57A' }}>Payé : {formatCurrency(p.total_paid)}</div>}
                     </div>
                   </div>
                 )

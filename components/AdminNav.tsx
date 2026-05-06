@@ -168,11 +168,11 @@ export default function AdminNav() {
     { label: 'FACTURATION', links: [{ href: '/admin/abonnement', label: 'Mon abonnement' }] },
     ...(isSuperAdmin
       ? [{ label: 'ADMIN', links: [{ href: '/admin/superadmin', label: 'Super Admin', sub: [
-        { label: 'Administrateurs', url: '/admin/superadmin' },
-        { label: 'Journal', url: '/admin/superadmin' },
-        { label: 'Clients & Contrats', url: '/admin/superadmin/facturation/contrats' },
-        { label: 'Périodes', url: '/admin/superadmin/facturation/periodes' },
-        { label: 'Ajustements', url: '/admin/superadmin/facturation/ajustements' },
+        { label: 'Administrateurs', anchor: 'administrateurs', url: '/admin/superadmin' },
+        { label: 'Journal', anchor: 'journal', url: '/admin/superadmin' },
+        { label: 'Clients & Contrats', anchor: 'contrats', url: '/admin/superadmin/facturation/contrats' },
+        { label: 'Périodes', anchor: 'periodes', url: '/admin/superadmin/facturation/periodes' },
+        { label: 'Ajustements', anchor: 'ajustements', url: '/admin/superadmin/facturation/ajustements' },
       ] }] }]
       : []),
   ]
