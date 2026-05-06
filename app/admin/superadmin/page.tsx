@@ -84,6 +84,8 @@ export default function SuperAdminPage() {
   const [showPwd, setShowPwd] = useState<Record<string, boolean>>({})
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [purging, setPurging] = useState(false)
+  const [platformClosed, setPlatformClosed] = useState(false)
+  const [reactivating, setReactivating] = useState(false)
   const supabase = createClient()
   const router = useRouter()
 
@@ -98,6 +100,10 @@ export default function SuperAdminPage() {
         .single()
       if (admin?.role !== 'superadmin') { router.replace('/admin'); return }
       load()
+      // Vérifier statut plateforme
+      supabase.from('settings').select('value').eq('key', 'status').single().then(({ data }) => {
+        setPlatformClosed(data?.value === 'closed')
+      })
     })
   }, [])
 
@@ -121,6 +127,21 @@ export default function SuperAdminPage() {
       target_email: targetEmail || null,
       details: details || null,
     })
+  }
+
+  const reactiverPlateforme = async () => {
+    if (!confirm('Réactiver la plateforme ? Les clients pourront à nouveau passer commande.')) return
+    setReactivating(true)
+    await supabase.from('settings').update({ value: 'open' }).eq('key', 'status')
+    await supabase.from('admin_logs').insert({
+      action: 'REACTIVATE_PLATFORM',
+      performed_by: currentUser?.email,
+      admin_email: currentUser?.email,
+      details: { reason: 'Réactivation manuelle superadmin' }
+    })
+    setPlatformClosed(false)
+    setReactivating(false)
+    setMsg('✅ Plateforme réactivée avec succès')
   }
 
   const purgeCommandes = async () => {
@@ -256,6 +277,21 @@ export default function SuperAdminPage() {
         </div>
       )}
 
+      {/* ALERTE PLATEFORME FERMÉE */}
+      {platformClosed && (
+        <div style={{ background: 'rgba(255,107,107,0.08)', border: '2px solid rgba(255,107,107,0.4)', borderRadius: 16, padding: '18px 20px', marginBottom: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: '#FF6B6B', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 10 }}>🔴 Plateforme fermée</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#F5EDD6', marginBottom: 2 }}>La plateforme est fermée automatiquement</div>
+              <div style={{ fontSize: 11, color: '#C8B99A' }}>Une période facturée n'a pas été réglée dans les 5 jours. Les clients ne peuvent plus passer commande.</div>
+            </div>
+            <button onClick={reactiverPlateforme} disabled={reactivating} style={{ flexShrink: 0, padding: '9px 18px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.4)', background: 'rgba(91,197,122,0.08)', color: '#5BC57A', fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 12, cursor: reactivating ? 'not-allowed' : 'pointer', opacity: reactivating ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+              {reactivating ? 'Réactivation...' : '✅ Réactiver'}
+            </button>
+          </div>
+        </div>
+      )}
       {/* ZONE DANGER — masquée sur l'onglet facturation */}
       {tab !== 'facturation' && (
         <div style={{ background: 'rgba(255,107,107,0.04)', border: '1px solid rgba(255,107,107,0.15)', borderRadius: 16, padding: '18px 20px', marginBottom: 24 }}>
