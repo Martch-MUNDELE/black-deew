@@ -3,9 +3,12 @@ import { Resend } from 'resend'
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function sendOrderNotification(order: any, currency = 'DH') {
-  const itemsHtml = order.items?.map((i: any) =>
+  const standardItems = order.items?.filter((i: any) => !i.isVip) ?? order.items ?? []
+  const vipItems = order.vipItems ?? []
+  const vipTotal = order.vipTotal ?? 0
+  const itemsHtml = standardItems.map((i: any) =>
     `<tr><td style="padding:8px;border-bottom:1px solid #eee">${i.quantity}× ${i.product_name}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${(i.quantity * i.unit_price).toFixed(2)} ${currency}</td></tr>`
-  ).join('') || ''
+  ).join('')
 
   const toEmail = process.env.ADMIN_EMAIL || 'heupel.martial@gmail.com'
   try {
@@ -27,6 +30,7 @@ export async function sendOrderNotification(order: any, currency = 'DH') {
             <tbody>${itemsHtml}</tbody>
           </table>
           <p style="font-size:18px;font-weight:700;color:#2D6A4F">Total : ${order.total?.toFixed(2)} ${currency} — Cash à la livraison</p>
+          ${vipItems.length > 0 ? `<p style="font-size:13px;font-weight:600;color:#E8A020;margin-top:4px">Produits VIP : ${vipTotal.toFixed(2)} ${currency}</p>` : ''}
         </div>
       `
     })

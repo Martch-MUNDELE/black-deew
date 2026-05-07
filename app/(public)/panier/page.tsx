@@ -349,7 +349,7 @@ export default function PanierPage() {
           lng: finalLng,
           geo_address: finalGeoAddress,
           slot_id: selectedSlot,
-          items: items.map(i => ({ product_id: i.product.id, product_name: i.product.name, quantity: i.quantity, unit_price: i.product.price })),
+          items: items.map(i => ({ product_id: i.product.id, product_name: i.product.name, quantity: i.quantity, unit_price: i.product.price, isVip: i.product.is_vip ?? false })),
           total: total() + fee,
           delivery_mode: chosenMode,
           delivery_fee: fee,
@@ -363,8 +363,9 @@ export default function PanierPage() {
     setLoading(false)
   }
 
-  useEffect(() => { if (items.length === 0) router.replace('/') }, [items.length, router])
-  if (items.length === 0) return null
+  const hydrated = useCart(s => s.hydrated)
+  useEffect(() => { if (hydrated && items.length === 0) router.replace('/') }, [hydrated, items.length, router])
+  if (!hydrated || items.length === 0) return null
 
   // ── Derived values ─────────────────────────────────────────────────────────
 

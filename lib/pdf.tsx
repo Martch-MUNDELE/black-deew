@@ -143,7 +143,7 @@ export function FacturePDF({ order, items, slot, siteName, siteBaseline, facture
             <View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
                 <Text style={{ fontSize: 10, color: '#C8B99A', fontFamily: 'Helvetica' }}>Sous-total</Text>
-                <Text style={{ fontSize: 10, color: '#F5EDD6', fontFamily: 'Helvetica' }}>{(order.total - order.delivery_fee).toFixed(2)} {currency}</Text>
+                <Text style={{ fontSize: 10, color: '#F5EDD6', fontFamily: 'Helvetica' }}>{(items.reduce((s, i) => s + i.quantity * i.unit_price, 0)).toFixed(2)} {currency}</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
                 <Text style={{ fontSize: 10, color: '#C8B99A', fontFamily: 'Helvetica' }}>Frais de livraison</Text>
@@ -158,7 +158,7 @@ export function FacturePDF({ order, items, slot, siteName, siteBaseline, facture
           )}
           <View style={styles.totalCard}>
             <Text style={styles.totalLabel}>Total à payer</Text>
-            <Text style={styles.totalValue}>{order.total?.toFixed(2)} {currency}</Text>
+            <Text style={styles.totalValue}>{(items.reduce((s, i) => s + i.quantity * i.unit_price, 0) + (order.delivery_fee ?? 0)).toFixed(2)} {currency}</Text>
           </View>
 
         </View>

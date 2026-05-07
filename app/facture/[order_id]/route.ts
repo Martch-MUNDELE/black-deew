@@ -56,7 +56,7 @@ export async function GET(
   }
 
   const buffer = await renderToBuffer(
-    FacturePDF({ order, items: order.order_items, slot, siteName, siteBaseline, factureNum }) as any
+    FacturePDF({ order, items: (order.order_items || []).filter((i: any) => !i.is_vip), slot, siteName, siteBaseline, factureNum }) as any
   )
 
   return new Response(new Uint8Array(buffer), {

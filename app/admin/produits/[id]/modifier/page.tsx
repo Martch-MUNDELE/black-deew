@@ -21,7 +21,7 @@ export default function ModifierProduit() {
   const supabase = createClient()
   const admin = supabase
   const currency = useCurrency()
-  const [form, setForm] = useState<{ name: string, description: string, ingredients: string, price: number, subcategory: string, image_url: string, active: boolean, discount: number | null }>({ name: '', description: '', ingredients: '', price: 0, subcategory: 'sandwichs_chauds', image_url: '', active: true, discount: null })
+  const [form, setForm] = useState<{ name: string, description: string, ingredients: string, price: number, subcategory: string, image_url: string, active: boolean, discount: number | null, is_vip: boolean }>({ name: '', description: '', ingredients: '', price: 0, subcategory: 'sandwichs_chauds', image_url: '', active: true, discount: null, is_vip: false })
   const [subcats, setSubcats] = useState<{ slug: string; name: string; label: string }[]>(FALLBACK_SUBCATS.map(s => ({ ...s, label: s.name })))
   const [saving, setSaving] = useState(false)
 
@@ -45,7 +45,7 @@ export default function ModifierProduit() {
 
   useEffect(() => {
     supabase.from('products').select('*').eq('id', params.id).single().then(({ data }) => {
-      if (data) setForm({ name: data.name || '', description: data.description || '', ingredients: data.ingredients || '', price: data.price || 0, subcategory: data.subcategory || 'sandwichs_chauds', image_url: data.image_url || '', active: data.active ?? true, discount: data.discount ?? null })
+      if (data) setForm({ name: data.name || '', description: data.description || '', ingredients: data.ingredients || '', price: data.price || 0, subcategory: data.subcategory || 'sandwichs_chauds', image_url: data.image_url || '', active: data.active ?? true, discount: data.discount ?? null, is_vip: data.is_vip ?? false })
     })
   }, [])
 
@@ -90,6 +90,10 @@ export default function ModifierProduit() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(232,160,32,0.1)' }}>
           <input type="checkbox" id="active" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} style={{ accentColor: '#E8A020', width: 18, height: 18 }} />
           <label htmlFor="active" style={{ fontSize: 14, color: '#C8B890', cursor: 'pointer' }}>Produit actif (visible sur le site)</label>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(245,200,66,0.04)', borderRadius: 10, border: '1px solid rgba(245,200,66,0.2)' }}>
+          <input type="checkbox" id="is_vip" checked={form.is_vip} onChange={e => setForm(f => ({ ...f, is_vip: e.target.checked }))} style={{ accentColor: '#F5C842', width: 18, height: 18 }} />
+          <label htmlFor="is_vip" style={{ fontSize: 14, color: '#F5C842', cursor: 'pointer', fontWeight: 700 }}>Produit VIP <span style={{ fontSize: 11, color: '#C8B99A', fontWeight: 400 }}>— visible uniquement sur /vip</span></label>
         </div>
         <div style={{ background: 'rgba(255,80,80,0.04)', border: '1px solid rgba(255,80,80,0.15)', borderRadius: 12, padding: '14px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

@@ -17,6 +17,9 @@ export async function POST(req: NextRequest) {
   const { data: currencyRow } = await supabase.from('settings').select('value').eq('key', 'currency').single()
   const currency = currencyRow?.value || 'DH'
   const { name, phone, address, note, slot_id, items, total, lat, lng, geo_address, email, wantFacture, delivery_mode, delivery_fee, distance_km } = body
+  const standardItems = items.filter((i: any) => !i.isVip)
+  const vipItems = items.filter((i: any) => i.isVip)
+  const vipTotal = vipItems.reduce((s: number, i: any) => s + i.unit_price * i.quantity, 0)
 
   const { data: slot } = await supabase.from('delivery_slots').select('*').eq('id', slot_id).single()
   if (!slot || slot.blocked || slot.booked >= slot.capacity) {
@@ -45,16 +48,16 @@ export async function POST(req: NextRequest) {
 
   if (error || !order) { return NextResponse.json({ error: 'Erreur création commande' }, { status: 500 }) }
 
-  await supabase.from('order_items').insert(items.map((item: any) => ({ ...item, order_id: order.id })))
+  await supabase.from('order_items').insert(items.map((item: any) => ({ order_id: order.id, product_id: item.product_id, product_name: item.product_name, quantity: item.quantity, unit_price: item.unit_price, is_vip: item.isVip ?? false })))
   await supabase.from('delivery_slots').update({ booked: slot.booked + 1 }).eq('id', slot_id)
-  await sendOrderNotification({ ...order, items, slot }, currency)
+  await sendOrderNotification({ ...order, items, slot, vipItems, vipTotal }, currency)
 
   if (wantFacture && email) {
     try {
       await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/facture`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id: order.id })
+        body: JSON.stringify({ order_id: order.id, excludeVip: true })
       })
     } catch (e) { console.error('Facture error:', e) }
   }

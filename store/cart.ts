@@ -5,7 +5,9 @@ import type { CartItem, Product } from '@/lib/types'
 
 interface CartStore {
   items: CartItem[]
-  add: (product: Product) => void
+  hydrated: boolean
+  setHydrated: () => void
+  add: (product: Product, isVip?: boolean) => void
   remove: (productId: string) => void
   update: (productId: string, quantity: number) => void
   clear: () => void
@@ -17,13 +19,15 @@ export const useCart = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
-      add: (product) => {
+      hydrated: false,
+      setHydrated: () => set({ hydrated: true }),
+      add: (product, isVip = false) => {
         const items = get().items
         const existing = items.find(i => i.product.id === product.id)
         if (existing) {
           set({ items: items.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i) })
         } else {
-          set({ items: [...items, { product, quantity: 1 }] })
+          set({ items: [...items, { product, quantity: 1, isVip }] })
         }
       },
       remove: (productId) => set({ items: get().items.filter(i => i.product.id !== productId) }),
@@ -35,6 +39,6 @@ export const useCart = create<CartStore>()(
       total: () => get().items.reduce((sum, i) => sum + i.product.price * i.quantity, 0),
       count: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
     }),
-    { name: 'black-deew-cart' }
+    { name: 'black-deew-cart', onRehydrateStorage: () => (state) => { state?.setHydrated() } }
   )
 )

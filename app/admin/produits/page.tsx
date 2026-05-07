@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useCurrency } from '@/lib/currency'
 
-type Product = { id: string; name: string; price: number; image_url: string; subcategory: string; active: boolean; featured: boolean; popular: boolean }
+type Product = { id: string; name: string; price: number; image_url: string; subcategory: string; active: boolean; featured: boolean; popular: boolean; is_vip: boolean }
 
 
 
@@ -102,7 +102,7 @@ function ProduitsAdminInner() {
     })))
   }
 
-  const filtered = products.filter(p => tab === 'actifs' ? p.active : !p.active)
+  const filtered = products.filter(p => tab === 'vip' ? p.is_vip : tab === 'actifs' ? p.active : !p.active)
 
   // Grouper par sous-catégorie dynamiquement
   const allSubs = subcats.length > 0
@@ -199,6 +199,9 @@ function ProduitsAdminInner() {
         </button>
         <button onClick={() => setTab('inactifs')} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === 'inactifs' ? 'rgba(255,107,107,0.4)' : 'rgba(255,255,255,0.06)', background: tab === 'inactifs' ? 'rgba(255,107,107,0.08)' : 'transparent', color: tab === 'inactifs' ? '#FF6B6B' : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
           Inactifs <span style={{ marginLeft: 4, background: tab === 'inactifs' ? 'rgba(255,107,107,0.2)' : 'rgba(255,255,255,0.06)', padding: '1px 7px', borderRadius: 50, fontSize: 10 }}>{products.filter(p => !p.active).length}</span>
+        </button>
+        <button onClick={() => setTab('vip')} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === 'vip' ? 'rgba(245,200,66,0.5)' : 'rgba(255,255,255,0.06)', background: tab === 'vip' ? 'rgba(245,200,66,0.12)' : 'transparent', color: tab === 'vip' ? '#F5C842' : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+          VIP <span style={{ marginLeft: 4, background: tab === 'vip' ? 'rgba(245,200,66,0.2)' : 'rgba(255,255,255,0.06)', padding: '1px 7px', borderRadius: 50, fontSize: 10 }}>{products.filter(p => p.is_vip).length}</span>
         </button>
       </div>
 

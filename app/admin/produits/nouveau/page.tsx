@@ -17,7 +17,7 @@ const labelStyle = { fontSize: 11, fontWeight: 700, color: '#C8B99A', display: '
 export default function NouveauProduit() {
   const router = useRouter()
   const supabase = createClient()
-  const [form, setForm] = useState({ name: '', description: '', ingredients: '', price: 0, subcategory: 'sandwichs_chauds', image_url: '', active: true })
+  const [form, setForm] = useState({ name: '', description: '', ingredients: '', price: 0, subcategory: 'sandwichs_chauds', image_url: '', active: true, is_vip: false })
   const [subcats, setSubcats] = useState<{ slug: string; name: string; label: string }[]>(FALLBACK_SUBCATS.map(s => ({ ...s, label: s.name })))
   const [saving, setSaving] = useState(false)
 
@@ -73,6 +73,10 @@ export default function NouveauProduit() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(232,160,32,0.1)' }}>
           <input type="checkbox" id="active" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} style={{ accentColor: '#E8A020', width: 18, height: 18 }} />
           <label htmlFor="active" style={{ fontSize: 14, color: '#C8B890', cursor: 'pointer' }}>Produit actif (visible sur le site)</label>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(245,200,66,0.04)', borderRadius: 10, border: '1px solid rgba(245,200,66,0.2)' }}>
+          <input type="checkbox" id="is_vip" checked={form.is_vip} onChange={e => setForm(f => ({ ...f, is_vip: e.target.checked }))} style={{ accentColor: '#F5C842', width: 18, height: 18 }} />
+          <label htmlFor="is_vip" style={{ fontSize: 14, color: '#F5C842', cursor: 'pointer', fontWeight: 700 }}>Produit VIP <span style={{ fontSize: 11, color: '#C8B99A', fontWeight: 400 }}>— visible uniquement sur /vip</span></label>
         </div>
         <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
           <button onClick={() => router.push('/admin/produits')} style={{ flex: 1, padding: '14px', borderRadius: 50, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#C8B99A', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 14 }}>Annuler</button>

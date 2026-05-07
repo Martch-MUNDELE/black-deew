@@ -16,6 +16,7 @@ export interface Product {
   featured?: boolean
   popular?: boolean
   discount?: number | null
+  is_vip?: boolean
 }
 
 export interface DeliverySlot {
@@ -74,4 +75,5 @@ export interface OrderItem {
 export interface CartItem {
   product: Product
   quantity: number
+  isVip?: boolean
 }
