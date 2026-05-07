@@ -1,10 +1,10 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/lib/currency'
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 20
 const STATUSES = ['nouvelle', 'confirmée', 'en_preparation', 'en_livraison', 'livrée', 'annulée']
 const STATUS_LABELS: Record<string, string> = {
   nouvelle: 'Nouvelle', confirmée: 'Confirmée', en_preparation: 'Préparation',
@@ -118,12 +118,12 @@ function CommandesAdminInner() {
   const [factureUrls, setFactureUrls] = useState<Record<string, string>>({})
   const [shopAddress, setShopAddress] = useState('')
   const [highlightId, setHighlightId] = useState<string | null>(null)
-  const [page, setPage] = useState(0)
-  const [totalCount, setTotalCount] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
   const supabase = createClient()
 
-  const load = async () => {
-    // Counts par statut + retrait — head:true ne ramène pas les rows, juste le count
+  const loadCounts = async () => {
     const countResults = await Promise.all([
       ...STATUSES.map(s => supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', s)),
       supabase.from('orders').select('id', { count: 'exact', head: true }).eq('delivery_mode', 'pickup'),
@@ -132,10 +132,13 @@ function CommandesAdminInner() {
     STATUSES.forEach((s, i) => { c[s] = countResults[i].count || 0 })
     c['retrait'] = countResults[STATUSES.length].count || 0
     setCounts(c)
+  }
 
-    // Page courante via .range() côté serveur
-    const from = page * PAGE_SIZE
-    const to = from + PAGE_SIZE - 1
+  // Charge un slice via .range() côté serveur. append=true ajoute, sinon remplace.
+  const fetchOrders = async (offset: number, append: boolean) => {
+    if (append) setLoadingMore(true)
+    const from = offset
+    const to = offset + PAGE_SIZE - 1
     let query = supabase
       .from('orders')
       .select('*, order_items(*)', { count: 'exact' })
@@ -145,20 +148,30 @@ function CommandesAdminInner() {
     else query = query.eq('status', filter)
 
     const { data, count } = await query
-    if (!data) return
-    setOrders(data)
-    setTotalCount(count || 0)
+    if (!data) {
+      if (append) setLoadingMore(false)
+      return
+    }
+    const total = count || 0
+    if (append) setOrders(prev => [...prev, ...data])
+    else setOrders(data)
+    setHasMore(offset + data.length < total)
 
     const slotIds = [...new Set(data.filter(o => o.slot_id).map(o => o.slot_id as string))]
     if (slotIds.length > 0) {
       const { data: slotData } = await supabase.from('delivery_slots').select('*').in('id', slotIds)
       if (slotData) {
-        const map: Record<string, any> = {}
-        slotData.forEach(s => { map[s.id] = s })
-        setSlots(map)
+        setSlots(prev => {
+          const map = { ...prev }
+          slotData.forEach(s => { map[s.id] = s })
+          return map
+        })
       }
     }
+    if (append) setLoadingMore(false)
   }
+
+  const reload = () => Promise.all([loadCounts(), fetchOrders(0, false)])
 
   useEffect(() => {
     supabase.from('settings').select('value').eq('key', 'delivery_shop_address').single()
@@ -177,12 +190,21 @@ function CommandesAdminInner() {
 
   useEffect(() => {
     const tab = searchParams.get('tab')
-    if (tab && tab !== filter) {
-      setFilter(tab)
-      setPage(0)
-    }
+    if (tab && tab !== filter) setFilter(tab)
   }, [searchParams.toString()])
-  useEffect(() => { load() }, [filter, page])
+  useEffect(() => { reload() }, [filter])
+
+  // Infinite scroll: observe la sentinelle et appende la suite quand visible
+  useEffect(() => {
+    if (!hasMore || loadingMore) return
+    const node = sentinelRef.current
+    if (!node) return
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) fetchOrders(orders.length, true)
+    }, { rootMargin: '200px' })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [hasMore, loadingMore, orders.length, filter])
 
   const formatDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
 
@@ -199,7 +221,7 @@ function CommandesAdminInner() {
   const applyStatusChange = (orderId: string, newStatus: string) => {
     setOrders(prev => prev.filter(o => o.id !== orderId))
     setPendingStatuses(prev => { const n = { ...prev }; delete n[orderId]; return n })
-    setTimeout(() => load(), 2000)
+    setTimeout(() => reload(), 2000)
   }
 
   return (
@@ -214,13 +236,13 @@ function CommandesAdminInner() {
           const sc = STATUS_COLORS[s]
           const active = filter === s
           return (
-            <button key={s} onClick={() => { setFilter(s); setPage(0) }} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 50, border: '1px solid', borderColor: active ? sc.border : 'rgba(255,255,255,0.06)', background: active ? sc.bg : 'transparent', color: active ? sc.color : '#C8B99A', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
+            <button key={s} onClick={() => setFilter(s)} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 50, border: '1px solid', borderColor: active ? sc.border : 'rgba(255,255,255,0.06)', background: active ? sc.bg : 'transparent', color: active ? sc.color : '#C8B99A', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
               {STATUS_LABELS[s]}
               {counts[s] ? <span style={{ background: active ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)', padding: '0 6px', borderRadius: 50, fontSize: 10 }}>{counts[s]}</span> : null}
             </button>
           )
         })}
-        <button onClick={() => { setFilter('retrait'); setPage(0) }} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 50, border: '1px solid', borderColor: filter === 'retrait' ? 'rgba(232,160,32,0.25)' : 'rgba(255,255,255,0.06)', background: filter === 'retrait' ? 'rgba(232,160,32,0.1)' : 'transparent', color: filter === 'retrait' ? '#E8A020' : '#C8B99A', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
+        <button onClick={() => setFilter('retrait')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 50, border: '1px solid', borderColor: filter === 'retrait' ? 'rgba(232,160,32,0.25)' : 'rgba(255,255,255,0.06)', background: filter === 'retrait' ? 'rgba(232,160,32,0.1)' : 'transparent', color: filter === 'retrait' ? '#E8A020' : '#C8B99A', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
           Retrait
           {counts['retrait'] ? <span style={{ background: filter === 'retrait' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)', padding: '0 6px', borderRadius: 50, fontSize: 10 }}>{counts['retrait']}</span> : null}
         </button>
@@ -351,47 +373,13 @@ function CommandesAdminInner() {
             </div>
           )
         })}
-      </div>
-
-      {/* PAGINATION */}
-      {totalCount > PAGE_SIZE && (() => {
-        const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
-        const isFirst = page === 0
-        const isLast = page >= totalPages - 1
-        const navStyle = (disabled: boolean) => ({
-          padding: '8px 16px',
-          borderRadius: 50,
-          border: '1px solid rgba(232,160,32,0.25)',
-          background: disabled ? 'transparent' : 'rgba(232,160,32,0.06)',
-          color: disabled ? '#7A6E58' : '#E8A020',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          opacity: disabled ? 0.5 : 1,
-          fontSize: 12,
-          fontWeight: 600,
-          fontFamily: 'DM Sans, sans-serif',
-        })
-        return (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-            <button
-              onClick={() => setPage(p => Math.max(0, p - 1))}
-              disabled={isFirst}
-              style={navStyle(isFirst)}
-            >
-              ← Précédent
-            </button>
-            <span style={{ fontSize: 12, color: '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>
-              Page {page + 1} / {totalPages}
-            </span>
-            <button
-              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-              disabled={isLast}
-              style={navStyle(isLast)}
-            >
-              Suivant →
-            </button>
+        {hasMore && <div ref={sentinelRef} aria-hidden="true" style={{ height: 1 }} />}
+        {loadingMore && (
+          <div style={{ textAlign: 'center', color: '#7A6E58', padding: '12px 0', fontSize: 11, fontFamily: 'DM Sans, sans-serif', letterSpacing: 0.5 }}>
+            Chargement…
           </div>
-        )
-      })()}
+        )}
+      </div>
     </div>
   )
 }
