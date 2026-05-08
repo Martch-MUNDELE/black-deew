@@ -230,7 +230,7 @@ export default function PanierPage() {
     const hasChaud = cartSubcategories.includes('chaudes')
     const hasFroid = cartSubcategories.includes('froides')
     const cartIds = items.map(i => i.product.id)
-    supabase.from('products').select('*').eq('active', true).then(({ data }) => {
+    supabase.from('products').select('*').eq('active', true).eq('is_vip', false).then(({ data }) => {
       if (!data) return
       const pool = data.filter((p: Product) => !cartIds.includes(p.id))
       const result: Product[] = []

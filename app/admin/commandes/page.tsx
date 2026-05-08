@@ -194,6 +194,20 @@ function CommandesAdminInner() {
   }, [searchParams.toString()])
   useEffect(() => { reload() }, [filter])
 
+  // Refresh auto + realtime
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`admin-commandes-${filter}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => reload())
+      .subscribe()
+    const interval = setInterval(() => reload(), 30000)
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(interval)
+    }
+  }, [filter])
+
   // Infinite scroll: observe la sentinelle et appende la suite quand visible
   useEffect(() => {
     if (!hasMore || loadingMore) return
