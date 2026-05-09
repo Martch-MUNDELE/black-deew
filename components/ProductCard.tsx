@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import ProductOverlay from '@/components/ProductOverlay'
+import ProductImagePlaceholder from '@/components/ProductImagePlaceholder'
 import { useCart } from '@/store/cart'
 import { useCurrency } from '@/lib/currency'
 import type { Product } from '@/lib/types'
@@ -65,7 +66,7 @@ export default function ProductCard({ product, featured = false, isOpen, allProd
       <div onClick={() => setShowOverlay(true)} style={{ width: 'clamp(56px, 16vw, 72px)', height: 'clamp(56px, 16vw, 72px)', borderRadius: 12, overflow: 'hidden', flexShrink: 0, background: '#1E1A10', cursor: 'pointer', position: 'relative' }}>
         {product.image_url
           ? <img src={product.image_url} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🥙</div>
+          : <ProductImagePlaceholder />
         }
         {product.discount && product.discount > 0 && (
           <div style={{ position: 'absolute', top: 6, left: 6, background: 'rgba(245,200,66,0.15)', border: '1px solid rgba(245,200,66,0.3)', color: '#F5C842', fontSize: 9, fontWeight: 800, borderRadius: 5, padding: '2px 6px', fontFamily: 'DM Sans, sans-serif', zIndex: 2 }}>-{product.discount}%</div>

@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 export default async function HomePage() {
   const supabase = await createClient()
   const [{ data: products }, { data: settings }, { data: menuCats }] = await Promise.all([
-    supabase.from('products').select('*').eq('active', true).order('name'),
+    supabase.from('products').select('*').eq('active', true).eq('is_vip', false).order('name'),
     supabase.from('settings').select('*').eq('key', 'status'),
     supabase.from('menu_categories').select('id, slug, name, parent_id, display_order, active, level').order('display_order'),
   ])
