@@ -1,4 +1,5 @@
 'use client'
+import PopularVipCard from '@/components/PopularVipCard'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCart } from '@/store/cart'
@@ -97,6 +98,7 @@ export default function VipPage() {
 
       {/* CONTENU */}
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px 0' }}>
+        <PopularVipCard />
         {loading && (
           <div style={{ textAlign: 'center', color: '#7A6E58', padding: '60px 0', fontSize: 14 }}>
             Chargement...

@@ -98,13 +98,19 @@ function ProduitsAdminInner() {
     setProducts(prev => prev.map(p => ({ ...p, featured: p.id === id })))
   }
 
-  const setPopular = async (id: string, subcategory: string) => {
-    await supabase.from('products').update({ popular: false }).eq('subcategory', subcategory)
-    await supabase.from('products').update({ popular: true }).eq('id', id)
-    setProducts(prev => prev.map(p => ({
-      ...p,
-      popular: p.subcategory === subcategory ? p.id === id : p.popular
-    })))
+  const setPopular = async (id: string, subcategory: string | null, isVip: boolean) => {
+    if (isVip) {
+      await supabase.from('products').update({ popular: false }).eq('is_vip', true)
+      await supabase.from('products').update({ popular: true }).eq('id', id)
+      setProducts(prev => prev.map(p => ({ ...p, popular: p.is_vip ? p.id === id : p.popular })))
+    } else {
+      await supabase.from('products').update({ popular: false }).eq('subcategory', subcategory)
+      await supabase.from('products').update({ popular: true }).eq('id', id)
+      setProducts(prev => prev.map(p => ({
+        ...p,
+        popular: p.subcategory === subcategory ? p.id === id : p.popular
+      })))
+    }
   }
 
   const filtered = products.filter(p => tab === 'vip' ? p.is_vip : tab === 'actifs' ? p.active : !p.active)
@@ -239,7 +245,7 @@ function ProduitsAdminInner() {
                   <button onClick={() => setFeatured(p.id)} title="Mettre à la une" style={{ width: 34, height: 34, borderRadius: 8, border: p.featured ? '1px solid rgba(245,200,66,0.6)' : '1px solid rgba(255,255,255,0.08)', background: p.featured ? 'rgba(245,200,66,0.15)' : 'transparent', color: p.featured ? '#F5C842' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
                     ★
                   </button>
-                  <button onClick={() => setPopular(p.id, p.subcategory)} title="Populaire" style={{ width: 34, height: 34, borderRadius: 8, border: p.popular ? '1px solid rgba(255,107,32,0.6)' : '1px solid rgba(255,255,255,0.08)', background: p.popular ? 'rgba(255,107,32,0.15)' : 'transparent', color: p.popular ? '#FF6B20' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🔥</button>
+                  <button onClick={() => setPopular(p.id, p.subcategory, p.is_vip)} title="Populaire" style={{ width: 34, height: 34, borderRadius: 8, border: p.popular ? '1px solid rgba(255,107,32,0.6)' : '1px solid rgba(255,255,255,0.08)', background: p.popular ? 'rgba(255,107,32,0.15)' : 'transparent', color: p.popular ? '#FF6B20' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🔥</button>
                   <button onClick={() => router.push('/admin/produits/' + p.id + '/modifier')} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.06)', color: '#E8A020', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <IconEdit />
                   </button>
