@@ -92,7 +92,7 @@ export default function ModifierProduit() {
           <label htmlFor="active" style={{ fontSize: 14, color: '#C8B890', cursor: 'pointer' }}>Produit actif (visible sur le site)</label>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(245,200,66,0.04)', borderRadius: 10, border: '1px solid rgba(245,200,66,0.2)' }}>
-          <input type="checkbox" id="is_vip" checked={form.is_vip} onChange={e => setForm(f => ({ ...f, is_vip: e.target.checked }))} style={{ accentColor: '#F5C842', width: 18, height: 18 }} />
+          <input type="checkbox" id="is_vip" checked={form.is_vip} onChange={e => setForm(f => ({ ...f, is_vip: e.target.checked, subcategory: e.target.checked ? '' : f.subcategory || 'sandwichs_chauds' }))} style={{ accentColor: '#F5C842', width: 18, height: 18 }} />
           <label htmlFor="is_vip" style={{ fontSize: 14, color: '#F5C842', cursor: 'pointer', fontWeight: 700 }}>Produit VIP <span style={{ fontSize: 11, color: '#C8B99A', fontWeight: 400 }}>— visible uniquement sur /vip</span></label>
         </div>
         <div style={{ background: 'rgba(255,80,80,0.04)', border: '1px solid rgba(255,80,80,0.15)', borderRadius: 12, padding: '14px 16px' }}>

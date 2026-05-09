@@ -18,7 +18,7 @@ export default function PopularCard({ fallback }: { fallback?: React.ReactNode }
   useEffect(() => {
     if (!hasSelected) { setProduct(null); return }
     const supabase = createClient()
-    supabase.from('products').select('*').eq('subcategory', activeSous).eq('active', true).then(({ data }) => {
+    supabase.from('products').select('*').eq('subcategory', activeSous).eq('active', true).eq('is_vip', false).then(({ data }) => {
       const all = (data as Product[]) || []
       setAllProducts(all)
       setProduct(all.find(p => p.popular) || null)
