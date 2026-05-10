@@ -57,6 +57,10 @@ function SettingsContent() {
   const [feature2, setFeature2] = useState<Feature>({ icon: 'delivery', title: 'Livraison rapide', desc: 'On vous livre rapidement et directement à votre porte.' })
   const [feature3, setFeature3] = useState<Feature>({ icon: 'fresh', title: 'Frais du jour', desc: 'Profitez de produits toujours frais, choisis chaque jour.' })
   const [notificationEmail, setNotificationEmail] = useState('')
+  const [footerLine1, setFooterLine1] = useState('Livraison à')
+  const [footerLine2, setFooterLine2] = useState('Kinshasa.')
+  const [footerSubtitle, setFooterSubtitle] = useState('Directement chez toi.')
+  const [footerDescription, setFooterDescription] = useState('Plats chauds, boissons fraîches et snacks livrés rapidement.')
   const [currency, setCurrency] = useState('DH')
   const supabase = createClient()
 
@@ -80,6 +84,10 @@ function SettingsContent() {
         if (s.key === 'background_gradient_end' && s.value) setBgGradEnd(s.value)
         if (s.key === 'background_gradient_dir' && s.value) setBgGradDir(s.value)
         if (s.key === 'notification_email') setNotificationEmail(s.value)
+        if (s.key === 'footer_line1') setFooterLine1(s.value)
+        if (s.key === 'footer_line2') setFooterLine2(s.value)
+        if (s.key === 'footer_subtitle') setFooterSubtitle(s.value)
+        if (s.key === 'footer_description') setFooterDescription(s.value)
         if (s.key === 'currency') setCurrency(s.value)
       })
     })
@@ -147,6 +155,10 @@ function SettingsContent() {
       supabase.from('settings').upsert({ key: 'background_gradient_end', value: bgGradEnd }),
       supabase.from('settings').upsert({ key: 'background_gradient_dir', value: bgGradDir }),
       supabase.from('settings').upsert({ key: 'notification_email', value: notificationEmail }),
+      supabase.from('settings').upsert({ key: 'footer_line1', value: footerLine1 }),
+      supabase.from('settings').upsert({ key: 'footer_line2', value: footerLine2 }),
+      supabase.from('settings').upsert({ key: 'footer_subtitle', value: footerSubtitle }),
+      supabase.from('settings').upsert({ key: 'footer_description', value: footerDescription }),
       supabase.from('settings').upsert({ key: 'currency', value: currency }),
     ])
     setSaving(false)
@@ -310,6 +322,27 @@ function SettingsContent() {
         </div>
       )}
 
+      {activeTab === 'footer' && (
+        <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase' }}>Texte footer homepage</div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#C8B99A', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Ligne 1</label>
+            <input type="text" value={footerLine1} onChange={e => setFooterLine1(e.target.value)} style={{ width: '100%', padding: '13px 16px', borderRadius: 12, border: '1.5px solid rgba(232,160,32,0.15)', background: 'rgba(255,255,255,0.03)', color: '#F5EDD6', fontFamily: 'DM Sans, sans-serif', fontSize: 14, outline: 'none', boxSizing: 'border-box' as const }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#C8B99A', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Ligne 2</label>
+            <input type="text" value={footerLine2} onChange={e => setFooterLine2(e.target.value)} style={{ width: '100%', padding: '13px 16px', borderRadius: 12, border: '1.5px solid rgba(232,160,32,0.15)', background: 'rgba(255,255,255,0.03)', color: '#F5EDD6', fontFamily: 'DM Sans, sans-serif', fontSize: 14, outline: 'none', boxSizing: 'border-box' as const }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#C8B99A', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Sous-titre</label>
+            <input type="text" value={footerSubtitle} onChange={e => setFooterSubtitle(e.target.value)} style={{ width: '100%', padding: '13px 16px', borderRadius: 12, border: '1.5px solid rgba(232,160,32,0.15)', background: 'rgba(255,255,255,0.03)', color: '#F5EDD6', fontFamily: 'DM Sans, sans-serif', fontSize: 14, outline: 'none', boxSizing: 'border-box' as const }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#C8B99A', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>Description</label>
+            <textarea value={footerDescription} onChange={e => setFooterDescription(e.target.value)} rows={3} style={{ width: '100%', padding: '13px 16px', borderRadius: 12, border: '1.5px solid rgba(232,160,32,0.15)', background: 'rgba(255,255,255,0.03)', color: '#F5EDD6', fontFamily: 'DM Sans, sans-serif', fontSize: 14, outline: 'none', resize: 'none', boxSizing: 'border-box' as const }} />
+          </div>
+        </div>
+      )}
       {activeTab === 'notifications' && (
         <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: '22px 24px', marginBottom: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 16 }}>Notifications commandes</div>
