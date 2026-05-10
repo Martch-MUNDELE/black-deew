@@ -103,6 +103,7 @@ export async function sendOrderNotification(order: any, currency = 'DH', siteNam
 </html>`
     })
   } catch (e) {
-    console.error('Notification error:', e)
+    console.error('Notification error:', JSON.stringify(e))
+    throw e
   }
 }
