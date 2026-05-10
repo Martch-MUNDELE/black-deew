@@ -2,7 +2,7 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-export async function sendOrderNotification(order: any, currency = 'DH', siteName = 'NOM_CLIENT') {
+export async function sendOrderNotification(order: any, currency = 'DH', siteName = 'NOM_CLIENT', adminEmail?: string) {
   const standardItems = order.items?.filter((i: any) => !i.isVip) ?? order.items ?? []
 
   const itemsHtml = standardItems.map((i: any) => `
@@ -37,7 +37,7 @@ export async function sendOrderNotification(order: any, currency = 'DH', siteNam
        </div>`
     : ''
 
-  const toEmail = process.env.ADMIN_EMAIL || 'heupel.martial@gmail.com'
+  const toEmail = adminEmail || process.env.ADMIN_EMAIL || 'heupel.martial@gmail.com'
 
   try {
     await resend.emails.send({
