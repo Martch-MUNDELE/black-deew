@@ -43,7 +43,7 @@ export async function sendOrderNotification(order: any, currency = 'DH', siteNam
     await resend.emails.send({
       from: `${siteName} <onboarding@resend.dev>`,
       to: toEmail,
-      subject: `Nouvelle commande — ${order.customer_name}`,
+      subject: `Nouvelle commande — ${order.invoice_number}`,
       html: `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
