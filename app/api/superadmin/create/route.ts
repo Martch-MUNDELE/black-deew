@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     adminData = data
 
   } else {
-    const { data, error } = await supabase.from('admins').insert({ email, role: 'admin', status: 'active' }).select().single()
+    const { data, error } = await supabase.from('admins').insert({ email, role: 'admin', status: 'active', auth_user_id: authUserId }).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     adminData = data
 
