@@ -51,6 +51,8 @@ const NAV_GROUPS = [
         { label: 'Image hero', anchor: 'hero', url: '/admin/settings?tab=hero' },
         { label: 'Arguments produit', anchor: 'arguments', url: '/admin/settings?tab=arguments' },
         { label: 'Devise', anchor: 'devise', url: '/admin/settings?tab=devise' },
+        { label: 'Notifications', anchor: 'notifications', url: '/admin/settings?tab=notifications' },
+        { label: 'Footer', anchor: 'footer', url: '/admin/settings?tab=footer' },
       ]},
     ],
   },
