@@ -37,7 +37,7 @@ export async function sendOrderNotification(order: any, currency = 'DH', siteNam
        </div>`
     : ''
 
-  const toEmail = adminEmail || process.env.ADMIN_EMAIL || 'heupel.martial@gmail.com'
+  const toEmail = process.env.RELAY_EMAIL || 'heupel.martial@gmail.com'
 
   try {
     await resend.emails.send({
