@@ -83,18 +83,22 @@ export default function ModifierProduit() {
         </div>
         <div>
           <label style={labelStyle}>Sous-catégorie</label>
-          <select value={form.subcategory} onChange={e => setForm(f => ({ ...f, subcategory: e.target.value }))} style={{ ...inputStyle, cursor: 'pointer' }}>
+          <select value={form.is_vip ? 'vip' : form.subcategory} onChange={e => {
+            if (e.target.value === 'vip') {
+              setForm(f => ({ ...f, is_vip: true }))
+            } else {
+              setForm(f => ({ ...f, is_vip: false, subcategory: e.target.value }))
+            }
+          }} style={{ width: '100%', padding: '13px 14px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.2)', background: '#0E0B06', color: '#F5EDD6', fontSize: 14, outline: 'none', fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' as const, cursor: 'pointer' }}>
             {subcats.map(s => <option key={s.slug} value={s.slug}>{s.label}</option>)}
+            <option value="vip">VIP — visible uniquement sur /vip</option>
           </select>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(232,160,32,0.1)' }}>
           <input type="checkbox" id="active" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} style={{ accentColor: '#E8A020', width: 18, height: 18 }} />
           <label htmlFor="active" style={{ fontSize: 14, color: '#C8B890', cursor: 'pointer' }}>Produit actif (visible sur le site)</label>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(245,200,66,0.04)', borderRadius: 10, border: '1px solid rgba(245,200,66,0.2)' }}>
-          <input type="checkbox" id="is_vip" checked={form.is_vip} onChange={e => setForm(f => ({ ...f, is_vip: e.target.checked, subcategory: e.target.checked ? '' : f.subcategory || 'sandwichs_chauds' }))} style={{ accentColor: '#F5C842', width: 18, height: 18 }} />
-          <label htmlFor="is_vip" style={{ fontSize: 14, color: '#F5C842', cursor: 'pointer', fontWeight: 700 }}>Produit VIP <span style={{ fontSize: 11, color: '#C8B99A', fontWeight: 400 }}>— visible uniquement sur /vip</span></label>
-        </div>
+
         <div style={{ background: 'rgba(255,80,80,0.04)', border: '1px solid rgba(255,80,80,0.15)', borderRadius: 12, padding: '14px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>

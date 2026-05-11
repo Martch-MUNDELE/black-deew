@@ -11,7 +11,7 @@ export interface Product {
   category: Category
   subcategory: Subcategory
   image_url: string
-  stock: number
+  stock: number | null
   active: boolean
   featured?: boolean
   popular?: boolean

@@ -15,7 +15,11 @@ export default function PopularVipCard() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('products').select('*').eq('is_vip', true).eq('active', true).then(({ data }) => {
+    supabase.from('products').select('*').eq('is_vip', true).eq('active', true).then(async ({ data: rawData }) => {
+      const { data: stockRow } = await supabase.from('settings').select('value').eq('key', 'stock_enabled').single()
+      const stockEnabled = stockRow?.value === 'true'
+      const data = stockEnabled ? (rawData || []).filter((p: any) => p.stock === null || p.stock > 0) : (rawData || [])
+      if (data) { void 0 } // bridge
       const all = (data as Product[]) || []
       setAllProducts(all)
       setProduct(all.find(p => p.popular) || null)
@@ -42,7 +46,12 @@ export default function PopularVipCard() {
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 2, padding: '16px 18px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
           <div>
-            <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 'clamp(26px, 8vw, 36px)', color: '#F5C842', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>{product.price}</span>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              {(product.discount ?? 0) > 0 && (
+                <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 600, fontSize: 14, color: 'rgba(200,185,154,0.5)', textDecoration: 'line-through', textShadow: 'none' }}>{product.price}</span>
+              )}
+              <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 'clamp(26px, 8vw, 36px)', color: '#F5C842', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>{(product.discount ?? 0) > 0 ? (product.price * (1 - (product.discount ?? 0) / 100)).toFixed(2) : product.price}</span>
+            </div>
             <span style={{ fontSize: 13, color: '#E8A020', fontWeight: 600, fontFamily: 'DM Sans, sans-serif', marginLeft: 3 }}>{currency}</span>
           </div>
           <div style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 'clamp(18px, 5.5vw, 24px)', color: '#fff', lineHeight: 1.1, textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>{product.name}</div>

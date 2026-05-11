@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useCurrency } from '@/lib/currency'
 
-type Product = { id: string; name: string; price: number; image_url: string; subcategory: string; active: boolean; featured: boolean; popular: boolean; is_vip: boolean }
+type Product = { id: string; name: string; price: number; image_url: string; subcategory: string; active: boolean; featured: boolean; popular: boolean; is_vip: boolean; stock: number | null; discount: number | null }
 
 
 
@@ -33,6 +33,8 @@ function ProduitsAdminInner() {
   const [search, setSearch] = useState('')
   const [filterCat, setFilterCat] = useState('')
   const [openCatDropdown, setOpenCatDropdown] = useState(false)
+  const [stockEnabled, setStockEnabled] = useState(false)
+  const [editingStock, setEditingStock] = useState<{id: string, value: string} | null>(null)
   useEffect(() => {
     const t = searchParams.get('tab')
     if (t && t !== tab) setTab(t)
@@ -41,6 +43,8 @@ function ProduitsAdminInner() {
   const router = useRouter()
 
   const loadCats = async () => {
+    const { data: stockRows } = await supabase.from('settings').select('value').eq('key', 'stock_enabled')
+    setStockEnabled(stockRows?.[0]?.value === 'true')
     const [{ data: parents }, { data: children }] = await Promise.all([
       supabase.from('menu_categories').select('id,slug,name').eq('level', 0).eq('active', true).order('display_order'),
       supabase.from('menu_categories').select('slug,name,parent_id').eq('level', 1).eq('active', true).order('display_order'),
@@ -113,7 +117,22 @@ function ProduitsAdminInner() {
     }
   }
 
-  const filtered = products.filter(p => tab === 'vip' ? p.is_vip : tab === 'actifs' ? p.active : !p.active)
+
+  const toggleStock = async () => {
+    const next = !stockEnabled
+    setStockEnabled(next)
+    await supabase.from('settings').upsert({ key: 'stock_enabled', value: next ? 'true' : 'false' }, { onConflict: 'key' })
+  }
+
+  const saveStock = async (id: string, value: string) => {
+    const parsed = value.trim() === '' ? null : parseInt(value)
+    if (value.trim() !== '' && isNaN(parsed as number)) { setEditingStock(null); return }
+    await supabase.from('products').update({ stock: parsed }).eq('id', id)
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, stock: parsed } : p))
+    setEditingStock(null)
+  }
+
+  const filtered = search ? products.filter(p => tab === 'vip' ? p.is_vip : tab === 'actifs' ? p.active : !p.active) : products.filter(p => tab === 'vip' ? p.is_vip : tab === 'actifs' ? (p.active && !p.is_vip) : (!p.active && !p.is_vip))
 
   // Grouper par sous-catégorie dynamiquement
   const allSubs = tab === 'vip' ? ['vip'] : (subcats.length > 0
@@ -137,9 +156,14 @@ function ProduitsAdminInner() {
     <div style={{ maxWidth: 720, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 26, fontWeight: 900, color: '#F5EDD6' }}>Produits</h1>
-        <button onClick={() => router.push('/admin/produits/nouveau')} style={{ padding: '9px 18px', borderRadius: 50, border: 'none', background: 'linear-gradient(135deg,#F5C842,#FF6B20)', color: '#0A0804', fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>
-          + Ajouter
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={toggleStock} style={{ padding: '9px 18px', borderRadius: 50, border: '1px solid', borderColor: stockEnabled ? 'rgba(91,197,122,0.5)' : 'rgba(255,255,255,0.1)', background: stockEnabled ? 'rgba(91,197,122,0.12)' : 'rgba(255,255,255,0.04)', color: stockEnabled ? '#5BC57A' : '#7A6E58', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+            Stock {stockEnabled ? 'ACTIF' : 'INACTIF'}
+          </button>
+          <button onClick={() => router.push('/admin/produits/nouveau')} style={{ padding: '9px 18px', borderRadius: 50, border: 'none', background: 'linear-gradient(135deg,#F5C842,#FF6B20)', color: '#0A0804', fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>
+            + Ajouter
+          </button>
+        </div>
       </div>
 
       {/* RECHERCHE */}
@@ -239,7 +263,38 @@ function ProduitsAdminInner() {
                 {p.image_url && <img src={p.image_url} alt={p.name} style={{ width: 52, height: 52, borderRadius: 10, objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(232,160,32,0.1)' }} />}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: '#F5EDD6' }}>{p.name}</div>
-                  <div style={{ fontSize: 11, color: '#C8B99A', marginTop: 2 }}>{p.price} {currency}</div>
+                  <div style={{ fontSize: 11, color: '#C8B99A', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    {(p.discount ?? 0) > 0 && (
+                      <span style={{ textDecoration: 'line-through', color: '#4A4035' }}>{p.price}</span>
+                    )}
+                    <span style={{ color: (p.discount ?? 0) > 0 ? '#FF6B20' : '#C8B99A' }}>{(p.discount ?? 0) > 0 ? (p.price * (1 - (p.discount ?? 0) / 100)).toFixed(2) : p.price} {currency}</span>
+                  </div>
+                  {stockEnabled && (
+                    <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {editingStock?.id === p.id ? (
+                        <>
+                          <input
+                            autoFocus
+                            type="text"
+                            inputMode="numeric"
+                            value={editingStock.value}
+                            onChange={e => setEditingStock({ id: p.id, value: e.target.value })}
+                            onBlur={() => saveStock(p.id, editingStock.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') saveStock(p.id, editingStock.value); if (e.key === 'Escape') setEditingStock(null) }}
+                            style={{ width: 80, padding: '2px 10px', borderRadius: 6, border: '1px solid rgba(245,200,66,0.3)', background: 'rgba(245,200,66,0.05)', color: '#F5EDD6', fontSize: 12, fontFamily: 'DM Sans, sans-serif', outline: 'none', MozAppearance: 'textfield' } as any}
+                          />
+
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => setEditingStock({ id: p.id, value: p.stock === null ? '' : String(p.stock) })}
+                          style={{ padding: '1px 8px', borderRadius: 4, border: 'none', background: 'transparent', color: p.stock === null ? '#4A4035' : p.stock === 0 ? '#FF6B6B' : p.stock <= 3 ? '#FF6B20' : '#7A6E58', fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', letterSpacing: '0.2px' }}
+                        >
+                          {p.stock === null ? '· stock —' : p.stock === 0 ? '· epuise' : '· ' + p.stock + ' unites'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <button onClick={() => setFeatured(p.id)} title="Mettre à la une" style={{ width: 34, height: 34, borderRadius: 8, border: p.featured ? '1px solid rgba(245,200,66,0.6)' : '1px solid rgba(255,255,255,0.08)', background: p.featured ? 'rgba(245,200,66,0.15)' : 'transparent', color: p.featured ? '#F5C842' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
@@ -258,6 +313,7 @@ function ProduitsAdminInner() {
           </div>
         </div>
       ))}
+    <style>{`input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}`}</style>
     </div>
   )
 }

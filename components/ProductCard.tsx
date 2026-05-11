@@ -4,12 +4,15 @@ import ProductOverlay from '@/components/ProductOverlay'
 import ProductImagePlaceholder from '@/components/ProductImagePlaceholder'
 import { useCart } from '@/store/cart'
 import { useCurrency } from '@/lib/currency'
+import { createClient } from '@/lib/supabase/client'
 import type { Product } from '@/lib/types'
 
 export default function ProductCard({ product, featured = false, isOpen, allProducts = [] }: { product: Product, featured?: boolean, isOpen: boolean, allProducts?: Product[] }) {
   const [added, setAdded] = useState(false)
   const [showOverlay, setShowOverlay] = useState(false)
+  const [stockEnabled, setStockEnabled] = useState(false)
   const add = useCart(s => s.add)
+  const quantityInCart = useCart(s => s.items.find(i => i.product.id === product.id)?.quantity || 0)
   const currency = useCurrency()
 
   useEffect(() => {
@@ -20,8 +23,19 @@ export default function ProductCard({ product, featured = false, isOpen, allProd
     document.head.appendChild(s)
   }, [])
 
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.from('settings').select('value').eq('key', 'stock_enabled').single().then(({ data }) => {
+      setStockEnabled(data?.value === 'true')
+    })
+  }, [])
+
+  const atMax = stockEnabled && product.stock !== null && product.stock !== undefined && quantityInCart >= product.stock
+
   const handleAdd = () => {
     if (!isOpen) return
+    const freshQty = useCart.getState().items.find(i => i.product.id === product.id)?.quantity || 0
+    if (stockEnabled && product.stock !== null && product.stock !== undefined && freshQty >= product.stock) return
     add(product)
     setAdded(true)
     setTimeout(() => setAdded(false), 1500)
@@ -50,8 +64,8 @@ export default function ProductCard({ product, featured = false, isOpen, allProd
       </div>
       <div style={{ padding: '12px 14px 14px' }}>
         <div style={{ fontSize: 12, color: '#C8B99A', marginBottom: 12, lineHeight: 1.5 }}>{product.description}</div>
-        <button onClick={handleAdd} disabled={!isOpen} style={{ width: '100%', background: !isOpen ? 'rgba(255,255,255,0.05)' : added ? 'rgba(232,160,32,0.15)' : 'linear-gradient(135deg,#F5C842,#FF6B20)', color: !isOpen ? '#666' : added ? '#E8A020' : '#080603', border: 'none', borderRadius: 12, padding: '13px', fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 13, cursor: isOpen ? 'pointer' : 'not-allowed', transition: 'all 0.2s', boxShadow: (!isOpen || added) ? 'none' : '0 4px 16px rgba(232,160,32,0.25)' }}>
-          {!isOpen ? 'Fermé' : added ? '✓ Ajouté au panier !' : 'Ajouter au panier'}
+        <button onClick={handleAdd} disabled={!isOpen || atMax} style={{ width: '100%', background: !isOpen ? 'rgba(255,255,255,0.05)' : atMax ? 'rgba(120,120,120,0.2)' : added ? 'rgba(232,160,32,0.15)' : 'linear-gradient(135deg,#F5C842,#FF6B20)', color: !isOpen ? '#666' : atMax ? '#7A6E58' : added ? '#E8A020' : '#080603', border: 'none', borderRadius: 12, padding: '13px', fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 13, cursor: (!isOpen || atMax) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', boxShadow: (!isOpen || atMax || added) ? 'none' : '0 4px 16px rgba(232,160,32,0.25)', opacity: atMax ? 0.6 : 1 }}>
+          {!isOpen ? 'Fermé' : atMax ? 'Stock max atteint' : added ? '✓ Ajouté au panier !' : 'Ajouter au panier'}
         </button>
       </div>
     </div>
@@ -86,7 +100,7 @@ export default function ProductCard({ product, featured = false, isOpen, allProd
           ) : (
             <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 15, background: 'linear-gradient(90deg,#F5C842,#E8901A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{product.price} {currency}</div>
           )}
-          <button onClick={handleAdd} disabled={!isOpen} style={{ width: 34, height: 34, background: !isOpen ? 'rgba(255,255,255,0.05)' : added ? 'rgba(232,160,32,0.15)' : 'linear-gradient(135deg,#F5C842,#FF6B20)', border: 'none', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: added ? 14 : 20, fontWeight: 700, color: !isOpen ? '#555' : added ? '#E8A020' : '#080603', cursor: isOpen ? 'pointer' : 'not-allowed', flexShrink: 0, boxShadow: (!isOpen || added) ? 'none' : '0 3px 12px rgba(232,160,32,0.3)', transition: 'all 0.2s' }}>
+          <button onClick={handleAdd} disabled={!isOpen || atMax} title={atMax ? 'Stock max atteint' : undefined} style={{ width: 34, height: 34, background: !isOpen ? 'rgba(255,255,255,0.05)' : atMax ? 'rgba(120,120,120,0.2)' : added ? 'rgba(232,160,32,0.15)' : 'linear-gradient(135deg,#F5C842,#FF6B20)', border: 'none', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: added ? 14 : 20, fontWeight: 700, color: !isOpen ? '#555' : atMax ? '#7A6E58' : added ? '#E8A020' : '#080603', cursor: (!isOpen || atMax) ? 'not-allowed' : 'pointer', flexShrink: 0, boxShadow: (!isOpen || atMax || added) ? 'none' : '0 3px 12px rgba(232,160,32,0.3)', transition: 'all 0.2s', opacity: atMax ? 0.5 : 1 }}>
             {added ? '✓' : '+'}
           </button>
         </div>

@@ -4,7 +4,12 @@ import FeaturedCardClient from '@/components/FeaturedCardClient'
 
 export default async function FeaturedCard() {
   const supabase = await createClient()
-  const { data } = await supabase.from('products').select('*').eq('featured', true).single()
+  const [{ data: featuredRaw }, { data: stockRow }] = await Promise.all([
+    supabase.from('products').select('*').eq('featured', true).single(),
+    supabase.from('settings').select('value').eq('key', 'stock_enabled').single(),
+  ])
+  const stockEnabled = stockRow?.value === 'true'
+  const data = (stockEnabled && featuredRaw && featuredRaw.stock !== null && featuredRaw.stock <= 0) ? null : featuredRaw
   const product = data as Product | null
   if (!product) return null
 

@@ -36,7 +36,7 @@ export const useCart = create<CartStore>()(
         else set({ items: get().items.map(i => i.product.id === productId ? { ...i, quantity } : i) })
       },
       clear: () => set({ items: [] }),
-      total: () => get().items.reduce((sum, i) => sum + i.product.price * i.quantity, 0),
+      total: () => get().items.reduce((sum, i) => sum + ((i.product.discount ?? 0) > 0 ? i.product.price * (1 - (i.product.discount ?? 0) / 100) : i.product.price) * i.quantity, 0),
       count: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
     }),
     { name: 'black-deew-cart', onRehydrateStorage: () => (state) => { state?.setHydrated() } }

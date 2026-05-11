@@ -15,16 +15,19 @@ export default function VipPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    supabase
-      .from('products')
-      .select('*')
-      .eq('is_vip', true)
-      .eq('active', true)
-      .order('name')
-      .then(({ data }) => {
-        setProducts((data as Product[]) || [])
-        setLoading(false)
-      })
+    async function load() {
+      const [{ data }, { data: stockRow }] = await Promise.all([
+        supabase.from('products').select('*').eq('is_vip', true).eq('active', true).order('name'),
+        supabase.from('settings').select('value').eq('key', 'stock_enabled').single(),
+      ])
+      const stockEnabled = stockRow?.value === 'true'
+      const filtered = stockEnabled
+        ? (data || []).filter((p: any) => p.stock === null || p.stock > 0)
+        : (data || [])
+      setProducts(filtered as Product[])
+      setLoading(false)
+    }
+    load()
   }, [])
 
   // Sync quantities with cart
@@ -43,7 +46,7 @@ export default function VipPage() {
   }
 
   const cartCount = items.reduce((s, i) => s + i.quantity, 0)
-  const cartTotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0)
+  const cartTotal = items.reduce((s, i) => s + ((i.product.discount ?? 0) > 0 ? i.product.price * (1 - (i.product.discount ?? 0) / 100) : i.product.price) * i.quantity, 0)
 
   return (
     <div style={{
@@ -137,34 +140,40 @@ export default function VipPage() {
                     {product.description && (
                       <div style={{ fontSize: 12, color: '#7A6E58', marginBottom: 6, lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>{product.description}</div>
                     )}
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#F5C842' }}>{product.price} {currency}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {(product.discount ?? 0) > 0 && (
+                        <span style={{ fontSize: 11, color: '#7A6E58', textDecoration: 'line-through', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>{product.price.toFixed(2)}</span>
+                      )}
+                      <span style={{ fontSize: 14, fontWeight: 700, color: '#F5C842' }}>{(product.discount ?? 0) > 0 ? (product.price * (1 - (product.discount ?? 0) / 100)).toFixed(2) : product.price.toFixed(2)} {currency}</span>
+                    </div>
                   </div>
                   <div style={{ flexShrink: 0 }}>
-                    {qty === 0 ? (
-                      <button
-                        onClick={() => handleAdd(product)}
-                        style={{
-                          width: 36, height: 36, borderRadius: '50%',
-                          border: 'none',
-                          background: 'linear-gradient(135deg,#F5C842,#E8A020)',
-                          color: '#0A0804', fontSize: 20, fontWeight: 700,
-                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          flexShrink: 0,
-                        }}
-                      >+</button>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {(() => {
+                      const stockMax = product.stock !== null && product.stock !== undefined ? product.stock : null
+                      const atMax = stockMax !== null && qty >= stockMax
+                      const epuise = stockMax !== null && stockMax <= 0
+                      if (epuise) return (
+                        <span style={{ fontSize: 11, color: '#FF6B6B', fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>Épuisé</span>
+                      )
+                      return qty === 0 ? (
                         <button
-                          onClick={() => handleUpdate(product.id, qty - 1)}
-                          style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid rgba(245,200,66,0.3)', background: 'transparent', color: '#F5C842', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        >−</button>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: '#F5EDD6', minWidth: 16, textAlign: 'center' }}>{qty}</span>
-                        <button
-                          onClick={() => handleUpdate(product.id, qty + 1)}
-                          style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg,#F5C842,#E8A020)', color: '#0A0804', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          onClick={() => handleAdd(product)}
+                          style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg,#F5C842,#E8A020)', color: '#0A0804', fontSize: 20, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                         >+</button>
-                      </div>
-                    )}
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <button
+                            onClick={() => handleUpdate(product.id, qty - 1)}
+                            style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid rgba(245,200,66,0.3)', background: 'transparent', color: '#F5C842', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          >−</button>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: '#F5EDD6', minWidth: 16, textAlign: 'center' }}>{qty}</span>
+                          <button
+                            onClick={() => { if (!atMax) handleUpdate(product.id, qty + 1) }}
+                            style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: atMax ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#F5C842,#E8A020)', color: atMax ? '#555' : '#0A0804', fontSize: 18, cursor: atMax ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          >+</button>
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
               )

@@ -101,6 +101,7 @@ export default function PanierPage() {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [orderError, setOrderError] = useState('')
+  const [stockWarnings, setStockWarnings] = useState<Record<string, number>>({})
 
   // Delivery config loaded from Supabase
   const [deliverySettings, setDeliverySettings] = useState<DeliverySettings>({
@@ -256,6 +257,29 @@ export default function PanierPage() {
     })
   }, [showSuggestions])
 
+  // ── Verification stock au chargement et changement panier ────────────────
+  useEffect(() => {
+    if (items.length === 0) return
+    async function checkStock() {
+      const { data: stockRow } = await supabase.from('settings').select('value').eq('key', 'stock_enabled').single()
+      if (stockRow?.value !== 'true') return
+      const warnings: Record<string, number> = {}
+      for (const item of items) {
+        const { data: prod } = await supabase.from('products').select('stock').eq('id', item.product.id).single()
+        if (prod && prod.stock !== null) {
+          if (prod.stock === 0) {
+            update(item.product.id, 0)
+          } else if (item.quantity > prod.stock) {
+            update(item.product.id, prod.stock)
+            warnings[item.product.id] = prod.stock
+          }
+        }
+      }
+      setStockWarnings(prev => ({ ...prev, ...warnings }))
+    }
+    checkStock()
+  }, [items.reduce((s, i) => s + i.product.id, '')])
+
   // ── Form helpers ───────────────────────────────────────────────────────────
 
   const updateForm = (updater: (f: typeof form) => typeof form) => {
@@ -349,7 +373,7 @@ export default function PanierPage() {
           lng: finalLng,
           geo_address: finalGeoAddress,
           slot_id: selectedSlot,
-          items: items.map(i => ({ product_id: i.product.id, product_name: i.product.name, quantity: i.quantity, unit_price: i.product.price, isVip: i.product.is_vip ?? false })),
+          items: items.map(i => ({ product_id: i.product.id, product_name: i.product.name, quantity: i.quantity, unit_price: (i.product.discount ?? 0) > 0 ? parseFloat((i.product.price * (1 - (i.product.discount ?? 0) / 100)).toFixed(2)) : i.product.price, isVip: i.product.is_vip ?? false })),
           total: total() + fee,
           delivery_mode: chosenMode,
           delivery_fee: fee,
@@ -467,14 +491,33 @@ export default function PanierPage() {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14, color: '#F5EDD6', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.product.name}</div>
-                  <div style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 14, color: '#F5C842' }}>{(item.product.price * item.quantity).toFixed(2)} {currency}</div>
+                  {stockWarnings[item.product.id] !== undefined && (
+                    <div style={{ fontSize: 11, color: '#FF6B20', marginTop: 3, fontWeight: 600 }}>
+                      Plus que {stockWarnings[item.product.id]} disponible(s) en stock
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {(item.product.discount ?? 0) > 0 && (
+                      <span style={{ fontSize: 11, color: '#7A6E58', textDecoration: 'line-through', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>{(item.product.price * item.quantity).toFixed(2)}</span>
+                    )}
+                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 14, color: '#F5C842' }}>{((item.product.discount ?? 0) > 0 ? item.product.price * (1 - (item.product.discount ?? 0) / 100) * item.quantity : item.product.price * item.quantity).toFixed(2)} {currency}</span>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 0, background: 'rgba(255,255,255,0.04)', borderRadius: 50, border: '1px solid rgba(232,160,32,0.15)', flexShrink: 0 }}>
                   <button onClick={() => update(item.product.id, item.quantity - 1)} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'transparent', color: item.quantity === 1 ? '#FF6B6B' : '#C8B890', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, lineHeight: 1 }}>
                     {item.quantity === 1 ? '×' : '−'}
                   </button>
                   <span style={{ fontWeight: 800, fontSize: 14, color: '#F5EDD6', minWidth: 20, textAlign: 'center', fontFamily: 'DM Sans, sans-serif' }}>{item.quantity}</span>
-                  <button onClick={() => update(item.product.id, item.quantity + 1)} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg,#F5C842,#FF6B20)', color: '#0A0804', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, lineHeight: 1 }}>+</button>
+                  {(() => {
+                    const maxStock = stockWarnings[item.product.id]
+                    const atMax = maxStock !== undefined && item.quantity >= maxStock
+                    return (
+                      <button
+                        onClick={() => { if (!atMax) update(item.product.id, item.quantity + 1) }}
+                        style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: atMax ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#F5C842,#FF6B20)', color: atMax ? '#555' : '#0A0804', cursor: atMax ? 'not-allowed' : 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, lineHeight: 1 }}
+                      >+</button>
+                    )
+                  })()}
                 </div>
               </div>
             ))}

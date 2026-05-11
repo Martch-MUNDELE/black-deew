@@ -1,7 +1,8 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useCart } from '@/store/cart'
 import { useCurrency } from '@/lib/currency'
+import { createClient } from '@/lib/supabase/client'
 import type { Product } from '@/lib/types'
 
 export default function ProductOverlay({ product, allProducts, onClose }: { product: Product, allProducts: Product[], onClose: () => void }) {
@@ -11,10 +12,40 @@ export default function ProductOverlay({ product, allProducts, onClose }: { prod
   const quantity = items.find(i => i.product.id === current.id)?.quantity || 0
   const [added, setAdded] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
+  const [stockEnabled, setStockEnabled] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
   const handleClose = () => { setIsClosing(true); setTimeout(onClose, 280) }
 
-  const handleAdd = () => { add(current); setAdded(true); setTimeout(() => setAdded(false), 800) }
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.from('settings').select('value').eq('key', 'stock_enabled').single().then(({ data, error }) => {
+      console.log('[ProductOverlay] settings.stock_enabled raw:', data, 'error:', error)
+      setStockEnabled(data?.value === 'true')
+    })
+  }, [])
+
+  const stockNum = typeof current.stock === 'number' ? current.stock : null
+  const stockReached = stockEnabled && stockNum !== null && quantity >= stockNum
+  const handleAdd = () => {
+    const freshQty = useCart.getState().items.find(i => i.product.id === current.id)?.quantity || 0
+    const freshReached = stockEnabled && stockNum !== null && freshQty >= stockNum
+    console.log('[ProductOverlay] handleAdd CLICK', {
+      stockEnabled,
+      'current.stock': current.stock,
+      stockNum,
+      renderQty: quantity,
+      freshQty,
+      stockReached,
+      freshReached,
+      productName: current.name,
+    })
+    if (freshReached) {
+      console.warn('[ProductOverlay] BLOCKED — stock max reached', { freshQty, stockNum })
+      return
+    }
+    console.log('[ProductOverlay] NOT blocked → calling add()')
+    add(current); setAdded(true); setTimeout(() => setAdded(false), 800)
+  }
   const handleRemove = () => { if (quantity > 0) update(current.id, quantity - 1) }
 
   const related = allProducts.filter(p => p.subcategory === current.subcategory && p.id !== current.id)
@@ -71,16 +102,21 @@ export default function ProductOverlay({ product, allProducts, onClose }: { prod
                 </>
               )}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-              {quantity > 0 && (
-                <>
-                  <button onClick={handleRemove} style={{ width: 32, height: 32, borderRadius: '50%', border: '1.5px solid rgba(232,160,32,0.25)', background: 'transparent', color: '#C8B890', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                  <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 16, color: '#F5EDD6', minWidth: 16, textAlign: 'center' }}>{quantity}</span>
-                </>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {quantity > 0 && (
+                  <>
+                    <button onClick={handleRemove} style={{ width: 32, height: 32, borderRadius: '50%', border: '1.5px solid rgba(232,160,32,0.25)', background: 'transparent', color: '#C8B890', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                    <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 900, fontSize: 16, color: '#F5EDD6', minWidth: 16, textAlign: 'center' }}>{quantity}</span>
+                  </>
+                )}
+                <button onClick={handleAdd} disabled={stockReached} style={{ width: 42, height: 42, background: stockReached ? 'rgba(120,120,120,0.2)' : added ? 'rgba(232,160,32,0.15)' : 'linear-gradient(135deg,#F5C842,#FF6B20)', border: 'none', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: added ? 14 : 22, fontWeight: 700, color: stockReached ? '#7A6E58' : added ? '#E8A020' : '#080603', cursor: stockReached ? 'not-allowed' : 'pointer', boxShadow: stockReached || added ? 'none' : '0 4px 16px rgba(232,160,32,0.35)', opacity: stockReached ? 0.5 : 1, transition: 'all 0.2s' }}>
+                  {added ? '✓' : '+'}
+                </button>
+              </div>
+              {stockReached && (
+                <span style={{ fontSize: 9, color: '#E85C20', fontFamily: 'DM Sans, sans-serif', fontWeight: 600, marginTop: 2 }}>Stock max atteint</span>
               )}
-              <button onClick={handleAdd} style={{ width: 42, height: 42, background: added ? 'rgba(232,160,32,0.15)' : 'linear-gradient(135deg,#F5C842,#FF6B20)', border: 'none', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: added ? 14 : 22, fontWeight: 700, color: added ? '#E8A020' : '#080603', cursor: 'pointer', boxShadow: added ? 'none' : '0 4px 16px rgba(232,160,32,0.35)', transition: 'all 0.2s' }}>
-                {added ? '✓' : '+'}
-              </button>
             </div>
           </div>
 

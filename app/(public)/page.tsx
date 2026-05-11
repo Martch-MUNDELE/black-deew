@@ -11,11 +11,17 @@ export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
   const supabase = await createClient()
-  const [{ data: products }, { data: settings }, { data: menuCats }] = await Promise.all([
+  const [{ data: products }, { data: settings }, { data: menuCats }, { data: stockSetting }] = await Promise.all([
     supabase.from('products').select('*').eq('active', true).eq('is_vip', false).order('name'),
     supabase.from('settings').select('*').eq('key', 'status'),
     supabase.from('menu_categories').select('id, slug, name, parent_id, display_order, active, level').order('display_order'),
+    supabase.from('settings').select('value').eq('key', 'stock_enabled').single(),
   ])
+
+  const stockEnabled = (stockSetting as any)?.value === 'true'
+  const visibleProducts = stockEnabled
+    ? (products || []).filter((p: any) => p.stock === null || p.stock > 0)
+    : (products || [])
 
   const isOpen = ((settings as any[])?.find?.((s: any) => s.key === 'status')?.value || '') === 'open'
 
@@ -37,7 +43,7 @@ export default async function HomePage() {
       {isOpen && <FeaturesBar />}
 
       {/* CATALOGUE avec sous-menus */}
-      {isOpen && <CatalogueClient products={products || []} isOpen={isOpen} groupes={menuGroupes.length > 0 ? menuGroupes : undefined} />}
+      {isOpen && <CatalogueClient products={visibleProducts} isOpen={isOpen} groupes={menuGroupes.length > 0 ? menuGroupes : undefined} />}
 
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
     </div>
