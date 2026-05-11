@@ -290,7 +290,7 @@ function ProduitsAdminInner() {
                           onClick={() => setEditingStock({ id: p.id, value: p.stock === null ? '' : String(p.stock) })}
                           style={{ padding: '1px 8px', borderRadius: 4, border: 'none', background: 'transparent', color: p.stock === null ? '#4A4035' : p.stock === 0 ? '#FF6B6B' : p.stock <= 3 ? '#FF6B20' : '#7A6E58', fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', letterSpacing: '0.2px' }}
                         >
-                          {p.stock === null ? '· stock —' : p.stock === 0 ? '· epuise' : '· ' + p.stock + ' unites'}
+                          {p.stock === null ? '· ∞' : p.stock === 0 ? '· épuisé' : '· ' + p.stock + ' unités'}
                         </button>
                       )}
                     </div>
