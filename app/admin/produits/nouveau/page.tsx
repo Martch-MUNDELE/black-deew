@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useCurrency } from '@/lib/currency'
 import ImageUpload from '@/components/ImageUpload'
 
 const FALLBACK_SUBCATS = [
@@ -16,6 +17,7 @@ const labelStyle = { fontSize: 11, fontWeight: 700, color: '#C8B99A', display: '
 
 export default function NouveauProduit() {
   const router = useRouter()
+  const currency = useCurrency()
   const supabase = createClient()
   const [form, setForm] = useState({ name: '', description: '', ingredients: '', price: 0, subcategory: 'sandwichs_chauds', image_url: '', active: true, is_vip: false })
   const [subcats, setSubcats] = useState<{ slug: string; name: string; label: string }[]>(FALLBACK_SUBCATS.map(s => ({ ...s, label: s.name })))
@@ -54,7 +56,7 @@ export default function NouveauProduit() {
         <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: '#F5EDD6', margin: 0 }}>Nouveau produit</h1>
       </div>
       <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {[{ key: 'name', label: 'Nom', type: 'text' }, { key: 'description', label: 'Description', type: 'text' }, { key: 'ingredients', label: 'Ingrédients', type: 'text' }, { key: 'price', label: 'Prix (DH)', type: 'number' }].map(f => (
+        {[{ key: 'name', label: 'Nom', type: 'text' }, { key: 'description', label: 'Description', type: 'text' }, { key: 'ingredients', label: 'Ingrédients', type: 'text' }, { key: 'price', label: `Prix (${currency})`, type: 'number' }].map(f => (
           <div key={f.key}>
             <label style={labelStyle}>{f.label}</label>
             <input type={f.type} value={(form as any)[f.key] || ''} onChange={e => setForm(p => ({ ...p, [f.key]: f.type === 'number' ? parseFloat(e.target.value) : e.target.value }))} style={inputStyle} />
