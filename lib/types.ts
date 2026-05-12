@@ -17,6 +17,7 @@ export interface Product {
   popular?: boolean
   discount?: number | null
   is_vip?: boolean
+  variants?: { type: string; options: string[] }[] | null
 }
 
 export interface DeliverySlot {
@@ -76,4 +77,5 @@ export interface CartItem {
   product: Product
   quantity: number
   isVip?: boolean
+  selectedVariants?: Record<string, string>
 }

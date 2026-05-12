@@ -32,8 +32,10 @@ export default function ProductCard({ product, featured = false, isOpen, allProd
 
   const atMax = stockEnabled && product.stock !== null && product.stock !== undefined && quantityInCart >= product.stock
 
+  const hasVariants = product.variants && product.variants.length > 0
   const handleAdd = () => {
     if (!isOpen) return
+    if (hasVariants) { setShowOverlay(true); return }
     const freshQty = useCart.getState().items.find(i => i.product.id === product.id)?.quantity || 0
     if (stockEnabled && product.stock !== null && product.stock !== undefined && freshQty >= product.stock) return
     add(product)

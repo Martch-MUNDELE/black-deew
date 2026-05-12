@@ -35,8 +35,8 @@ const styles = StyleSheet.create({
   infoValue: { fontSize: 9, color: cream, fontFamily: 'Helvetica-Bold', maxWidth: 280, textAlign: 'right' },
 
   // ITEMS
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottom: `1px solid ${border}` },
-  itemRowLast: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
+  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 10, borderBottom: `1px solid ${border}` },
+  itemRowLast: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 10 },
   itemQty: { fontSize: 9, color: gold, fontFamily: 'Helvetica-Bold', backgroundColor: '#2A1F08', padding: '3 8', borderRadius: 4, marginRight: 8 },
   itemName: { fontSize: 10, color: cream, flex: 1 },
   itemPrice: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: muted },
@@ -126,7 +126,7 @@ export function FacturePDF({ order, items, slot, siteName, siteBaseline, facture
             {items.map((item: any, i: number) => (
               <View key={i} style={i < items.length - 1 ? styles.itemRow : styles.itemRowLast}>
                 <Text style={styles.itemQty}>{item.quantity}x</Text>
-                <Text style={styles.itemName}>{item.product_name}</Text>
+                <Text style={styles.itemName}>{item.product_name}{item.selected_variants && Object.keys(item.selected_variants).length > 0 ? '\n' + Object.entries(item.selected_variants).map(([t, o]) => `${t}: ${o}`).join(' · ') : ''}</Text>
                 <Text style={styles.itemPrice}>{(item.quantity * item.unit_price).toFixed(2)} {currency}</Text>
               </View>
             ))}

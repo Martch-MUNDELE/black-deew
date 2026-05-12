@@ -7,7 +7,7 @@ interface CartStore {
   items: CartItem[]
   hydrated: boolean
   setHydrated: () => void
-  add: (product: Product, isVip?: boolean) => void
+  add: (product: Product, isVip?: boolean, selectedVariants?: Record<string, string>) => void
   remove: (productId: string) => void
   update: (productId: string, quantity: number) => void
   clear: () => void
@@ -21,13 +21,13 @@ export const useCart = create<CartStore>()(
       items: [],
       hydrated: false,
       setHydrated: () => set({ hydrated: true }),
-      add: (product, isVip = false) => {
+      add: (product, isVip = false, selectedVariants?) => {
         const items = get().items
-        const existing = items.find(i => i.product.id === product.id)
+        const existing = items.find(i => i.product.id === product.id && JSON.stringify(i.selectedVariants) === JSON.stringify(selectedVariants))
         if (existing) {
-          set({ items: items.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i) })
+          set({ items: items.map(i => i.product.id === product.id && JSON.stringify(i.selectedVariants) === JSON.stringify(selectedVariants) ? { ...i, quantity: i.quantity + 1 } : i) })
         } else {
-          set({ items: [...items, { product, quantity: 1, isVip }] })
+          set({ items: [...items, { product, quantity: 1, isVip, selectedVariants }] })
         }
       },
       remove: (productId) => set({ items: get().items.filter(i => i.product.id !== productId) }),

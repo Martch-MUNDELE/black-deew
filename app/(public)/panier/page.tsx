@@ -373,7 +373,7 @@ export default function PanierPage() {
           lng: finalLng,
           geo_address: finalGeoAddress,
           slot_id: selectedSlot,
-          items: items.map(i => ({ product_id: i.product.id, product_name: i.product.name, quantity: i.quantity, unit_price: (i.product.discount ?? 0) > 0 ? parseFloat((i.product.price * (1 - (i.product.discount ?? 0) / 100)).toFixed(2)) : i.product.price, isVip: i.product.is_vip ?? false })),
+          items: items.map(i => ({ product_id: i.product.id, product_name: i.product.name, quantity: i.quantity, unit_price: (i.product.discount ?? 0) > 0 ? parseFloat((i.product.price * (1 - (i.product.discount ?? 0) / 100)).toFixed(2)) : i.product.price, isVip: i.product.is_vip ?? false, selected_variants: i.selectedVariants ?? null })),
           total: total() + fee,
           delivery_mode: chosenMode,
           delivery_fee: fee,
@@ -485,12 +485,19 @@ export default function PanierPage() {
         <div style={{ padding: '0 20px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {items.map((item) => (
-              <div key={item.product.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '13px 0', borderBottom: '1px solid rgba(232,160,32,0.06)' }}>
+              <div key={`${item.product.id}-${JSON.stringify(item.selectedVariants || {})}`} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '13px 0', borderBottom: '1px solid rgba(232,160,32,0.06)' }}>
                 <div style={{ width: 'clamp(44px,12vw,56px)', height: 'clamp(44px,12vw,56px)', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: '2px solid rgba(232,160,32,0.15)' }}>
                   {item.product.image_url ? <img src={item.product.image_url} alt={item.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg,#1E1A10,#2A2310)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(232,160,32,0.3)" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14, color: '#F5EDD6', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.product.name}</div>
+                  {item.selectedVariants && Object.keys(item.selectedVariants).length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+                      {Object.entries(item.selectedVariants).map(([type, option]) => (
+                        <span key={type} style={{ fontSize: 10, padding: '2px 6px', borderRadius: 6, background: 'rgba(245,200,66,0.1)', color: '#F5C842', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>{type}: {option}</span>
+                      ))}
+                    </div>
+                  )}
                   {stockWarnings[item.product.id] !== undefined && (
                     <div style={{ fontSize: 11, color: '#FF6B20', marginTop: 3, fontWeight: 600 }}>
                       Plus que {stockWarnings[item.product.id]} disponible(s) en stock
