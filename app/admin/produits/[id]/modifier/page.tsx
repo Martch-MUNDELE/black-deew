@@ -187,7 +187,7 @@ const save = async () => {
                         placeholder="Prix spécifique (optionnel)"
                         value={vt.prices?.[opt] ?? ''}
                         onChange={e => updateOptionPrice(vIdx, opt, e.target.value === '' ? null : parseFloat(e.target.value))}
-                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(245,200,66,0.3)', background: 'rgba(0,0,0,0.3)', color: '#F5C842', fontSize: 13, outline: 'none', fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' as const, MozAppearance: 'textfield' as any, WebkitAppearance: 'none' as any }}
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(245,200,66,0.3)', background: 'rgba(0,0,0,0.3)', color: '#F5C842', fontSize: 13, outline: 'none', fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' as const, appearance: 'none' as any, MozAppearance: 'textfield' as any, WebkitAppearance: 'none' as any }}
                       />
                       <div style={{ fontSize: 10, color: '#7A6E58', marginTop: 4, fontFamily: 'DM Sans, sans-serif' }}>Laisser vide = prix principal utilisé</div>
                     </div>
