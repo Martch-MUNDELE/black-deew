@@ -17,7 +17,7 @@ export interface Product {
   popular?: boolean
   discount?: number | null
   is_vip?: boolean
-  variants?: { type: string; options: string[] }[] | null
+  variants?: { type: string; options: string[]; prices?: Record<string, number> }[] | null
 }
 
 export interface DeliverySlot {

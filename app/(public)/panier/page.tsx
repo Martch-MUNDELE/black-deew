@@ -373,7 +373,28 @@ export default function PanierPage() {
           lng: finalLng,
           geo_address: finalGeoAddress,
           slot_id: selectedSlot,
-          items: items.map(i => ({ product_id: i.product.id, product_name: i.product.name, quantity: i.quantity, unit_price: (i.product.discount ?? 0) > 0 ? parseFloat((i.product.price * (1 - (i.product.discount ?? 0) / 100)).toFixed(2)) : i.product.price, isVip: i.product.is_vip ?? false, selected_variants: i.selectedVariants ?? null })),
+          items: items.map(i => {
+              const variantExtra = (() => {
+                if (!i.product.variants || !i.selectedVariants) return 0
+                return i.product.variants.reduce((sum: number, vt: any) => {
+                  const chosen = i.selectedVariants![vt.type]
+                  if (chosen && vt.prices && vt.prices[chosen] !== undefined) return sum + vt.prices[chosen]
+                  return sum
+                }, 0)
+              })()
+              const basePrice = (i.product.discount ?? 0) > 0
+                ? parseFloat((i.product.price * (1 - (i.product.discount ?? 0) / 100)).toFixed(2))
+                : i.product.price
+              return {
+                product_id: i.product.id,
+                product_name: i.product.name,
+                quantity: i.quantity,
+                unit_price: parseFloat((basePrice + variantExtra).toFixed(2)),
+                variant_price_extra: variantExtra,
+                isVip: i.product.is_vip ?? false,
+                selected_variants: i.selectedVariants ?? null,
+              }
+            }),
           total: total() + fee,
           delivery_mode: chosenMode,
           delivery_fee: fee,

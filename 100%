@@ -1,0 +1,19 @@
+Script started on Thu May 14 11:31:57 2026
+command: fonctionnel. Tester avec black-deew puis committer aria_doc_sync.py.
+e.IGNORECASE):
+            continue
+        clean.append(line)
+    return "\\n".join(clean).strip()'''
+
+if old in content:
+    open(path, 'w').write(content.replace(old, new, 1))
+    print('✅ clean_commands renforcé')
+else:
+    print('❌ pattern non trouvé')
+    idx = content.find('def clean_commands')
+    print(repr(content[idx:idx+200]))
+PYEOF
+EOF
+aria --file ~/PROJECTS_APPLI/ARIA/COMMANDS_FROM_CLAUDE.sh --execute --project abou-joudia --trustScript: fonctionnel.: No such file or directory
+
+Script done on Thu May 14 11:31:57 2026

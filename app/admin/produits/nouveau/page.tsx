@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useCurrency } from '@/lib/currency'
 import ImageUpload from '@/components/ImageUpload'
 
-type Variant = { type: string; options: string[] }
+type Variant = { type: string; options: string[]; prices?: Record<string, number> }
 
 const FALLBACK_SUBCATS = [
   { slug: 'chaudes', name: 'Boissons Chaudes' },
@@ -26,6 +26,7 @@ export default function NouveauProduit() {
   const [saving, setSaving] = useState(false)
   const [variants, setVariants] = useState<Variant[]>([])
   const [newOptionInputs, setNewOptionInputs] = useState<string[]>([])
+  const [variantsOpen, setVariantsOpen] = useState(true)
 
   useEffect(() => {
     supabase.from('menu_categories').select('slug,name,level,parent_id,id').eq('active', true).order('display_order').then(({ data }) => {
@@ -75,6 +76,16 @@ export default function NouveauProduit() {
     setNewOptionInputs(i => i.map((v, j) => j === idx ? val : v))
   }
 
+  const updateOptionPrice = (vIdx: number, opt: string, price: number | null) => {
+    setVariants(v => v.map((vt, i) => {
+      if (i !== vIdx) return vt
+      const prices = { ...(vt.prices || {}) }
+      if (price === null || isNaN(price as number)) { delete prices[opt] }
+      else { prices[opt] = price as number }
+      return { ...vt, prices }
+    }))
+  }
+
 const save = async () => {
     setSaving(true)
     const cleanVariants = variants.filter(v => v.type.trim() && v.options.length > 0)
@@ -122,24 +133,38 @@ const save = async () => {
         {/* VARIANTES */}
         <div style={{ background: 'rgba(245,200,66,0.04)', border: '1px solid rgba(245,200,66,0.15)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#F5EDD6', fontFamily: 'DM Sans, sans-serif' }}>Variantes</div>
-              <div style={{ fontSize: 11, color: '#7A6E58', marginTop: 2 }}>Taille, goût, couleur...</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button onClick={() => setVariantsOpen(o => !o)} style={{ background: 'none', border: 'none', color: '#F5C842', cursor: 'pointer', fontSize: 16, padding: 0, lineHeight: 1 }}>{variantsOpen ? '▾' : '▸'}</button>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#F5EDD6', fontFamily: 'DM Sans, sans-serif' }}>Variantes {variants.length > 0 ? `(${variants.length})` : ''}</div>
+                {!variantsOpen && <div style={{ fontSize: 11, color: '#7A6E58', marginTop: 2 }}>Taille, goût, couleur...</div>}
+              </div>
             </div>
-            <button onClick={addVariantType} style={{ padding: '7px 14px', borderRadius: 20, border: '1px solid rgba(245,200,66,0.4)', background: 'rgba(245,200,66,0.08)', color: '#F5C842', cursor: 'pointer', fontSize: 12, fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>+ Ajouter</button>
+            {variantsOpen && <button onClick={addVariantType} style={{ padding: '7px 14px', borderRadius: 20, border: '1px solid rgba(245,200,66,0.4)', background: 'rgba(245,200,66,0.08)', color: '#F5C842', cursor: 'pointer', fontSize: 12, fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>+ Ajouter</button>}
           </div>
-          {variants.map((vt, vIdx) => (
+          {variantsOpen && variants.map((vt, vIdx) => (
             <div key={vIdx} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '12px 14px', border: '1px solid rgba(245,200,66,0.1)', display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input placeholder="Type (ex: Taille, Goût...)" value={vt.type} onChange={e => updateVariantType(vIdx, e.target.value)} style={{ ...inputStyle, fontSize: 13, padding: '9px 12px' }} />
                 <button onClick={() => removeVariant(vIdx)} style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid rgba(255,80,80,0.3)', background: 'rgba(255,80,80,0.06)', color: '#FF8080', cursor: 'pointer', fontSize: 13, fontFamily: 'DM Sans, sans-serif', flexShrink: 0 }}>✕</button>
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
                 {vt.options.map((opt, oIdx) => (
-                  <span key={oIdx} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 20, background: 'rgba(245,200,66,0.1)', border: '1px solid rgba(245,200,66,0.25)', fontSize: 12, color: '#F5C842', fontFamily: 'DM Sans, sans-serif' }}>
-                    {opt}
-                    <span onClick={() => removeOption(vIdx, oIdx)} style={{ cursor: 'pointer', color: '#7A6E58', fontWeight: 700 }}>×</span>
-                  </span>
+                  <div key={oIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(245,200,66,0.06)', border: '1px solid rgba(245,200,66,0.18)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#F5C842', fontFamily: 'DM Sans, sans-serif', marginBottom: 6 }}>{opt}</div>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        placeholder="Prix spécifique (optionnel)"
+                        value={vt.prices?.[opt] ?? ''}
+                        onChange={e => updateOptionPrice(vIdx, opt, e.target.value === '' ? null : parseFloat(e.target.value))}
+                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(245,200,66,0.3)', background: 'rgba(0,0,0,0.3)', color: '#F5C842', fontSize: 13, outline: 'none', fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' as const, MozAppearance: 'textfield' as any, WebkitAppearance: 'none' as any }}
+                      />
+                      <div style={{ fontSize: 10, color: '#7A6E58', marginTop: 4, fontFamily: 'DM Sans, sans-serif' }}>Laisser vide = prix principal utilisé</div>
+                    </div>
+                    <span onClick={() => removeOption(vIdx, oIdx)} style={{ cursor: 'pointer', color: '#7A6E58', fontWeight: 700, fontSize: 16, paddingTop: 2, flexShrink: 0 }}>×</span>
+                  </div>
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>

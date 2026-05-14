@@ -3,6 +3,15 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { CartItem, Product } from '@/lib/types'
 
+export function getVariantPriceExtra(product: Product, selectedVariants?: Record<string, string>): number {
+  if (!product.variants || !selectedVariants) return 0
+  return product.variants.reduce((sum, vt) => {
+    const chosen = selectedVariants[vt.type]
+    if (chosen && vt.prices && vt.prices[chosen] !== undefined) return sum + vt.prices[chosen]
+    return sum
+  }, 0)
+}
+
 interface CartStore {
   items: CartItem[]
   hydrated: boolean
@@ -36,7 +45,21 @@ export const useCart = create<CartStore>()(
         else set({ items: get().items.map(i => i.product.id === productId ? { ...i, quantity } : i) })
       },
       clear: () => set({ items: [] }),
-      total: () => get().items.reduce((sum, i) => sum + ((i.product.discount ?? 0) > 0 ? i.product.price * (1 - (i.product.discount ?? 0) / 100) : i.product.price) * i.quantity, 0),
+      total: () => get().items.reduce((sum, i) => {
+        const basePrice = (i.product.discount ?? 0) > 0
+          ? i.product.price * (1 - (i.product.discount ?? 0) / 100)
+          : i.product.price
+        let variantExtra = 0
+        if (i.selectedVariants && i.product.variants) {
+          for (const vt of i.product.variants) {
+            const chosen = i.selectedVariants[vt.type]
+            if (chosen && vt.prices && vt.prices[chosen] !== undefined) {
+              variantExtra += vt.prices[chosen]
+            }
+          }
+        }
+        return sum + (basePrice + variantExtra) * i.quantity
+      }, 0),
       count: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
     }),
     { name: 'black-deew-cart', onRehydrateStorage: () => (state) => { state?.setHydrated() } }
