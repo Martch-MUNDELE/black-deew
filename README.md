@@ -5,6 +5,7 @@ Application de livraison food — Marché cible : Kinshasa, RDC
 
 Projet Next.js bootstrapped avec [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+> v2.4 — 14 mai 2026 — Session 14 mai (4) : ajout bloc discount/promo + is_vip sur page nouveau produit (parité avec modifier). 43 insertions / 29 suppressions sur `app/admin/produits/nouveau/page.tsx`.
 > v2.3 — 14 mai 2026 — Session 14 mai (3) : recherche couleur hex typographie titres (non résolue) + modification mineure PhoneInput.tsx (3 lignes).
 > v2.2 — 14 mai 2026 — Session 14 mai (2) : PhoneInput RD Congo en 1ère position.
 > Session 14 mai (1) : module variantes produits, PhoneInput 49 pays.
@@ -55,6 +56,12 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 - Marché cible : Kinshasa, RDC → RD Congo toujours en tête de liste
 - Dernière modification : session 14 mai (3) — 3 lignes modifiées (3 insertions, 3 suppressions)
 
+### Page nouveau produit (`app/admin/produits/nouveau/page.tsx`)
+- Bloc discount/promo ajouté : champs `discount` et `is_vip` présents dans le formulaire de création
+- Parité fonctionnelle avec la page modifier produit atteinte session 14 mai (4)
+- 43 insertions / 29 suppressions — refactoring de layout inclus
+- **Note** : tout nouveau champ ajouté à `/modifier` doit être ajouté manuellement à `/nouveau` — pas de composant partagé actuellement
+
 ---
 
 ## Fonctionnalités
@@ -65,6 +72,7 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 - Footer éditable depuis admin ✅
 - PhoneInput 49 pays, RD Congo en position 1 ✅
 - Variantes produits (selected_variants + badges + key composite) ✅
+- Bloc discount/promo + is_vip sur page nouveau produit (parité modifier) ✅
 
 ---
 
@@ -86,49 +94,13 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ## Prochaines étapes
 
-1. **Retrouver la couleur hex des titres** — Inspecter `globals.css`, `tailwind.config`, composants produits et fichiers de style inline pour localiser les couleurs utilisées sur les noms de produits, titres principaux et prix
-2. **Vérifier build local** : `cd ~/PROJECTS_APPLI/clients/black-deew/site && npm run dev -- -p 3001` — confirmer que PhoneInput affiche bien 49 pays avec RDC en 1er après les 3 lignes modifiées
-3. **Push PhoneInput.tsx** uniquement après build vert et accord Martial
-4. **Traiter bugs ARIA** : `aria.py --status` cassé et `aria_watch.py` — non résolus
-5. **Tiana Care** : se géolocaliser depuis `/admin/livraison` sur mobile pour corriger `delivery_shop_lat/lng` (Kinshasa)
-6. **Début juin 2026** : tester le cron `check-payment` (fermeture auto commandes non payées après 5j)
-7. Investiguer bug VIP visible sur home en production
-8. Configurer domaine custom Resend pour les emails
-9. Moderniser template email notifications (style basique vert actuel)
-10. Vérifier comportement infinite scroll au-delà de 50 commandes en prod
-
----
-
-## Contraintes absolues
-
-- Bash terminal uniquement
-- `cat` avant `sed` ou `python3`
-- Jamais pusher sans accord Martial
-- Ne jamais toucher Abou Joudia sans accord explicite
-- Ne jamais afficher les valeurs de secrets
-- Clés Supabase : Legacy JWT (`eyJ...`) uniquement
-
----
-
-## Changelog
-
-### v2.3 — 14 mai 2026
-- chore: modification mineure PhoneInput.tsx — 3 lignes modifiées (3 insertions, 3 suppressions) dans la liste des pays
-- recherche: couleur hex typographie titres (noms produits, titres principaux, prix) — **non résolue**
-
-### v2.2 — 14 mai 2026
-- fix: PhoneInput RD Congo (+243) placé en position 1, Congo (+242) en position 2
-- feat: PhoneInput étendu à 49 pays avec indicatifs internationaux
-
-### v2.1 — 14 mai 2026
-- feat: module variantes produits (selected_variants + badges + key composite)
-
-### v2.0 — 10 mai 2026
-- feat: auth_user_id lors de la création admin
-- fix: notification_email clé unifiée
-- feat: onglets Notifications + Footer dans l'admin
-- feat: FooterHero dynamique
-- fix: template base-food mis à jour
+1. **Tester en prod** la création d'un produit avec discount et `is_vip` via `/admin/produits/nouveau` — vérifier que les valeurs sont bien persistées en base Supabase
+2. **Investiguer bug VIP visible home** — reproduire en prod, inspecter le filtre `is_vip` sur la requête catalogue public
+3. **GPS Kinshasa** — relancer Tiana Care pour se géolocaliser depuis `/admin/livraison` mobile
+4. **Variantes** — valider le comportement collapse/expand + layout vertical + prix en conditions réelles (création + modification d'un produit avec variantes)
+5. **Retrouver la couleur hex des titres** — Inspecter `globals.css`, `tailwind.config`, composants produits et fichiers de style inline
+6. **Traiter bugs ARIA** : `aria.py --status` cassé et `aria_watch.py` — non résolus
+7. **Début juin 2026** : tester le cron `check-payment` (fermeture auto commandes non payées après 5j)
 
 ---
 
@@ -136,20 +108,32 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ```
 Projet : black-deew
-Doc maître : v2.3 — 14 mai 2026
-Dernière session : recherche couleur hex typographie titres (non résolue) + modification mineure PhoneInput.tsx (3 lignes)
+Doc maître : ARIA_DOC v2.2 (14 mai 2026)
+Dernière session : ajout bloc discount/promo sur nouveau produit (parité avec modifier).
+Variantes : collapse/expand + layout vertical + fix prix validés.
 
-CONTEXTE :
-- PhoneInput.tsx modifié (3 lignes) — build local non encore validé
-- La couleur hex des titres (noms produits, titres principaux, prix) n'a PAS été trouvée
+État à reprendre :
+- Bug VIP visible home prod : NON investigué — priorité 1
+- GPS shop : delivery_shop_lat/lng encore sur Agadir — Tiana Care n'a pas encore corrigé
+- Page nouveau produit : parité modifier ✅ — tester en prod la persistance discount + is_vip
 
-TÂCHES PRIORITAIRES :
-1. Trouver la couleur hex typographie titres — inspecter globals.css, composants produits, fichiers de style inline
-2. Valider build local après modification PhoneInput (npm run dev -- -p 3001)
-3. GPS shop : coordonnées encore sur Agadir — Tiana Care doit corriger depuis /admin/livraison
-
-CONTRAINTES :
+Contraintes rappel :
 - Bash terminal uniquement
 - cat avant sed ou python3
-- Ne pas pusher sans accord Martial
-- Build 
+- Tester local avant push — build vert obligatoire
+- Jamais pusher sans accord Martial
+- Ne jamais toucher Abou Joudia sans accord explicite
+- Ne jamais afficher les valeurs des secrets
+
+Commence par lire la section 10 de la doc maître et confirme ce que tu vois avant toute action.
+```
+
+---
+
+## Changelog
+
+| Version | Date | Modifications |
+|---|---|---|
+| v2.4 | 14 mai 2026 | Bloc discount/promo + is_vip ajouté à `/admin/produits/nouveau` (parité modifier). 43 insertions / 29 suppressions. |
+| v2.3 | 14 mai 2026 | Recherche couleur hex typographie titres (non résolue). Modification mineure PhoneInput.tsx (3 lignes). |
+| v2.2 | 14 mai 2026 | Variantes : collapse/expand, layout vertical, no-spinner, suppression div vide. PhoneInput RD Congo en position 

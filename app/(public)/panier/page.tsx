@@ -393,6 +393,8 @@ export default function PanierPage() {
                 variant_price_extra: variantExtra,
                 isVip: i.product.is_vip ?? false,
                 selected_variants: i.selectedVariants ?? null,
+                variant_name: i.selectedVariants ? Object.entries(i.selectedVariants).map(([k,v]) => `${k}: ${v}`).join(', ') : null,
+                variant_price: variantExtra > 0 ? variantExtra : null,
               }
             }),
           total: total() + fee,
@@ -595,7 +597,7 @@ export default function PanierPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
                 {suggestedProducts.map(p => (
                   <div key={p.id} style={{ minWidth: 0, overflow: 'hidden', borderRadius: 12, display: 'flex', flexDirection: 'column', background: 'rgba(245,200,66,0.05)', border: '1px solid rgba(245,200,66,0.1)' }}>
-                    <img src={p.image_url} alt={p.name} style={{ width: '100%', height: 90, objectFit: 'cover' }} loading="lazy" />
+                    <img src={p.image_url || undefined} alt={p.name} style={{ width: '100%', height: 90, objectFit: 'cover' }} loading="lazy" />
                     <div style={{ flex: 1, padding: '8px 10px 4px', fontSize: 10, color: '#F5EDD6', fontWeight: 600, lineHeight: 1.3, wordBreak: 'break-word', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.name}</div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 10px 10px', marginTop: 'auto' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
