@@ -2,7 +2,8 @@
 import { useState, useRef, useEffect } from 'react'
 
 const COUNTRIES = [
-  { code: 'MA', dial: '+212', flag: '🇲🇦', name: 'Maroc' },
+  { code: 'CD', dial: '+243', flag: '🇨🇩', name: 'RD Congo' },
+  { code: 'CG', dial: '+242', flag: '🇨🇬', name: 'Congo' },
   { code: 'FR', dial: '+33', flag: '🇫🇷', name: 'France' },
   { code: 'BE', dial: '+32', flag: '🇧🇪', name: 'Belgique' },
   { code: 'CH', dial: '+41', flag: '🇨🇭', name: 'Suisse' },
@@ -21,6 +22,7 @@ const COUNTRIES = [
   { code: 'PL', dial: '+48', flag: '🇵🇱', name: 'Pologne' },
   { code: 'US', dial: '+1', flag: '🇺🇸', name: 'États-Unis' },
   { code: 'CA', dial: '+1', flag: '🇨🇦', name: 'Canada' },
+  { code: 'MA', dial: '+212', flag: '🇲🇦', name: 'Maroc' },
   { code: 'DZ', dial: '+213', flag: '🇩🇿', name: 'Algérie' },
   { code: 'TN', dial: '+216', flag: '🇹🇳', name: 'Tunisie' },
   { code: 'EG', dial: '+20', flag: '🇪🇬', name: 'Égypte' },
@@ -35,8 +37,6 @@ const COUNTRIES = [
   { code: 'TG', dial: '+228', flag: '🇹🇬', name: 'Togo' },
   { code: 'BJ', dial: '+229', flag: '🇧🇯', name: 'Bénin' },
   { code: 'CM', dial: '+237', flag: '🇨🇲', name: 'Cameroun' },
-  { code: 'CD', dial: '+243', flag: '🇨🇩', name: 'RD Congo' },
-  { code: 'CG', dial: '+242', flag: '🇨🇬', name: 'Congo' },
   { code: 'GA', dial: '+241', flag: '🇬🇦', name: 'Gabon' },
   { code: 'GQ', dial: '+240', flag: '🇬🇶', name: 'Guinée Équatoriale' },
   { code: 'AO', dial: '+244', flag: '🇦🇴', name: 'Angola' },
