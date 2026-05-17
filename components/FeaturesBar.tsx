@@ -100,7 +100,7 @@ export default function FeaturesBar({ alwaysShow = false }: { alwaysShow?: boole
     <div style={{ display: 'flex', gap: 8, padding: '0 16px', marginBottom: 24 }}>
       {features.map((f, i) => (
         <div key={i} style={{
-          background: 'rgba(19,16,9,0.85)',
+          background: 'rgba(19,16,9,0.45)',
           border: '1px solid rgba(232,160,32,0.12)',
           borderRadius: 14,
           padding: '14px 12px',
