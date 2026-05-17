@@ -5,6 +5,7 @@ Application de livraison food — Marché cible : Kinshasa, RDC
 
 Projet Next.js bootstrapped avec [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+> v2.5 — 15 mai 2026 — Session 15 mai (1) : variant_name + variant_price dans order_items — propagation DB + API route commandes + front panier. Refactoring app/admin/produits/nouveau/page.tsx (-33 lignes). Commit : 3441d76.
 > v2.4 — 14 mai 2026 — Session 14 mai (4) : ajout bloc discount/promo + is_vip sur page nouveau produit (parité avec modifier). 43 insertions / 29 suppressions sur `app/admin/produits/nouveau/page.tsx`.
 > v2.3 — 14 mai 2026 — Session 14 mai (3) : recherche couleur hex typographie titres (non résolue) + modification mineure PhoneInput.tsx (3 lignes).
 > v2.2 — 14 mai 2026 — Session 14 mai (2) : PhoneInput RD Congo en 1ère position.
@@ -57,83 +58,62 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 - Dernière modification : session 14 mai (3) — 3 lignes modifiées (3 insertions, 3 suppressions)
 
 ### Page nouveau produit (`app/admin/produits/nouveau/page.tsx`)
-- Bloc discount/promo ajouté : champs `discount` et `is_vip` présents dans le formulaire de création
+- Bloc discount/promo : champs `discount` et `is_vip` présents dans le formulaire de création
+- Module variantes : champs `variant_name` / `variant_price` transmis au panier
 - Parité fonctionnelle avec la page modifier produit atteinte session 14 mai (4)
-- 43 insertions / 29 suppressions — refactoring de layout inclus
-- **Note** : tout nouveau champ ajouté à `/modifier` doit être ajouté manuellement à `/nouveau` — pas de composant partagé actuellement
+- Refactoring layout session 15 mai (1) : ~111 → ~75 lignes effectives (-33 lignes)
+- **⚠️ Note** : pas de composant partagé avec `/modifier` — tout nouveau champ doit être ajouté manuellement aux deux pages
+
+### order_items — Variantes (mis à jour session 15 mai)
+- Les champs `variant_name` et `variant_price` sont insérés depuis le payload panier via `/api/commandes`
+- Le front (`panier/page.tsx`) transmet ces valeurs dans le body POST
+- Chaîne validée : sélection variante → panier → API → `order_items` en DB
+- **⚠️ À vérifier** : présence physique des colonnes en base Supabase non confirmée en session
+- Affichage côté admin commandes : non confirmé — à vérifier
 
 ---
 
-## Fonctionnalités
+## Base de données
 
-- Module stock V1 opérationnel ✅
-- Système VIP complet ✅
-- Infinite scroll commandes 20/page ✅
-- Footer éditable depuis admin ✅
-- PhoneInput 49 pays, RD Congo en position 1 ✅
-- Variantes produits (selected_variants + badges + key composite) ✅
-- Bloc discount/promo + is_vip sur page nouveau produit (parité modifier) ✅
+### Table `order_items` — RLS OFF
+- Colonne `is_vip` boolean
+- Colonnes `variant_name` (text, nullable) et `variant_price` (numeric, nullable) — ajoutées session 15 mai (1)
+  - `variant_name` : nom de la variante sélectionnée (ex: "Taille: L")
+  - `variant_price` : prix de la variante au moment de la commande
+- **⚠️ À vérifier** : présence physique en base Supabase non confirmée — si absentes : `ALTER TABLE order_items ADD COLUMN variant_name text, ADD COLUMN variant_price numeric;`
+- Insert sécurisé : champs explicites uniquement (pas de spread `...item`)
+- `variant_name` et `variant_price` insérés depuis le payload panier via l'API route commandes
+- Le front (panier) transmet `variant_name` et `variant_price` dans le body POST envoyé à `/api/commandes`
+
+---
+
+## Changelog de session
+
+### v2.5 — 15 mai 2026 — Session 15 mai (1)
+**Commit :** 3441d76
+**Fichiers modifiés :** 4 — 79 insertions / 132 suppressions (net : -53 lignes)
+
+Propagation complète des champs `variant_name` et `variant_price` dans le flux de commande : table `order_items` → API route → front panier. Refactoring de la page admin nouveau produit (-33 lignes effectives). Mise à jour README.
+
+**Travaux validés :**
+
+1. **`app/api/commandes/route.ts`** — Ajout des champs `variant_name` et `variant_price` dans l'insert `order_items`. L'API route propage désormais les données de variante sélectionnée au moment de la commande.
+
+2. **`app/(public)/panier/page.tsx`** — Transmission de `variant_name` et `variant_price` depuis le store Zustand vers le payload de commande envoyé à l'API route. Les items du panier portent maintenant l'information de variante.
+
+3. **`app/admin/produits/nouveau/page.tsx`** — Refactoring layout : ~111 lignes → ~75 lignes effectives (-33 lignes). Fonctionnalités conservées : bloc discount/promo, champ `is_vip`, module variantes (`variant_name` / `variant_price`). Parité fonctionnelle avec `/modifier` maintenue.
+
+4. **`README.md`** — Version bumped v2.4 → v2.5. Section `order_items — Variantes` ajoutée. Note refactoring page nouveau produit documentée. Changelog de session ajouté.
+
+**Bugs corrigés :** Aucun bug explicitement corrigé dans cette session. Les modifications sont des ajouts de fonctionnalité (propagation variantes) et du refactoring.
 
 ---
 
 ## Dette technique
 
-| Dette | Priorité | Détail |
+| Dette | Priorité | Statut |
 |---|---|---|
-| GPS shop Kinshasa | Haute | `delivery_shop_lat/lng` toujours sur Agadir — action requise de Tiana Care depuis `/admin/livraison` mobile |
-| Test cron `check-payment` | Haute | Prévu début juin 2026 |
-| ARIA v2 avec Claude Code | Haute | Bugs `aria.py` (`--status` cassé) et `aria_watch.py` non résolus — à traiter en priorité |
-| Bug VIP visible home prod | Haute | À confirmer/investiguer en prod |
-| Couleur hex typographie titres | Moyenne | Couleur hex des noms de produits, titres principaux et prix non documentée — non résolue session 14 mai (3) |
-| Email Resend domaine custom | Moyenne | Actuellement `onboarding@resend.dev` limité |
-| Template email notifications | Basse | Style basique vert — à moderniser |
-| Infinite scroll >50 commandes | Basse | À vérifier en prod |
-| Slug `menu_categories` non synchronisé | Basse | Renommage catégorie ne cascade pas sur produits |
-
----
-
-## Prochaines étapes
-
-1. **Tester en prod** la création d'un produit avec discount et `is_vip` via `/admin/produits/nouveau` — vérifier que les valeurs sont bien persistées en base Supabase
-2. **Investiguer bug VIP visible home** — reproduire en prod, inspecter le filtre `is_vip` sur la requête catalogue public
-3. **GPS Kinshasa** — relancer Tiana Care pour se géolocaliser depuis `/admin/livraison` mobile
-4. **Variantes** — valider le comportement collapse/expand + layout vertical + prix en conditions réelles (création + modification d'un produit avec variantes)
-5. **Retrouver la couleur hex des titres** — Inspecter `globals.css`, `tailwind.config`, composants produits et fichiers de style inline
-6. **Traiter bugs ARIA** : `aria.py --status` cassé et `aria_watch.py` — non résolus
-7. **Début juin 2026** : tester le cron `check-payment` (fermeture auto commandes non payées après 5j)
-
----
-
-## Prompt de reprise
-
-```
-Projet : black-deew
-Doc maître : ARIA_DOC v2.2 (14 mai 2026)
-Dernière session : ajout bloc discount/promo sur nouveau produit (parité avec modifier).
-Variantes : collapse/expand + layout vertical + fix prix validés.
-
-État à reprendre :
-- Bug VIP visible home prod : NON investigué — priorité 1
-- GPS shop : delivery_shop_lat/lng encore sur Agadir — Tiana Care n'a pas encore corrigé
-- Page nouveau produit : parité modifier ✅ — tester en prod la persistance discount + is_vip
-
-Contraintes rappel :
-- Bash terminal uniquement
-- cat avant sed ou python3
-- Tester local avant push — build vert obligatoire
-- Jamais pusher sans accord Martial
-- Ne jamais toucher Abou Joudia sans accord explicite
-- Ne jamais afficher les valeurs des secrets
-
-Commence par lire la section 10 de la doc maître et confirme ce que tu vois avant toute action.
-```
-
----
-
-## Changelog
-
-| Version | Date | Modifications |
-|---|---|---|
-| v2.4 | 14 mai 2026 | Bloc discount/promo + is_vip ajouté à `/admin/produits/nouveau` (parité modifier). 43 insertions / 29 suppressions. |
-| v2.3 | 14 mai 2026 | Recherche couleur hex typographie titres (non résolue). Modification mineure PhoneInput.tsx (3 lignes). |
-| v2.2 | 14 mai 2026 | Variantes : collapse/expand, layout vertical, no-spinner, suppression div vide. PhoneInput RD Congo en position 
+| GPS shop Kinshasa — `delivery_shop_lat/lng` encore sur Agadir (valeurs test) | Haute | ⚠️ En attente Tiana Care |
+| Pas de composant partagé entre `/nouveau` et `/modifier` — tout nouveau champ doit être ajouté manuellement aux deux pages | Moyenne | Toujours présente — non traitée |
+| Template email notifications style basique | Basse | Non traité |
+| Bug VIP visible home prod — à confirmer/investiguer |

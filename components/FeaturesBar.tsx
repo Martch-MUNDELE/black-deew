@@ -86,7 +86,11 @@ export default function FeaturesBar({ alwaysShow = false }: { alwaysShow?: boole
         if (!row) return d
         try { return JSON.parse(row.value) } catch { return d }
       })
-      setFeatures(parsed)
+      const activeFlags = [1, 2, 3].map(i => {
+        const row = data.find((s: any) => s.key === `feature_${i}_active`)
+        return row ? row.value !== 'false' : true
+      })
+      setFeatures(parsed.filter((_, i) => activeFlags[i]))
     })
   }, [])
 
