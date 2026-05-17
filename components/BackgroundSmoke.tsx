@@ -64,6 +64,9 @@ export default function BackgroundSmoke() {
         {/* Fondu gauche lisibilité */}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right, rgba(8,6,3,0.85) 0%, rgba(8,6,3,0.5) 50%, rgba(8,6,3,0.2) 100%)', zIndex: 1 }} />
 
+        {/* Fumée canvas — zIndex 2 — derrière le personnage */}
+        {heroImage && <SmokeEffect />}
+
         {/* Burger — zIndex 2 */}
         {heroImage && (
           <img src={heroImage} alt="" style={{ position: 'absolute', bottom: 0, right: 0, width: 'min(75%, 450px)', height: 'min(55%, 360px)', objectFit: 'contain', objectPosition: 'right bottom', opacity: 0.95, zIndex: 2 }} />
@@ -71,9 +74,6 @@ export default function BackgroundSmoke() {
 
         {/* Halo chaud burger */}
         <div style={{ position: 'absolute', bottom: 0, right: 0, width: '80%', height: '50%', background: 'radial-gradient(ellipse 65% 55% at 75% 95%, rgba(232,120,20,0.2) 0%, transparent 65%)', zIndex: 2 }} />
-
-        {/* Fumée canvas — zIndex 3 */}
-        {heroImage && <SmokeEffect />}
 
       </div>
     </div>
