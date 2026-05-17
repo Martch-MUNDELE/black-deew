@@ -10,22 +10,28 @@ export const viewport = {
 
 export const metadata: Metadata = {
   title: 'Black Deew',
-  description: 'Black Deew — À compléter',
+  description: 'Black Deew — Livraison food à Kinshasa',
   openGraph: {
     title: 'Black Deew',
-    description: 'Black Deew — À compléter',
+    description: 'Black Deew — Livraison food à Kinshasa',
     url: 'https://black-deew.vercel.app',
     siteName: 'Black Deew',
     images: [
       {
-        url: '',
-        width: 508,
-        height: 433,
+        url: 'https://black-deew.vercel.app/og-image.png',
+        width: 800,
+        height: 800,
         alt: 'Black Deew',
       }
     ],
     locale: 'fr_FR',
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Black Deew',
+    description: 'Black Deew — Livraison food à Kinshasa',
+    images: ['https://black-deew.vercel.app/og-image.png'],
   },
 }
 
