@@ -68,7 +68,7 @@ export default function SmokeEffect() {
 
       // Spawn plusieurs particules depuis différents points du burger
       if (frame % 6 === 0) {
-        const baseY = canvas.height * 0.95
+        const baseY = canvas.height * 0.88
         const spawnPoints = [
           canvas.width * 0.60 - 50,
           canvas.width * 0.65 - 50,
