@@ -68,7 +68,7 @@ export default function SmokeEffect() {
 
       // Spawn plusieurs particules depuis différents points du burger
       if (frame % 6 === 0) {
-        const baseY = canvas.height * 0.82
+        const baseY = canvas.height * 0.95
         const spawnPoints = [
           canvas.width * 0.60 - 50,
           canvas.width * 0.65 - 50,
@@ -112,7 +112,7 @@ export default function SmokeEffect() {
   return (
     <canvas
       ref={canvasRef}
-      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2 }}
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}
     />
   )
 }
