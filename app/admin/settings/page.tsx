@@ -129,11 +129,12 @@ function SettingsContent() {
   const uploadHeroImage = async (file: File) => {
     setUploading(true)
     const ext = file.name.split('.').pop()
-    const fileName = `hero.${ext}`
+    const fileName = `hero-${Date.now()}.${ext}`
     const { error } = await supabase.storage.from('products').upload(fileName, file, { upsert: true })
     if (!error) {
       const { data } = supabase.storage.from('products').getPublicUrl(fileName)
-      setHeroImage(data.publicUrl)
+      setHeroImage(data.publicUrl + '?t=' + Date.now())
+      await supabase.from('settings').upsert({ key: 'hero_image', value: data.publicUrl })
     }
     setUploading(false)
   }
