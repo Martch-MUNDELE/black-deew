@@ -5,6 +5,7 @@ Application de livraison food — Marché cible : Kinshasa, RDC
 
 Projet Next.js bootstrapped avec [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+> v2.6 — 17 mai 2026 — Session 17 mai : uploadHeroImage timestamp + upsert immédiat + cache-buster (63c20f6) · favicon + apple-icon depuis logo Supabase (5854701) · site_description admin + generateMetadata dynamique + footer tab fix (9ddc62a) · OG image + Twitter card metadata (f95fb82) · toggle ON/OFF par argument dans admin settings (4319cca).
 > v2.5 — 15 mai 2026 — Session 15 mai (1) : variant_name + variant_price dans order_items — propagation DB + API route commandes + front panier. Refactoring app/admin/produits/nouveau/page.tsx (-33 lignes). Commit : 3441d76.
 > v2.4 — 14 mai 2026 — Session 14 mai (4) : ajout bloc discount/promo + is_vip sur page nouveau produit (parité avec modifier). 43 insertions / 29 suppressions sur `app/admin/produits/nouveau/page.tsx`.
 > v2.3 — 14 mai 2026 — Session 14 mai (3) : recherche couleur hex typographie titres (non résolue) + modification mineure PhoneInput.tsx (3 lignes).
@@ -64,6 +65,10 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 - Refactoring layout session 15 mai (1) : ~111 → ~75 lignes effectives (-33 lignes)
 - **⚠️ Note** : pas de composant partagé avec `/modifier` — tout nouveau champ doit être ajouté manuellement aux deux pages
 
+### FeaturesBar (`components/FeaturesBar.tsx`)
+- 8 icônes SVG disponibles dans le switch : `chef`, `delivery`, `fresh`, `star`, `clock`, `heart`, `shield`, `fire`
+- Dernière modification : session 17 mai — 6 lignes modifiées (ajout icônes star, clock, heart, shield, fire)
+
 ### order_items — Variantes (mis à jour session 15 mai)
 - Les champs `variant_name` et `variant_price` sont insérés depuis le payload panier via `/api/commandes`
 - Le front (`panier/page.tsx`) transmet ces valeurs dans le body POST
@@ -82,38 +87,23 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
   - `variant_price` : prix de la variante au moment de la commande
 - **⚠️ À vérifier** : présence physique en base Supabase non confirmée — si absentes : `ALTER TABLE order_items ADD COLUMN variant_name text, ADD COLUMN variant_price numeric;`
 - Insert sécurisé : champs explicites uniquement (pas de spread `...item`)
-- `variant_name` et `variant_price` insérés depuis le payload panier via l'API route commandes
-- Le front (panier) transmet `variant_name` et `variant_price` dans le body POST envoyé à `/api/commandes`
+- `variant_name` et `variant_price` insérés depuis le payload
 
----
+### Table `settings` — Clés actives
 
-## Changelog de session
-
-### v2.5 — 15 mai 2026 — Session 15 mai (1)
-**Commit :** 3441d76
-**Fichiers modifiés :** 4 — 79 insertions / 132 suppressions (net : -53 lignes)
-
-Propagation complète des champs `variant_name` et `variant_price` dans le flux de commande : table `order_items` → API route → front panier. Refactoring de la page admin nouveau produit (-33 lignes effectives). Mise à jour README.
-
-**Travaux validés :**
-
-1. **`app/api/commandes/route.ts`** — Ajout des champs `variant_name` et `variant_price` dans l'insert `order_items`. L'API route propage désormais les données de variante sélectionnée au moment de la commande.
-
-2. **`app/(public)/panier/page.tsx`** — Transmission de `variant_name` et `variant_price` depuis le store Zustand vers le payload de commande envoyé à l'API route. Les items du panier portent maintenant l'information de variante.
-
-3. **`app/admin/produits/nouveau/page.tsx`** — Refactoring layout : ~111 lignes → ~75 lignes effectives (-33 lignes). Fonctionnalités conservées : bloc discount/promo, champ `is_vip`, module variantes (`variant_name` / `variant_price`). Parité fonctionnelle avec `/modifier` maintenue.
-
-4. **`README.md`** — Version bumped v2.4 → v2.5. Section `order_items — Variantes` ajoutée. Note refactoring page nouveau produit documentée. Changelog de session ajouté.
-
-**Bugs corrigés :** Aucun bug explicitement corrigé dans cette session. Les modifications sont des ajouts de fonctionnalité (propagation variantes) et du refactoring.
-
----
-
-## Dette technique
-
-| Dette | Priorité | Statut |
+| Clé | Valeur actuelle | Notes |
 |---|---|---|
-| GPS shop Kinshasa — `delivery_shop_lat/lng` encore sur Agadir (valeurs test) | Haute | ⚠️ En attente Tiana Care |
-| Pas de composant partagé entre `/nouveau` et `/modifier` — tout nouveau champ doit être ajouté manuellement aux deux pages | Moyenne | Toujours présente — non traitée |
-| Template email notifications style basique | Basse | Non traité |
-| Bug VIP visible home prod — à confirmer/investiguer |
+| `hero_image` | URL Supabase Storage | Upsert immédiat après upload — nom fichier avec timestamp (`hero-{Date.now()}.ext`) + cache-buster sur URL affichée |
+| `site_description` | texte libre | Utilisé dans `generateMetadata` (description, OG, Twitter) — configurable depuis `/admin/settings` |
+| `og_image` | URL | Balise `og:image` + `twitter:image` — dynamique depuis settings |
+
+---
+
+## Travaux valides — Session 17 mai 2026
+
+- **Fix uploadHeroImage** (`63c20f6`) : remplacement du fileName fixe `hero.ext` par `hero-{timestamp}.ext` + upsert immédiat de la clé `hero_image` dans la table `settings` après upload + cache-buster appliqué sur l'URL affichée.
+- **Favicon + apple-icon dynamiques** (`5854701`) : générés depuis le logo stocké dans Supabase Storage — plus de fichiers statiques hardcodés.
+- **site_description admin** (`9ddc62a`) : nouveau champ `site_description` configurable depuis `/admin/settings` + `generateMetadata` dynamique qui lit la valeur en base + correction de l'onglet footer qui ne s'activait pas correctement.
+- **OG image + Twitter card metadata** (`f95fb82`) : balises `og:image` et `twitter:card` générées dynamiquement depuis les settings Supabase.
+- **Toggle ON/OFF par argument** (`4319cca`) : le bouton statut dans admin settings accepte désormais un argument explicite pour forcer l'état ON ou OFF sans dépendre d'un toggle CSS seul.
+- **FeaturesBar.tsx** (`components/FeaturesBar.tsx`) : ajout de nouvelles icô

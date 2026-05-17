@@ -17,6 +17,7 @@ export interface Product {
   popular?: boolean
   discount?: number | null
   is_vip?: boolean
+  is_coup_de_coeur?: boolean
   variants?: { type: string; options: string[]; prices?: Record<string, number> }[] | null
 }
 

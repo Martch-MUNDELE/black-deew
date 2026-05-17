@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useCurrency } from '@/lib/currency'
 
-type Product = { id: string; name: string; price: number; image_url: string; subcategory: string; active: boolean; featured: boolean; popular: boolean; is_vip: boolean; stock: number | null; discount: number | null }
+type Product = { id: string; name: string; price: number; image_url: string; subcategory: string; active: boolean; featured: boolean; popular: boolean; is_vip: boolean; is_coup_de_coeur: boolean; stock: number | null; discount: number | null }
 
 
 
@@ -100,6 +100,12 @@ function ProduitsAdminInner() {
     await supabase.from('products').update({ featured: false }).neq('id', id)
     await supabase.from('products').update({ featured: true }).eq('id', id)
     setProducts(prev => prev.map(p => ({ ...p, featured: p.id === id })))
+  }
+
+  const setCoupDeCoeur = async (id: string) => {
+    await supabase.from('products').update({ is_coup_de_coeur: false }).neq('id', id)
+    await supabase.from('products').update({ is_coup_de_coeur: true }).eq('id', id)
+    setProducts(prev => prev.map(p => ({ ...p, is_coup_de_coeur: p.id === id })))
   }
 
   const setPopular = async (id: string, subcategory: string | null, isVip: boolean) => {
@@ -301,6 +307,7 @@ function ProduitsAdminInner() {
                     ★
                   </button>
                   <button onClick={() => setPopular(p.id, p.subcategory, p.is_vip)} title="Populaire" style={{ width: 34, height: 34, borderRadius: 8, border: p.popular ? '1px solid rgba(255,107,32,0.6)' : '1px solid rgba(255,255,255,0.08)', background: p.popular ? 'rgba(255,107,32,0.15)' : 'transparent', color: p.popular ? '#FF6B20' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🔥</button>
+                  <button onClick={() => setCoupDeCoeur(p.id)} title="Coup de coeur" style={{ width: 34, height: 34, borderRadius: 8, border: p.is_coup_de_coeur ? '1px solid rgba(255,100,130,0.6)' : '1px solid rgba(255,255,255,0.08)', background: p.is_coup_de_coeur ? 'rgba(255,100,130,0.15)' : 'transparent', color: p.is_coup_de_coeur ? '#FF6482' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>❤️</button>
                   <button onClick={() => router.push('/admin/produits/' + p.id + '/modifier')} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.06)', color: '#E8A020', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <IconEdit />
                   </button>
