@@ -22,10 +22,10 @@ export default function SmokeEffect() {
       constructor(x: number, y: number) {
         this.x = x + (Math.random() - 0.5) * 40
         this.y = y
-        this.size = (Math.random() * 18 + 8) * 0.5
+        this.size = (Math.random() * 18 + 8) * 0.25
         this.speedX = (Math.random() - 0.5) * 0.3
         this.speedY = -(Math.random() * 0.5 + 0.25)
-        this.opacity = Math.random() * 0.12 + 0.04
+        this.opacity = (Math.random() * 0.12 + 0.04) * 0.5
         this.life = 0
         this.maxLife = Math.random() * 120 + 80
         this.wobble = Math.random() * Math.PI * 2
