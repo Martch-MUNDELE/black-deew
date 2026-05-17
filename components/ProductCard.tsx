@@ -44,7 +44,7 @@ export default function ProductCard({ product, featured = false, isOpen, allProd
   }
 
   if (featured) return (
-    <div style={{ background: '#0F0C07', borderRadius: 18, border: '1px solid rgba(255,107,32,0.25)', overflow: 'hidden', cursor: 'default', position: 'relative', transition: 'border-color 0.2s' }}>
+    <div style={{ background: 'rgba(15,12,7,0.75)', borderRadius: 18, border: '1px solid rgba(255,107,32,0.25)', overflow: 'hidden', cursor: 'default', position: 'relative', transition: 'border-color 0.2s' }}>
       <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 2, background: 'linear-gradient(90deg,#FF6B20,#FF3D00)', color: 'white', padding: '4px 12px', borderRadius: 50, fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.6px' }}>★ Populaire</div>
       {product.discount && product.discount > 0 && (
         <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 2, background: 'rgba(255,80,80,0.12)', border: '1px solid rgba(255,120,120,0.3)', color: '#FF8080', fontSize: 10, fontWeight: 800, borderRadius: 6, padding: '3px 7px', fontFamily: 'DM Sans, sans-serif' }}>-{product.discount}%</div>
@@ -75,7 +75,7 @@ export default function ProductCard({ product, featured = false, isOpen, allProd
 
   return (
     <>
-    <div className={product.discount && product.discount > 0 ? 'discount-glow' : undefined} style={{ background: '#0F0C07', borderRadius: 16, border: '1px solid rgba(232,160,32,0.18)', padding: '12px 14px', display: 'flex', gap: 12, alignItems: 'center', cursor: 'default', transition: 'border-color 0.2s, box-shadow 0.2s', position: 'relative' }}
+    <div className={product.discount && product.discount > 0 ? 'discount-glow' : undefined} style={{ background: 'rgba(15,12,7,0.75)', borderRadius: 16, border: '1px solid rgba(232,160,32,0.18)', padding: '12px 14px', display: 'flex', gap: 12, alignItems: 'center', cursor: 'default', transition: 'border-color 0.2s, box-shadow 0.2s', position: 'relative' }}
       onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(232,160,32,0.25)'; (e.currentTarget as HTMLDivElement).style.boxShadow = '0 0 20px rgba(232,160,32,0.06)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(232,160,32,0.08)'; (e.currentTarget as HTMLDivElement).style.boxShadow = product.discount && product.discount > 0 ? '' : 'none' }}
     >
