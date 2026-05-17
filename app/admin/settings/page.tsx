@@ -14,6 +14,7 @@ const TABS = [
   { key: 'fond', label: 'Fond de page' },
   { key: 'hero', label: 'Image hero' },
   { key: 'arguments', label: 'Arguments' },
+  { key: 'footer', label: 'Footer' },
   { key: 'notifications', label: 'Notifications' },
   { key: 'devise', label: 'Devise' },
 ]
@@ -56,6 +57,7 @@ function SettingsContent() {
   const [feature1, setFeature1] = useState<Feature>({ icon: 'chef', title: 'Préparé à Kinshasa', desc: 'Par chez vous à Kinshasa, repas cuisinés avec soin par nos équipes.' })
   const [feature2, setFeature2] = useState<Feature>({ icon: 'delivery', title: 'Livraison rapide', desc: 'On vous livre rapidement et directement à votre porte.' })
   const [feature3, setFeature3] = useState<Feature>({ icon: 'fresh', title: 'Frais du jour', desc: 'Profitez de produits toujours frais, choisis chaque jour.' })
+  const [siteDescription, setSiteDescription] = useState('')
   const [notificationEmail, setNotificationEmail] = useState('')
   const [footerLine1, setFooterLine1] = useState('Livraison à')
   const [footerLine2, setFooterLine2] = useState('Kinshasa.')
@@ -73,6 +75,7 @@ function SettingsContent() {
         if (s.key === 'background_image') setBackgroundImage(s.value)
         if (s.key === 'site_name') setSiteName(s.value)
         if (s.key === 'site_baseline') setSiteBaseline(s.value)
+        if (s.key === 'site_description') setSiteDescription(s.value)
         if (s.key === 'site_logo') setSiteLogo(s.value)
         if (s.key === 'feature_1') { try { setFeature1(JSON.parse(s.value)) } catch {} }
         if (s.key === 'feature_2') { try { setFeature2(JSON.parse(s.value)) } catch {} }
@@ -144,6 +147,7 @@ function SettingsContent() {
       supabase.from('settings').upsert({ key: 'background_image', value: backgroundImage }),
       supabase.from('settings').upsert({ key: 'site_name', value: siteName }),
       supabase.from('settings').upsert({ key: 'site_baseline', value: siteBaseline }),
+      supabase.from('settings').upsert({ key: 'site_description', value: siteDescription }),
       supabase.from('settings').upsert({ key: 'site_logo', value: siteLogo }),
       supabase.from('settings').upsert({ key: 'feature_1', value: JSON.stringify(feature1) }),
       supabase.from('settings').upsert({ key: 'feature_2', value: JSON.stringify(feature2) }),
@@ -207,7 +211,9 @@ function SettingsContent() {
           <label style={labelStyle}>Nom du site</label>
           <input type="text" value={siteName} onChange={e => setSiteName(e.target.value)} style={{ ...inputStyle, marginBottom: 14 }} />
           <label style={labelStyle}>Baseline</label>
-          <input type="text" value={siteBaseline} onChange={e => setSiteBaseline(e.target.value)} style={inputStyle} />
+          <input type="text" value={siteBaseline} onChange={e => setSiteBaseline(e.target.value)} style={{ ...inputStyle, marginBottom: 14 }} />
+          <label style={labelStyle}>Description (WhatsApp / réseaux sociaux)</label>
+          <textarea value={siteDescription} onChange={e => setSiteDescription(e.target.value)} rows={3} placeholder="Ex: Livraison de plats chauds à Kinshasa, directement chez vous." style={{ ...inputStyle, resize: 'vertical' as const }} />
         </div>
       )}
 
