@@ -22,7 +22,7 @@ export default function SmokeEffect() {
       constructor(x: number, y: number) {
         this.x = x + (Math.random() - 0.5) * 40
         this.y = y
-        this.size = Math.random() * 18 + 8
+        this.size = (Math.random() * 18 + 8) * 0.5
         this.speedX = (Math.random() - 0.5) * 0.3
         this.speedY = -(Math.random() * 0.5 + 0.25)
         this.opacity = Math.random() * 0.12 + 0.04
@@ -68,7 +68,7 @@ export default function SmokeEffect() {
 
       // Spawn plusieurs particules depuis différents points du burger
       if (frame % 6 === 0) {
-        const baseY = canvas.height * 0.88
+        const baseY = canvas.height * 0.88 - 50 - 50
         const spawnPoints = [
           canvas.width * 0.60 - 50,
           canvas.width * 0.65 - 50,
