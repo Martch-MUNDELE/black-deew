@@ -456,6 +456,7 @@ function CommandesAdminInner() {
                 </div>
                 {pending && pending !== order.status && (() => {
                   const btnStyle = { marginTop: 10, display: 'inline-block', float: 'right' as const, background: '#25D366', color: '#0A0804', borderRadius: 50, padding: '6px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'none', border: 'none' }
+                  if (pending === 'en_livraison' && !order.driver_id) return null
                   const waUrl = buildWhatsAppUrl(
                     order,
                     slots[order.slot_id] ?? null,
