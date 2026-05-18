@@ -106,6 +106,44 @@ const IconCal = () => (
   </svg>
 )
 
+function DispatchModal({ order, onClose, onDispatched, currency }: { order: any, onClose: () => void, onDispatched: () => void, currency: string }) {
+  const [drivers, setDrivers] = useState<any[]>([])
+  const [selectedDriver, setSelectedDriver] = useState<string>('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const supabase = createClient()
+  useEffect(() => {
+    supabase.from('delivery_drivers')
+      .select('id, full_name, phone, vehicle_type, zone, driver_sessions!inner(session_status)')
+      .eq('driver_sessions.session_status', 'open')
+      .then(({ data }) => { setDrivers(data || []); setLoading(false) })
+  }, [])
+  const handleConfirm = async () => {
+    if (!selectedDriver) return
+    setSaving(true)
+    await supabase.from('orders').update({ status: 'en_livraison', driver_id: selectedDriver }).eq('id', order.id)
+    await supabase.from('order_deliveries').insert({ order_id: order.id, driver_id: selectedDriver, status: 'assigned', assigned_at: new Date().toISOString(), amount_to_collect: order.total, delivery_fee_charged_to_customer: order.delivery_fee || 0 })
+    setSaving(false); onDispatched(); onClose()
+  }
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={onClose}>
+      <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 420, fontFamily: 'DM Sans, sans-serif' }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, fontWeight: 800, color: '#F5EDD6', marginBottom: 6 }}>Dispatcher vers un livreur</div>
+        <div style={{ fontSize: 12, color: '#C8B99A', marginBottom: 20 }}>Commande #{order.id.slice(0,8).toUpperCase()} - {order.customer_name} - {order.total.toFixed(2)} {currency}</div>
+        {loading ? (<div style={{ color: '#7A6E58', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Chargement...</div>) : drivers.length === 0 ? (<div style={{ color: '#FF6B6B', fontSize: 13, textAlign: 'center', padding: '20px 0', background: 'rgba(255,107,107,0.07)', borderRadius: 10, border: '1px solid rgba(255,107,107,0.15)' }}>Aucun livreur avec session ouverte</div>) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+            {drivers.map(d => (<button key={d.id} onClick={() => setSelectedDriver(d.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 10, border: `1px solid ${selectedDriver === d.id ? 'rgba(56,182,255,0.5)' : 'rgba(255,255,255,0.08)'}`, background: selectedDriver === d.id ? 'rgba(56,182,255,0.08)' : 'rgba(255,255,255,0.02)', cursor: 'pointer', textAlign: 'left' }}><div><div style={{ fontWeight: 700, fontSize: 13, color: selectedDriver === d.id ? '#38B6FF' : '#F5EDD6' }}>{d.full_name}</div><div style={{ fontSize: 11, color: '#C8B99A', marginTop: 2 }}>{d.phone}</div></div>{selectedDriver === d.id && <span style={{ color: '#38B6FF' }}>OK</span>}</button>))}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '10px 0', borderRadius: 50, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#C8B99A', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Annuler</button>
+          <button onClick={handleConfirm} disabled={!selectedDriver || saving} style={{ flex: 2, padding: '10px 0', borderRadius: 50, border: 'none', background: selectedDriver && !saving ? '#38B6FF' : 'rgba(56,182,255,0.2)', color: selectedDriver && !saving ? '#0A0804' : 'rgba(56,182,255,0.4)', fontSize: 13, fontWeight: 700, cursor: selectedDriver && !saving ? 'pointer' : 'not-allowed', fontFamily: 'DM Sans, sans-serif' }}>{saving ? 'Enregistrement...' : 'Confirmer la livraison'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function CommandesAdminInner() {
   const [orders, setOrders] = useState<any[]>([])
   const currency = useCurrency()
@@ -120,6 +158,7 @@ function CommandesAdminInner() {
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [dispatchOrder, setDispatchOrder] = useState<any | null>(null)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const supabase = createClient()
 
@@ -240,6 +279,9 @@ function CommandesAdminInner() {
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto' }}>
+      {dispatchOrder && (
+        <DispatchModal order={dispatchOrder} currency={currency} onClose={() => setDispatchOrder(null)} onDispatched={() => reload()} />
+      )}
       <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 26, fontWeight: 900, color: '#F5EDD6', marginBottom: 24 }}>
         Commandes
       </h1>
@@ -314,6 +356,9 @@ function CommandesAdminInner() {
                 </div>
               )}
 
+              {order.status === 'en_preparation' && order.delivery_mode !== 'pickup' && (
+                <div style={{ marginTop: 10 }}><button onClick={() => setDispatchOrder(order)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 50, border: '1px solid rgba(56,182,255,0.35)', background: 'rgba(56,182,255,0.1)', color: '#38B6FF', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Passer en livraison</button></div>
+              )}
               {/* ACTIONS */}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <a href={`tel:${order.customer_phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.06)', color: '#E8A020', textDecoration: 'none', fontSize: 11, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
