@@ -114,10 +114,21 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
   useEffect(() => {
-    supabase.from('delivery_drivers')
-      .select('id, full_name, phone, vehicle_type, zone, driver_sessions!inner(session_status)')
-      .eq('driver_sessions.session_status', 'open')
-      .then(({ data }) => { setDrivers(data || []); setLoading(false) })
+    const load = async () => {
+      const { data: sessions } = await supabase
+        .from('driver_sessions')
+        .select('driver_id')
+        .eq('session_status', 'open')
+      const driverIds = (sessions || []).map((s: any) => s.driver_id)
+      if (driverIds.length === 0) { setDrivers([]); setLoading(false); return }
+      const { data } = await supabase
+        .from('delivery_drivers')
+        .select('id, full_name, phone, vehicle_type, zone')
+        .in('id', driverIds)
+      setDrivers(data || [])
+      setLoading(false)
+    }
+    load()
   }, [])
   const handleConfirm = async () => {
     if (!selectedDriver) return
