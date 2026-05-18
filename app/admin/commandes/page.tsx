@@ -39,7 +39,7 @@ function cleanPhone(phone: string) {
   return p.startsWith('+') ? p : p.replace(/^0/, '212')
 }
 
-function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDate: (d: string) => string, shopAddress?: string, factureUrl?: string, currency = 'DH'): string | null {
+function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDate: (d: string) => string, shopAddress?: string, factureUrl?: string, currency = 'DH', driverInfo?: { full_name: string; phone: string } | null): string | null {
   const name = order.customer_name
   let msg: string | null = null
 
@@ -63,7 +63,8 @@ function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDat
   } else if (targetStatus === 'en_preparation') {
     msg = `Bonjour ${name}, votre commande Black Deew est en cours de préparation. Encore un peu de patience !`
   } else if (targetStatus === 'en_livraison') {
-    msg = `Bonjour ${name}, votre commande Black Deew est en route ! Notre livreur arrive bientôt chez vous.`
+    const driverLine = driverInfo ? `\n\n Votre livreur : ${driverInfo.full_name} - Tel : ${driverInfo.phone}` : ''
+    msg = `Bonjour ${name}, votre commande Black Deew est en route ! Notre livreur arrive bientot chez vous.${driverLine}`
   } else if (targetStatus === 'livrée') {
     const factureLine = factureUrl ? `\n\n🧾 Votre facture (72h) : ${factureUrl}` : ''
     msg = `Merci ${name} ! Votre commande a bien été livrée. Bon appétit et à très bientôt chez Black Deew !${factureLine}`
@@ -159,6 +160,7 @@ function CommandesAdminInner() {
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [dispatchOrder, setDispatchOrder] = useState<any | null>(null)
+  const [driverInfos, setDriverInfos] = useState<Record<string, { full_name: string; phone: string }>>({})
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const supabase = createClient()
 
@@ -234,6 +236,17 @@ function CommandesAdminInner() {
         setSlots(prev => {
           const map = { ...prev }
           slotData.forEach(s => { map[s.id] = s })
+          return map
+        })
+      }
+    }
+    const driverIds = [...new Set(data.filter((o: any) => o.driver_id).map((o: any) => o.driver_id as string))]
+    if (driverIds.length > 0) {
+      const { data: driverData } = await supabase.from('delivery_drivers').select('id, full_name, phone').in('id', driverIds)
+      if (driverData) {
+        setDriverInfos(prev => {
+          const map = { ...prev }
+          driverData.forEach((d: any) => { map[d.id] = { full_name: d.full_name, phone: d.phone } })
           return map
         })
       }
@@ -450,7 +463,8 @@ function CommandesAdminInner() {
                     formatDate,
                     shopAddress,
                     pending === 'livrée' ? factureUrls[order.id] : undefined,
-                    currency
+                    currency,
+                    driverInfos[order.driver_id] ?? null
                   )
                   if (!waUrl) return null
                   return (
