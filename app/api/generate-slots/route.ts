@@ -23,36 +23,44 @@ export async function GET() {
   const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
   const toTime = (n: number) => `${Math.floor(n/60).toString().padStart(2,'0')}:${(n%60).toString().padStart(2,'0')}`
 
-  const targetDate = addDays(new Date(), daysAhead)
-  const dateStr = targetDate.toISOString().split('T')[0]
-  const dayOfWeek = targetDate.getDay().toString()
+  const results: string[] = []
 
-  if (closedDays.includes(dayOfWeek)) {
-    return NextResponse.json({ message: `Jour fermé : ${dateStr}` })
-  }
+  for (let d = 0; d <= daysAhead; d++) {
+    const targetDate = addDays(new Date(), d)
+    const dateStr = targetDate.toISOString().split('T')[0]
+    const dayOfWeek = targetDate.getDay().toString()
 
-  const { data: existing } = await supabase.from('delivery_slots').select('id').eq('date', dateStr).limit(1)
-  if (existing && existing.length > 0) {
-    return NextResponse.json({ message: `Déjà généré : ${dateStr}` })
-  }
-
-  const rows: {date: string, time_start: string, time_end: string, capacity: number, booked: number, blocked: boolean}[] = []
-  let cur = toMin(start)
-  const endMin = toMin(end)
-  const ps = pauseStart ? toMin(pauseStart) : null
-  const pe = pauseEnd ? toMin(pauseEnd) : null
-
-  while (cur + duration <= endMin) {
-    const next = cur + duration
-    if (!(ps !== null && pe !== null && cur < pe && next > ps)) {
-      rows.push({ date: dateStr, time_start: toTime(cur), time_end: toTime(next), capacity, booked: 0, blocked: false })
+    if (closedDays.includes(dayOfWeek)) {
+      results.push(`Jour fermé : ${dateStr}`)
+      continue
     }
-    cur = next
+
+    const { data: existing } = await supabase.from('delivery_slots').select('id').eq('date', dateStr).limit(1)
+    if (existing && existing.length > 0) {
+      results.push(`Déjà généré : ${dateStr}`)
+      continue
+    }
+
+    const rows: {date: string, time_start: string, time_end: string, capacity: number, booked: number, blocked: boolean}[] = []
+    let cur = toMin(start)
+    const endMin = toMin(end)
+    const ps = pauseStart ? toMin(pauseStart) : null
+    const pe = pauseEnd ? toMin(pauseEnd) : null
+
+    while (cur + duration <= endMin) {
+      const next = cur + duration
+      if (!(ps !== null && pe !== null && cur < pe && next > ps)) {
+        rows.push({ date: dateStr, time_start: toTime(cur), time_end: toTime(next), capacity, booked: 0, blocked: false })
+      }
+      cur = next
+    }
+
+    if (rows.length > 0) {
+      await supabase.from('delivery_slots').insert(rows)
+    }
+
+    results.push(`Généré ${rows.length} créneaux pour ${dateStr}`)
   }
 
-  if (rows.length > 0) {
-    await supabase.from('delivery_slots').insert(rows)
-  }
-
-  return NextResponse.json({ message: `Généré ${rows.length} créneaux pour ${dateStr}` })
+  return NextResponse.json({ message: results })
 }
