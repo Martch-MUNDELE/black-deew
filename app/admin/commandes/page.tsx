@@ -45,7 +45,7 @@ function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDat
 
   if (targetStatus === 'confirmée') {
     const itemsList = order.order_items?.map((i: any) =>
-      `${i.quantity} x ${i.product_name}${i.variant_name ? \` (${i.variant_name})\` : ''} — ${(i.unit_price * i.quantity).toFixed(2)} ${currency}`
+      `${i.quantity} x ${i.product_name}${i.variant_name ? ` (${i.variant_name})` : ''} — ${(i.unit_price * i.quantity).toFixed(2)} ${currency}`
     ).join('\n') || ''
     const slotDate = slot ? formatDate(slot.date) : 'À confirmer'
     const slotTime = slot ? `${slot.time_start?.slice(0, 5)} à ${slot.time_end?.slice(0, 5)}` : ''

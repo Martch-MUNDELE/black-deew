@@ -118,6 +118,8 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState<OrderWithItems[]>([])
   const [loading, setLoading] = useState(true)
   const [hoveredSerie, setHoveredSerie] = useState<{day:number;serie:string}|null>(null)
+  const [hoveredWeek, setHoveredWeek] = useState<{week:number;serie:string}|null>(null)
+  const [hoveredDay30, setHoveredDay30] = useState<number|null>(null)
   const [toast, setToast] = useState<{name:string;total:number}|null>(null)
   const currency = useCurrency()
   const toastTimer = useRef<ReturnType<typeof setTimeout>|null>(null)
@@ -193,6 +195,29 @@ export default function AdminDashboard() {
   })
   const maxCA = Math.max(...chartData.map(d => d.classic+d.vip), 1)
 
+  const weeklyData = Array.from({length:4}, (_,i) => {
+    const now = new Date()
+    const dow = now.getDay() || 7
+    const weekStart = new Date(Date.now() - (3-i)*7*86400000 - (dow-1)*86400000)
+    weekStart.setHours(0,0,0,0)
+    const weekEnd = new Date(weekStart.getTime() + 7*86400000)
+    const wo = orders.filter(o => { const d=new Date(o.created_at); return d>=weekStart && d<weekEnd })
+    const caC = wo.filter(o => !isVipOrder(o)).reduce((s,o)=>s+(o.total||0),0)
+    const caV = wo.filter(isVipOrder).reduce((s,o)=>s+(o.total||0),0)
+    const label = i===3 ? 'S act.' : 'S-'+(3-i)
+    return { label, classic: caC, vip: caV }
+  })
+  const maxWeekCA = Math.max(...weeklyData.map(d=>d.classic+d.vip),1)
+  const dailyData30 = Array.from({length:30}, (_,i) => {
+    const d = new Date(Date.now()-(29-i)*86400000)
+    const key = d.toISOString().slice(0,10)
+    const cnt = orders.filter(o=>o.created_at.slice(0,10)===key).length
+    const dn = d.getDate()
+    const isFirst = dn===1 || i===0
+    const label = isFirst ? d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'}) : String(dn)
+    return { label, count: cnt, date: key, showLabel: isFirst||i===29||i===14 }
+  })
+  const maxDay30 = Math.max(...dailyData30.map(d=>d.count),1)
   const recent = orders.slice(0,8)
   const SLOT_W=40; const BASE_Y=90; const MAX_H=78; const BAR_W=11
 
@@ -335,6 +360,55 @@ export default function AdminDashboard() {
         </svg>
       </div>
 
+      <div style={{background:'#131009',border:'1px solid rgba(232,160,32,0.08)',borderRadius:16,padding:'20px 20px 14px',marginBottom:24}}>
+        <h2 style={{fontFamily:'Playfair Display, serif',fontSize:16,fontWeight:700,color:'#F5EDD6',margin:'0 0 8px',letterSpacing:'-0.3px'}}>CA par semaine — 4 dernières semaines</h2>
+        <div style={{display:'flex',gap:16,marginBottom:14}}>
+          <span style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'#F5C842'}}><span style={{width:10,height:10,borderRadius:2,background:'#F5C842',display:'inline-block'}}></span>Classique</span>
+          <span style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'#FF6EB4'}}><span style={{width:10,height:10,borderRadius:2,background:'#FF6EB4',display:'inline-block'}}></span>VIP</span>
+        </div>
+        <svg viewBox="0 0 280 118" style={{width:'100%',height:'auto',display:'block',overflow:'visible'}}>
+          {weeklyData.map((d,i) => {
+            const WSLOT=64,WBAR=16,WBY=90,WMH=72
+            const xSlot=i*WSLOT+8
+            const hC=d.classic>0?Math.max((d.classic/maxWeekCA)*WMH,2):0
+            const hV=d.vip>0?Math.max((d.vip/maxWeekCA)*WMH,2):0
+            const xC=xSlot,xV=xSlot+WBAR+4
+            const isHovC=hoveredWeek?.week===i&&hoveredWeek?.serie==='classic'
+            const isHovV=hoveredWeek?.week===i&&hoveredWeek?.serie==='vip'
+            return (
+              <g key={i}>
+                <rect x={xC} y={12} width={WBAR} height={WMH} rx={3} fill="rgba(245,200,66,0.06)"/>
+                <rect x={xV} y={12} width={WBAR} height={WMH} rx={3} fill="rgba(255,110,180,0.06)"/>
+                {hC>0&&<rect x={xC} y={WBY-hC} width={WBAR} height={hC} rx={3} fill={isHovC?'#FFD76A':'#F5C842'} onMouseEnter={()=>setHoveredWeek({week:i,serie:'classic'})} onMouseLeave={()=>setHoveredWeek(null)} style={{cursor:'default'}}/>}
+                {hV>0&&<rect x={xV} y={WBY-hV} width={WBAR} height={hV} rx={3} fill={isHovV?'#FFB0D8':'#FF6EB4'} onMouseEnter={()=>setHoveredWeek({week:i,serie:'vip'})} onMouseLeave={()=>setHoveredWeek(null)} style={{cursor:'default'}}/>}
+                <text x={xC+WBAR} y={106} textAnchor="middle" fill="#6A5A40" fontSize="10" fontFamily="DM Sans, sans-serif">{d.label}</text>
+                {isHovC&&hC>0&&<g><rect x={xC-4} y={WBY-hC-22} width={WBAR+8} height={18} rx={3} fill="#1F1A10" stroke="rgba(245,200,66,0.35)" strokeWidth={1}/><text x={xC+WBAR/2} y={WBY-hC-10} textAnchor="middle" fill="#F5C842" fontSize="9" fontFamily="DM Sans, sans-serif" fontWeight="700">{d.classic.toFixed(0)}</text></g>}
+                {isHovV&&hV>0&&<g><rect x={xV-4} y={WBY-hV-22} width={WBAR+8} height={18} rx={3} fill="#1F1A10" stroke="rgba(255,110,180,0.35)" strokeWidth={1}/><text x={xV+WBAR/2} y={WBY-hV-10} textAnchor="middle" fill="#FF6EB4" fontSize="9" fontFamily="DM Sans, sans-serif" fontWeight="700">{d.vip.toFixed(0)}</text></g>}
+              </g>
+            )
+          })}
+        </svg>
+      </div>
+      <div style={{background:'#131009',border:'1px solid rgba(232,160,32,0.08)',borderRadius:16,padding:'20px 20px 14px',marginBottom:24}}>
+        <h2 style={{fontFamily:'Playfair Display, serif',fontSize:16,fontWeight:700,color:'#F5EDD6',margin:'0 0 4px',letterSpacing:'-0.3px'}}>Commandes par jour — 30 derniers jours</h2>
+        <p style={{fontSize:11,color:'#8A7A60',margin:'0 0 14px'}}>Total : {dailyData30.reduce((s,d)=>s+d.count,0)} commandes</p>
+        <svg viewBox="0 0 320 100" style={{width:'100%',height:'auto',display:'block',overflow:'visible'}}>
+          {dailyData30.map((d,i) => {
+            const DSLOT=10,DBY=78,DMHGT=60,DBAR=7
+            const x=i*DSLOT+1
+            const h=d.count>0?Math.max((d.count/maxDay30)*DMHGT,2):0
+            const isHov=hoveredDay30===i
+            return (
+              <g key={i}>
+                <rect x={x} y={8} width={DBAR} height={DMHGT} rx={2} fill="rgba(255,107,32,0.08)"/>
+                {h>0&&<rect x={x} y={DBY-h} width={DBAR} height={h} rx={2} fill={isHov?'#FF8C45':'#FF6B20'} onMouseEnter={()=>setHoveredDay30(i)} onMouseLeave={()=>setHoveredDay30(null)} style={{cursor:'default'}}/>}
+                {d.showLabel&&<text x={x+DBAR/2} y={94} textAnchor="middle" fill="#6A5A40" fontSize="7.5" fontFamily="DM Sans, sans-serif">{d.label}</text>}
+                {isHov&&h>0&&<g><rect x={x-6} y={DBY-h-20} width={DBAR+12} height={16} rx={3} fill="#1F1A10" stroke="rgba(255,107,32,0.45)" strokeWidth={1}/><text x={x+DBAR/2} y={DBY-h-9} textAnchor="middle" fill="#FF6B20" fontSize="9" fontFamily="DM Sans, sans-serif" fontWeight="700">{d.count}</text></g>}
+              </g>
+            )
+          })}
+        </svg>
+      </div>
       <div style={{background:'#131009',border:'1px solid rgba(232,160,32,0.08)',borderRadius:16,overflow:'hidden'}}>
         <div style={{padding:'16px 20px 12px',borderBottom:'1px solid rgba(232,160,32,0.06)'}}>
           <span style={{fontFamily:'Playfair Display, serif',fontWeight:700,fontSize:16,color:'#F5EDD6'}}>Activite recente</span>
