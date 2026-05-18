@@ -203,11 +203,6 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
 
     // 4. Build WhatsApp URL and open
     const formatDateLocal = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
-    const waUrl = buildWhatsAppUrl(order, null, 'en_livraison', formatDateLocal, undefined, undefined, currency, driverInfo)
-    if (waUrl) {
-      window.open(waUrl, '_blank')
-    }
-
     // 5. Beacon status change
     sendStatusBeacon(order.id, 'en_livraison')
 
