@@ -12,7 +12,7 @@ type Slot = {
   blocked: boolean
 }
 
-const toLocalISO = () => { const d = new Date(); d.setTime(d.getTime() + 60 * 60 * 1000); return d.toISOString().split('T')[0] }
+const toLocalISO = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0") }
 
 export default function SlotPicker({ onSelect }: { onSelect: (id: string) => void }) {
   const [groups, setGroups] = useState<{ date: string; slots: Slot[] }[]>([])
