@@ -49,7 +49,13 @@ export default function SlotPicker({ onSelect }: { onSelect: (id: string) => voi
         }
         const result = Array.from(map.entries()).map(([date, slots]) => ({ date, slots }))
         setGroups(result)
-        if (result.length > 0) setSelectedDate(result[0].date)
+        if (result.length > 0) {
+          setSelectedDate(result[0].date)
+          if (result[0].slots.length > 0) {
+            setSelectedSlot(result[0].slots[0].id)
+            onSelect(result[0].slots[0].id)
+          }
+        }
       }
       setLoading(false)
     }
