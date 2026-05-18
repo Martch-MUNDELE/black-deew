@@ -45,7 +45,7 @@ function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDat
 
   if (targetStatus === 'confirmée') {
     const itemsList = order.order_items?.map((i: any) =>
-      `${i.quantity} x ${i.product_name} — ${(i.unit_price * i.quantity).toFixed(2)} ${currency}`
+      `${i.quantity} x ${i.product_name}${i.variant_name ? \` (${i.variant_name})\` : ''} — ${(i.unit_price * i.quantity).toFixed(2)} ${currency}`
     ).join('\n') || ''
     const slotDate = slot ? formatDate(slot.date) : 'À confirmer'
     const slotTime = slot ? `${slot.time_start?.slice(0, 5)} à ${slot.time_end?.slice(0, 5)}` : ''
@@ -298,7 +298,7 @@ function CommandesAdminInner() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                 {order.order_items?.map((item: any) => (
                   <span key={item.id} style={{ background: 'rgba(232,160,32,0.07)', border: '1px solid rgba(232,160,32,0.12)', color: '#C8B890', padding: '3px 10px', borderRadius: 50, fontSize: 11, fontWeight: 500 }}>
-                    {item.quantity}× {item.product_name}
+                    {item.quantity}× {item.product_name}{item.variant_name ? ` (${item.variant_name})` : ''}{item.variant_name ? ` (${item.variant_name})` : ''}
                   </span>
                 ))}
               </div>
