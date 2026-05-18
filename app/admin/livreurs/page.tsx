@@ -55,6 +55,13 @@ export default function LivreursPage() {
   const [sessionError, setSessionError] = useState('')
   const [closeDriver, setCloseDriver] = useState<Driver | null>(null)
   const [closeLoading, setCloseLoading] = useState(false)
+  const [editDriver, setEditDriver] = useState<Driver | null>(null)
+  const [editForm, setEditForm] = useState({ full_name: '', phone: '', vehicle_type: 'scooter', zone: '', status: 'active' })
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [toggleLoading, setToggleLoading] = useState<string | null>(null)
+  const [deleteDriver, setDeleteDriver] = useState<Driver | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -90,6 +97,53 @@ export default function LivreursPage() {
     if (error) { setAddError(error.message); return }
     setShowAdd(false)
     setAddForm({ full_name: '', phone: '', vehicle_type: 'scooter', zone: '', status: 'active' })
+    load()
+  }
+
+  function openEdit(driver: Driver) {
+    setEditDriver(driver)
+    setEditForm({
+      full_name: driver.full_name,
+      phone: driver.phone,
+      vehicle_type: driver.vehicle_type || 'scooter',
+      zone: driver.zone || '',
+      status: driver.status,
+    })
+    setEditError('')
+  }
+
+  async function handleEditDriver() {
+    if (!editDriver) return
+    setEditError('')
+    if (!editForm.full_name.trim() || !editForm.phone.trim()) { setEditError('Nom et telephone obligatoires'); return }
+    setEditLoading(true)
+    const { error } = await supabase.from('delivery_drivers').update({
+      full_name: editForm.full_name.trim(),
+      phone: editForm.phone.trim(),
+      vehicle_type: editForm.vehicle_type,
+      zone: editForm.zone.trim() || null,
+      status: editForm.status,
+    }).eq('id', editDriver.id)
+    setEditLoading(false)
+    if (error) { setEditError(error.message); return }
+    setEditDriver(null)
+    load()
+  }
+
+  async function handleToggleStatus(driver: Driver) {
+    const newStatus = driver.status === 'active' ? 'inactive' : 'active'
+    setToggleLoading(driver.id)
+    await supabase.from('delivery_drivers').update({ status: newStatus }).eq('id', driver.id)
+    setToggleLoading(null)
+    load()
+  }
+
+  async function handleDeleteDriver() {
+    if (!deleteDriver) return
+    setDeleteLoading(true)
+    await supabase.from('delivery_drivers').delete().eq('id', deleteDriver.id)
+    setDeleteLoading(false)
+    setDeleteDriver(null)
     load()
   }
 
@@ -178,7 +232,6 @@ export default function LivreursPage() {
               <span style={{ fontSize: 18, lineHeight: '1' }}>+</span> Nouveau livreur
             </button>
           </div>
-
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 24 }}>
             {([
               { label: 'Sessions ouvertes', value: openCount, color: '#F5C842', icon: '🟢' },
@@ -199,7 +252,6 @@ export default function LivreursPage() {
               </button>
             ))}
           </div>
-
           {loading ? (
             <div style={{ color: '#7A6E58', textAlign: 'center', padding: 48, fontSize: 14 }}>Chargement...</div>
           ) : filtered.length === 0 ? (
@@ -211,6 +263,7 @@ export default function LivreursPage() {
               {filtered.map(driver => {
                 const sc = STATUS_COLORS[driver.status] || STATUS_COLORS.inactive
                 const hasSession = !!driver.open_session
+                const isToggling = toggleLoading === driver.id
                 return (
                   <div key={driver.id} style={{ background: hasSession ? 'rgba(245,200,66,0.04)' : 'rgba(255,255,255,0.02)', border: hasSession ? '1px solid rgba(245,200,66,0.2)' : '1px solid rgba(232,160,32,0.08)', borderRadius: 14, padding: 16, position: 'relative' }}>
                     {hasSession && (
@@ -236,7 +289,6 @@ export default function LivreursPage() {
                         </div>
                       </div>
                     </div>
-
                     {hasSession && driver.open_session && (
                       <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(245,200,66,0.1)', borderRadius: 10, padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
                         <div>
@@ -266,6 +318,15 @@ export default function LivreursPage() {
                           Cloture session
                         </button>
                       )}
+                      <button onClick={() => openEdit(driver)} style={{ background: 'rgba(232,160,32,0.1)', color: '#E8A020', border: '1px solid rgba(232,160,32,0.25)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                        Modifier
+                      </button>
+                      <button onClick={() => handleToggleStatus(driver)} disabled={isToggling} style={{ background: driver.status === 'active' ? 'rgba(122,110,88,0.1)' : 'rgba(91,197,122,0.1)', color: driver.status === 'active' ? '#C8B99A' : '#5BC57A', border: driver.status === 'active' ? '1px solid rgba(122,110,88,0.25)' : '1px solid rgba(91,197,122,0.25)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: isToggling ? 'wait' : 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: isToggling ? 0.6 : 1 }}>
+                        {isToggling ? '...' : driver.status === 'active' ? 'Desactiver' : 'Activer'}
+                      </button>
+                      <button onClick={() => setDeleteDriver(driver)} style={{ background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', border: '1px solid rgba(255,107,107,0.2)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                        Supprimer
+                      </button>
                     </div>
                   </div>
                 )
@@ -280,39 +341,63 @@ export default function LivreursPage() {
           <div style={{ background: '#1A1610', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 440, fontFamily: 'DM Sans, sans-serif' }}>
             <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, fontWeight: 700, color: '#F5EDD6', margin: '0 0 20px' }}>Nouveau livreur</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={LBL}>Nom complet *</label>
-                <input value={addForm.full_name} onChange={e => setAddForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Ex: Ahmed Benali" style={INP} />
-              </div>
-              <div>
-                <label style={LBL}>Telephone *</label>
-                <PhoneInput value={addForm.phone} initialValue={addForm.phone} onChange={v => setAddForm(f => ({ ...f, phone: v }))} />
-              </div>
-              <div>
-                <label style={LBL}>Vehicule</label>
+              <div><label style={LBL}>Nom complet *</label>
+                <input value={addForm.full_name} onChange={e => setAddForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Ex: Ahmed Benali" style={INP} /></div>
+              <div><label style={LBL}>Telephone *</label>
+                <PhoneInput value={addForm.phone} initialValue={addForm.phone} onChange={v => setAddForm(f => ({ ...f, phone: v }))} /></div>
+              <div><label style={LBL}>Vehicule</label>
                 <select value={addForm.vehicle_type} onChange={e => setAddForm(f => ({ ...f, vehicle_type: e.target.value }))} style={SEL}>
-                  <option value="scooter">🛵 Scooter</option>
-                  <option value="bike">🚲 Velo</option>
-                  <option value="car">🚗 Voiture</option>
-                  <option value="on_foot">🚶 A pied</option>
-                </select>
-              </div>
-              <div>
-                <label style={LBL}>Zone</label>
-                <input value={addForm.zone} onChange={e => setAddForm(f => ({ ...f, zone: e.target.value }))} placeholder="Ex: Centre-ville" style={INP} />
-              </div>
-              <div>
-                <label style={LBL}>Statut</label>
+                  <option value="scooter">Scooter</option>
+                  <option value="bike">Velo</option>
+                  <option value="car">Voiture</option>
+                  <option value="on_foot">A pied</option>
+                </select></div>
+              <div><label style={LBL}>Zone</label>
+                <input value={addForm.zone} onChange={e => setAddForm(f => ({ ...f, zone: e.target.value }))} placeholder="Ex: Centre-ville" style={INP} /></div>
+              <div><label style={LBL}>Statut</label>
                 <select value={addForm.status} onChange={e => setAddForm(f => ({ ...f, status: e.target.value }))} style={SEL}>
                   <option value="active">Actif</option>
                   <option value="inactive">Inactif</option>
                   <option value="suspended">Suspendu</option>
-                </select>
-              </div>
+                </select></div>
               {addError && <div style={{ color: '#FF6B6B', fontSize: 13, background: 'rgba(255,107,107,0.1)', padding: '8px 12px', borderRadius: 8 }}>{addError}</div>}
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                 <button onClick={() => setShowAdd(false)} style={BCANCEL}>Annuler</button>
                 <button onClick={handleAddDriver} disabled={addLoading} style={{ background: 'linear-gradient(135deg,#F5C842,#E8901A)', color: '#0D0B07', border: 'none', borderRadius: 10, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', flex: 1, opacity: addLoading ? 0.7 : 1 }}>{addLoading ? 'Ajout...' : 'Ajouter'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editDriver && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#1A1610', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 440, fontFamily: 'DM Sans, sans-serif' }}>
+            <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, fontWeight: 700, color: '#F5EDD6', margin: '0 0 20px' }}>Modifier livreur</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div><label style={LBL}>Nom complet *</label>
+                <input value={editForm.full_name} onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))} style={INP} /></div>
+              <div><label style={LBL}>Telephone *</label>
+                <PhoneInput value={editForm.phone} initialValue={editForm.phone} onChange={v => setEditForm(f => ({ ...f, phone: v }))} /></div>
+              <div><label style={LBL}>Vehicule</label>
+                <select value={editForm.vehicle_type} onChange={e => setEditForm(f => ({ ...f, vehicle_type: e.target.value }))} style={SEL}>
+                  <option value="scooter">Scooter</option>
+                  <option value="bike">Velo</option>
+                  <option value="car">Voiture</option>
+                  <option value="on_foot">A pied</option>
+                </select></div>
+              <div><label style={LBL}>Zone</label>
+                <input value={editForm.zone} onChange={e => setEditForm(f => ({ ...f, zone: e.target.value }))} style={INP} /></div>
+              <div><label style={LBL}>Statut</label>
+                <select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))} style={SEL}>
+                  <option value="active">Actif</option>
+                  <option value="inactive">Inactif</option>
+                  <option value="suspended">Suspendu</option>
+                </select></div>
+              {editError && <div style={{ color: '#FF6B6B', fontSize: 13, background: 'rgba(255,107,107,0.1)', padding: '8px 12px', borderRadius: 8 }}>{editError}</div>}
+              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                <button onClick={() => setEditDriver(null)} style={BCANCEL}>Annuler</button>
+                <button onClick={handleEditDriver} disabled={editLoading} style={{ background: 'linear-gradient(135deg,#F5C842,#E8901A)', color: '#0D0B07', border: 'none', borderRadius: 10, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', flex: 1, opacity: editLoading ? 0.7 : 1 }}>{editLoading ? 'Sauvegarde...' : 'Sauvegarder'}</button>
               </div>
             </div>
           </div>
@@ -336,6 +421,7 @@ export default function LivreursPage() {
           </div>
         </div>
       )}
+
       {closeDriver && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: '#1A1610', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 380, fontFamily: 'DM Sans, sans-serif' }}>
@@ -344,6 +430,19 @@ export default function LivreursPage() {
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setCloseDriver(null)} style={BCANCEL}>Annuler</button>
               <button onClick={handleCloseSession} disabled={closeLoading} style={{ background: 'rgba(255,107,107,0.12)', color: '#FF6B6B', border: '1px solid rgba(255,107,107,0.3)', borderRadius: 10, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', flex: 1, opacity: closeLoading ? 0.7 : 1 }}>{closeLoading ? 'Cloture...' : 'Cloturer'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteDriver && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#1A1610', border: '1px solid rgba(255,107,107,0.3)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 380, fontFamily: 'DM Sans, sans-serif' }}>
+            <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, fontWeight: 700, color: '#FF6B6B', margin: '0 0 12px' }}>Supprimer livreur</h2>
+            <p style={{ color: '#C8B99A', fontSize: 14, margin: '0 0 20px' }}>Supprimer <strong style={{ color: '#F5EDD6' }}>{deleteDriver.full_name}</strong> ? Cette action est irreversible.</p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setDeleteDriver(null)} style={BCANCEL}>Annuler</button>
+              <button onClick={handleDeleteDriver} disabled={deleteLoading} style={{ background: 'rgba(255,107,107,0.15)', color: '#FF6B6B', border: '1px solid rgba(255,107,107,0.3)', borderRadius: 10, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', flex: 1, opacity: deleteLoading ? 0.7 : 1 }}>{deleteLoading ? 'Suppression...' : 'Supprimer'}</button>
             </div>
           </div>
         </div>
