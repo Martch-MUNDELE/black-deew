@@ -15,7 +15,7 @@ const STATUS_COLORS: Record<string, { bg: string; color: string; border: string 
   confirmée:      { bg: 'rgba(91,197,122,0.1)',   color: '#5BC57A', border: 'rgba(91,197,122,0.25)' },
   en_preparation: { bg: 'rgba(255,107,32,0.1)',   color: '#FF6B20', border: 'rgba(255,107,32,0.25)' },
   en_livraison:   { bg: 'rgba(56,182,255,0.1)',   color: '#38B6FF', border: 'rgba(56,182,255,0.25)' },
-  livrée:         { bg: 'rgba(122,110,88,0.1)',   color: '#C8B99A', border: 'rgba(122,110,88,0.2)'  },
+  livrée:         { bg: 'rgba(91,197,122,0.12)',  color: '#5BC57A', border: 'rgba(91,197,122,0.3)'  },
   annulée:        { bg: 'rgba(255,107,107,0.1)',  color: '#FF6B6B', border: 'rgba(255,107,107,0.2)' },
 }
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -161,6 +161,37 @@ function CommandesAdminInner() {
   const [dispatchOrder, setDispatchOrder] = useState<any | null>(null)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const supabase = createClient()
+
+
+  const markLivree = async (order: any) => {
+    const supabase2 = createClient()
+    // 1. Update order status
+    await supabase2.from('orders').update({ status: 'livrée' }).eq('id', order.id)
+    // 2. Update order_deliveries
+    await supabase2.from('order_deliveries')
+      .update({ status: 'delivered', delivered_at: new Date().toISOString(), amount_collected: order.total })
+      .eq('order_id', order.id)
+    // 3. Recalculer driver_sessions collected_cash + net_to_remit
+    const { data: delRow } = await supabase2.from('order_deliveries')
+      .select('driver_id').eq('order_id', order.id).single()
+    if (delRow?.driver_id) {
+      const { data: sess } = await supabase2.from('driver_sessions')
+        .select('id').eq('driver_id', delRow.driver_id).eq('session_status', 'open').single()
+      if (sess?.id) {
+        const { data: deliveries } = await supabase2.from('order_deliveries')
+          .select('amount_collected, delivery_fee_charged_to_customer')
+          .eq('driver_id', delRow.driver_id)
+          .eq('status', 'delivered')
+        const collected = (deliveries || []).reduce((s: number, d: any) => s + (d.amount_collected || 0), 0)
+        const fees = (deliveries || []).reduce((s: number, d: any) => s + (d.delivery_fee_charged_to_customer || 0), 0)
+        await supabase2.from('driver_sessions').update({
+          collected_cash: collected,
+          net_to_remit: collected - fees
+        }).eq('id', sess.id)
+      }
+    }
+    reload()
+  }
 
   const loadCounts = async () => {
     const countResults = await Promise.all([
@@ -358,6 +389,16 @@ function CommandesAdminInner() {
 
               {order.status === 'en_preparation' && order.delivery_mode !== 'pickup' && (
                 <div style={{ marginTop: 10 }}><button onClick={() => setDispatchOrder(order)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 50, border: '1px solid rgba(56,182,255,0.35)', background: 'rgba(56,182,255,0.1)', color: '#38B6FF', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Passer en livraison</button></div>
+              )}
+              {order.status === 'en_livraison' && (
+                <div style={{ marginTop: 10 }}>
+                  <button
+                    onClick={() => markLivree(order)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.4)', background: 'rgba(91,197,122,0.12)', color: '#5BC57A', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                  >
+                    ✓ Marquer livrée
+                  </button>
+                </div>
               )}
               {/* ACTIONS */}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
