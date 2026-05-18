@@ -252,6 +252,7 @@ function CommandesAdminInner() {
       }
     }
     const driverIds = [...new Set(data.filter((o: any) => o.driver_id).map((o: any) => o.driver_id as string))]
+    if (!append) setDriverInfos({})
     if (driverIds.length > 0) {
       const { data: driverData } = await supabase.from('delivery_drivers').select('id, full_name, phone').in('id', driverIds)
       if (driverData) {
