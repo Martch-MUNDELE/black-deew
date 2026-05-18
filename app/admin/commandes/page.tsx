@@ -107,11 +107,18 @@ const IconCal = () => (
   </svg>
 )
 
-function DispatchModal({ order, onClose, onDispatched, currency }: { order: any, onClose: () => void, onDispatched: () => void, currency: string }) {
+type DispatchedPayload = {
+  orderId: string
+  driverId: string
+  driverInfo: { full_name: string; phone: string } | null
+}
+
+function DispatchModal({ order, onClose, onDispatched, currency }: { order: any, onClose: () => void, onDispatched: (info: DispatchedPayload) => void, currency: string }) {
   const [drivers, setDrivers] = useState<any[]>([])
   const [selectedDriver, setSelectedDriver] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string>('')
   const supabase = createClient()
   useEffect(() => {
     const load = async () => {
@@ -132,10 +139,57 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
   }, [])
   const handleConfirm = async () => {
     if (!selectedDriver) return
+    setErrorMsg('')
     setSaving(true)
-    await supabase.from('orders').update({ driver_id: selectedDriver }).eq('id', order.id)
-    await supabase.from('order_deliveries').insert({ order_id: order.id, driver_id: selectedDriver, status: 'assigned', assigned_at: new Date().toISOString(), amount_to_collect: order.total, delivery_fee_charged_to_customer: order.delivery_fee || 0 })
-    setSaving(false); onDispatched(); onClose()
+
+    const driver = drivers.find(d => d.id === selectedDriver)
+
+    // 1. orders.driver_id — .select() to surface RLS-zero-row writes
+    const { data: updatedRows, error: updErr } = await supabase
+      .from('orders')
+      .update({ driver_id: selectedDriver })
+      .eq('id', order.id)
+      .select('id, driver_id')
+    if (updErr) {
+      setSaving(false)
+      setErrorMsg(`Mise à jour commande échouée : ${updErr.message}`)
+      return
+    }
+    if (!updatedRows || updatedRows.length === 0) {
+      setSaving(false)
+      setErrorMsg('Aucune ligne mise à jour — vérifie les permissions (RLS).')
+      return
+    }
+
+    // 2. order_deliveries — gérer une éventuelle ligne existante (re-dispatch)
+    const { data: existing } = await supabase
+      .from('order_deliveries')
+      .select('id')
+      .eq('order_id', order.id)
+      .maybeSingle()
+    const payload = {
+      driver_id: selectedDriver,
+      status: 'assigned',
+      assigned_at: new Date().toISOString(),
+      amount_to_collect: order.total,
+      delivery_fee_charged_to_customer: order.delivery_fee || 0,
+    }
+    const { error: delErr } = existing
+      ? await supabase.from('order_deliveries').update(payload).eq('id', existing.id)
+      : await supabase.from('order_deliveries').insert({ order_id: order.id, ...payload })
+    if (delErr) {
+      setSaving(false)
+      setErrorMsg(`Création livraison échouée : ${delErr.message}`)
+      return
+    }
+
+    setSaving(false)
+    onDispatched({
+      orderId: order.id,
+      driverId: selectedDriver,
+      driverInfo: driver ? { full_name: driver.full_name, phone: driver.phone } : null,
+    })
+    onClose()
   }
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={onClose}>
@@ -146,6 +200,9 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
             {drivers.map(d => (<button key={d.id} onClick={() => setSelectedDriver(d.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 10, border: `1px solid ${selectedDriver === d.id ? 'rgba(56,182,255,0.5)' : 'rgba(255,255,255,0.08)'}`, background: selectedDriver === d.id ? 'rgba(56,182,255,0.08)' : 'rgba(255,255,255,0.02)', cursor: 'pointer', textAlign: 'left' }}><div><div style={{ fontWeight: 700, fontSize: 13, color: selectedDriver === d.id ? '#38B6FF' : '#F5EDD6' }}>{d.full_name}</div><div style={{ fontSize: 11, color: '#C8B99A', marginTop: 2 }}>{d.phone}</div></div>{selectedDriver === d.id && <span style={{ color: '#38B6FF' }}>OK</span>}</button>))}
           </div>
+        )}
+        {errorMsg && (
+          <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.25)', color: '#FF6B6B', fontSize: 11, fontFamily: 'DM Sans, sans-serif' }}>{errorMsg}</div>
         )}
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '10px 0', borderRadius: 50, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#C8B99A', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Annuler</button>
@@ -252,7 +309,6 @@ function CommandesAdminInner() {
       }
     }
     const driverIds = [...new Set(data.filter((o: any) => o.driver_id).map((o: any) => o.driver_id as string))]
-    if (!append) setDriverInfos({})
     if (driverIds.length > 0) {
       const { data: driverData } = await supabase.from('delivery_drivers').select('id, full_name, phone').in('id', driverIds)
       if (driverData) {
@@ -333,10 +389,18 @@ function CommandesAdminInner() {
     setTimeout(() => reload(), 2000)
   }
 
+  const handleDispatched = (info: DispatchedPayload) => {
+    setOrders(prev => prev.map(o => o.id === info.orderId ? { ...o, driver_id: info.driverId } : o))
+    if (info.driverInfo) {
+      setDriverInfos(prev => ({ ...prev, [info.driverId]: info.driverInfo! }))
+    }
+    reload()
+  }
+
   return (
     <div style={{ maxWidth: 720, margin: '0 auto' }}>
       {dispatchOrder && (
-        <DispatchModal order={dispatchOrder} currency={currency} onClose={() => setDispatchOrder(null)} onDispatched={() => reload()} />
+        <DispatchModal order={dispatchOrder} currency={currency} onClose={() => setDispatchOrder(null)} onDispatched={handleDispatched} />
       )}
       <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 26, fontWeight: 900, color: '#F5EDD6', marginBottom: 24 }}>
         Commandes
