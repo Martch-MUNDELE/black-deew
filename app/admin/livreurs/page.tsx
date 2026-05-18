@@ -20,6 +20,13 @@ type Driver = {
   } | null
 }
 
+
+type DriverKPIs = {
+  deliveries: number
+  caCollected: number
+  totalToRemit: number
+}
+
 const STATUS_COLORS: Record<string, { bg: string; color: string; border: string }> = {
   active:    { bg: 'rgba(91,197,122,0.1)',  color: '#5BC57A', border: 'rgba(91,197,122,0.25)' },
   inactive:  { bg: 'rgba(122,110,88,0.1)',  color: '#C8B99A', border: 'rgba(122,110,88,0.2)' },
@@ -62,6 +69,7 @@ export default function LivreursPage() {
   const [toggleLoading, setToggleLoading] = useState<string | null>(null)
   const [deleteDriver, setDeleteDriver] = useState<Driver | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [driverKPIs, setDriverKPIs] = useState<Record<string, DriverKPIs>>({})
 
   async function load() {
     setLoading(true)
@@ -76,7 +84,30 @@ export default function LivreursPage() {
       .eq('session_status', 'open')
     const sessionMap: Record<string, any> = {}
     for (const s of sessions || []) { sessionMap[s.driver_id] = s }
-    setDrivers(driversRaw.map((d: any) => ({ ...d, open_session: sessionMap[d.id] || null })))
+    const driversList = driversRaw.map((d: any) => ({ ...d, open_session: sessionMap[d.id] || null }))
+    setDrivers(driversList)
+    const driverIds = driversRaw.map((d: any) => d.id)
+    const { data: deliveries } = await supabase
+      .from('order_deliveries')
+      .select('driver_id, amount_collected')
+      .eq('status', 'delivered')
+      .in('driver_id', driverIds)
+    const { data: closedSessions } = await supabase
+      .from('driver_sessions')
+      .select('driver_id, net_to_remit')
+      .eq('session_status', 'closed')
+      .in('driver_id', driverIds)
+    const kpis: Record<string, DriverKPIs> = {}
+    for (const id of driverIds) {
+      const dd = (deliveries || []).filter((d: any) => d.driver_id === id)
+      const ds = (closedSessions || []).filter((s: any) => s.driver_id === id)
+      kpis[id] = {
+        deliveries: dd.length,
+        caCollected: dd.reduce((sum: number, d: any) => sum + (d.amount_collected || 0), 0),
+        totalToRemit: ds.reduce((sum: number, s: any) => sum + (s.net_to_remit || 0), 0),
+      }
+    }
+    setDriverKPIs(kpis)
     setLoading(false)
   }
 
@@ -307,6 +338,26 @@ export default function LivreursPage() {
                         </div>
                       </div>
                     )}
+                    {(() => {
+                      const kpi = driverKPIs[driver.id]
+                      if (!kpi) return null
+                      return (
+                        <div style={{ background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(232,160,32,0.08)', borderRadius: 10, padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
+                          <div>
+                            <div style={{ fontSize: 9, color: '#7A6E58', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>Livraisons</div>
+                            <div style={{ fontSize: 18, color: '#F5C842', fontWeight: 700 }}>{kpi.deliveries}</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 9, color: '#7A6E58', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>CA collecte</div>
+                            <div style={{ fontSize: 14, color: '#5BC57A', fontWeight: 700 }}>{kpi.caCollected.toFixed(0)} {currency}</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 9, color: '#7A6E58', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 3 }}>A remettre</div>
+                            <div style={{ fontSize: 14, color: '#E8A020', fontWeight: 700 }}>{kpi.totalToRemit.toFixed(0)} {currency}</div>
+                          </div>
+                        </div>
+                      )
+                    })()}
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {!hasSession && (
                         <button onClick={() => { setSessionDriver(driver); setOpeningCash(''); setSessionError('') }} style={{ background: 'rgba(91,197,122,0.1)', color: '#5BC57A', border: '1px solid rgba(91,197,122,0.25)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
