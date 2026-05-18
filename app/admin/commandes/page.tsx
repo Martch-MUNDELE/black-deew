@@ -133,7 +133,7 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
   const handleConfirm = async () => {
     if (!selectedDriver) return
     setSaving(true)
-    await supabase.from('orders').update({ status: 'en_livraison', driver_id: selectedDriver }).eq('id', order.id)
+    await supabase.from('orders').update({ driver_id: selectedDriver }).eq('id', order.id)
     await supabase.from('order_deliveries').insert({ order_id: order.id, driver_id: selectedDriver, status: 'assigned', assigned_at: new Date().toISOString(), amount_to_collect: order.total, delivery_fee_charged_to_customer: order.delivery_fee || 0 })
     setSaving(false); onDispatched(); onClose()
   }
