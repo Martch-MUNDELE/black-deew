@@ -433,61 +433,82 @@ function CommandesAdminInner() {
               </div>
 
               {/* STATUT */}
-              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 11, color: '#7A6E58', fontFamily: 'DM Sans, sans-serif' }}>Statut</span>
-                  {transitions.length > 0 ? (
-                    <div style={{ position: 'relative' }}>
-                      <select
-                        value={pending}
-                        onChange={e => {
-                          const newStatus = e.target.value
-                          setPendingStatuses(prev => ({ ...prev, [order.id]: newStatus }))
-                          if (newStatus === 'livrée') prefetchFactureUrl(order.id)
-                        }}
-                        style={{ background: '#1A1510', border: '1px solid rgba(232,160,32,0.25)', color: pending ? (STATUS_COLORS[pending]?.color || '#E8A020') : '#7A6E58', borderRadius: 8, padding: '7px 32px 7px 12px', fontSize: 12, fontWeight: 700, outline: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', appearance: 'none', WebkitAppearance: 'none' }}
-                      >
-                        <option value="" disabled style={{ background: '#131009', color: '#7A6E58' }}>— Changer statut —</option>
-                        {transitions.map(s => (
-                          <option key={s} value={s} style={{ background: '#131009', color: '#F5EDD6' }}>{STATUS_LABELS[s]}</option>
-                        ))}
-                      </select>
-                      <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: pending ? (STATUS_COLORS[pending]?.color || '#E8A020') : '#7A6E58', fontSize: 10 }}>▾</span>
-                    </div>
+              {order.status === 'en_preparation' && order.delivery_mode !== 'pickup' ? (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                  {!order.driver_id ? (
+                    <button onClick={() => setDispatchOrder(order)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 50, border: '1px solid rgba(56,182,255,0.35)', background: 'rgba(56,182,255,0.1)', color: '#38B6FF', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                      🛵 Sélectionner un livreur
+                    </button>
                   ) : (
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 50, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}>{STATUS_LABELS[order.status]}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, color: '#38B6FF', fontWeight: 700, fontFamily: 'DM Sans, sans-serif' }}>
+                        🛵 {driverInfos[order.driver_id]?.full_name || 'Livreur assigné'}
+                      </span>
+                      {driverInfos[order.driver_id]?.phone && (
+                        <a href={`https://wa.me/${cleanPhone(driverInfos[order.driver_id].phone)}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 50, border: '1px solid rgba(37,211,102,0.35)', background: 'rgba(37,211,102,0.08)', color: '#25D366', textDecoration: 'none', fontSize: 11, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
+                          <IconChat /> WA Livreur
+                        </a>
+                      )}
+                    </div>
                   )}
                 </div>
-                {pending && pending !== order.status && (() => {
-                  const btnStyle = { marginTop: 10, display: 'inline-block', float: 'right' as const, background: '#25D366', color: '#0A0804', borderRadius: 50, padding: '6px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'none', border: 'none' }
-                  if (pending === 'en_livraison' && !order.driver_id) return null
-                  const waUrl = buildWhatsAppUrl(
-                    order,
-                    slots[order.slot_id] ?? null,
-                    pending,
-                    formatDate,
-                    shopAddress,
-                    pending === 'livrée' ? factureUrls[order.id] : undefined,
-                    currency,
-                    driverInfos[order.driver_id] ?? null
-                  )
-                  if (!waUrl) return null
-                  return (
-                    <a
-                      href={waUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => {
-                        sendStatusBeacon(order.id, pending)
-                        applyStatusChange(order.id, pending)
-                      }}
-                      style={btnStyle}
-                    >
-                      {WA_BUTTON_LABELS[pending] || 'Envoyer message WhatsApp'}
-                    </a>
-                  )
-                })()}
-              </div>
+              ) : (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 11, color: '#7A6E58', fontFamily: 'DM Sans, sans-serif' }}>Statut</span>
+                    {transitions.length > 0 ? (
+                      <div style={{ position: 'relative' }}>
+                        <select
+                          value={pending}
+                          onChange={e => {
+                            const newStatus = e.target.value
+                            setPendingStatuses(prev => ({ ...prev, [order.id]: newStatus }))
+                            if (newStatus === 'livrée') prefetchFactureUrl(order.id)
+                          }}
+                          style={{ background: '#1A1510', border: '1px solid rgba(232,160,32,0.25)', color: pending ? (STATUS_COLORS[pending]?.color || '#E8A020') : '#7A6E58', borderRadius: 8, padding: '7px 32px 7px 12px', fontSize: 12, fontWeight: 700, outline: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', appearance: 'none', WebkitAppearance: 'none' }}
+                        >
+                          <option value="" disabled style={{ background: '#131009', color: '#7A6E58' }}>— Changer statut —</option>
+                          {transitions.map(s => (
+                            <option key={s} value={s} style={{ background: '#131009', color: '#F5EDD6' }}>{STATUS_LABELS[s]}</option>
+                          ))}
+                        </select>
+                        <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: pending ? (STATUS_COLORS[pending]?.color || '#E8A020') : '#7A6E58', fontSize: 10 }}>▾</span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 50, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}>{STATUS_LABELS[order.status]}</span>
+                    )}
+                  </div>
+                  {pending && pending !== order.status && (() => {
+                    const btnStyle = { marginTop: 10, display: 'inline-block', float: 'right' as const, background: '#25D366', color: '#0A0804', borderRadius: 50, padding: '6px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'none', border: 'none' }
+                    if (pending === 'en_livraison' && !order.driver_id) return null
+                    const waUrl = buildWhatsAppUrl(
+                      order,
+                      slots[order.slot_id] ?? null,
+                      pending,
+                      formatDate,
+                      shopAddress,
+                      pending === 'livrée' ? factureUrls[order.id] : undefined,
+                      currency,
+                      driverInfos[order.driver_id] ?? null
+                    )
+                    if (!waUrl) return null
+                    return (
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => {
+                          sendStatusBeacon(order.id, pending)
+                          applyStatusChange(order.id, pending)
+                        }}
+                        style={btnStyle}
+                      >
+                        {WA_BUTTON_LABELS[pending] || 'Envoyer message WhatsApp'}
+                      </a>
+                    )
+                  })()}
+                </div>
+              )}
 
             </div>
           )
