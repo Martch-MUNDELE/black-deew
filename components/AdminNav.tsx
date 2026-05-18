@@ -32,6 +32,7 @@ const NAV_GROUPS = [
     label: 'CONFIGURATION',
     links: [
       { href: '/admin/menu', label: 'Menu' },
+      { href: '/admin/livreurs', label: 'Livreurs' },
       { href: '/admin/livraison', label: 'Livraison', sub: [
         { label: 'Mode', anchor: 'mode', url: '/admin/livraison?tab=mode' },
         { label: 'Position boutique', anchor: 'position', url: '/admin/livraison?tab=position' },
