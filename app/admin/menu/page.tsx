@@ -377,8 +377,18 @@ export default function MenuAdmin() {
       }
       let saveError = null
       if (editingId) {
+        // Récupérer l'ancien slug avant mise à jour
+        const editingCat = cats.find(c => c.id === editingId)
+        const oldSlug = editingCat?.slug ?? null
         const { error } = await supabase.from('menu_categories').update(payload).eq('id', editingId)
         saveError = error
+        // Cascade slug vers les produits si le slug a changé
+        if (!saveError && oldSlug && oldSlug !== form.slug) {
+          await supabase
+            .from('products')
+            .update({ subcategory: form.slug })
+            .eq('subcategory', oldSlug)
+        }
       } else {
         const { error } = await supabase.from('menu_categories').insert(payload)
         saveError = error
