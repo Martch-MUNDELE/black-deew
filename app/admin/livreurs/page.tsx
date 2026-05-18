@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/lib/currency'
+import PhoneInput from '@/components/PhoneInput'
 
 type Driver = {
   id: string
@@ -285,7 +286,7 @@ export default function LivreursPage() {
               </div>
               <div>
                 <label style={LBL}>Telephone *</label>
-                <input value={addForm.phone} onChange={e => setAddForm(f => ({ ...f, phone: e.target.value }))} placeholder="Ex: 0770123456" style={INP} />
+                <PhoneInput value={addForm.phone} initialValue={addForm.phone} onChange={v => setAddForm(f => ({ ...f, phone: v }))} />
               </div>
               <div>
                 <label style={LBL}>Vehicule</label>
