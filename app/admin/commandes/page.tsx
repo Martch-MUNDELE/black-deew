@@ -188,58 +188,44 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
       return
     }
 
-    // 3. Update order status to en_livraison
-    const { error: statusErr } = await supabase
-      .from('orders')
-      .update({ status: 'en_livraison' })
-      .eq('id', order.id)
-    if (statusErr) {
-      setSaving(false)
-      setErrorMsg(`Mise a jour statut echouee : ${statusErr.message}`)
-      return
-    }
-
     setSaving(false)
 
     const driverInfo = driver ? { full_name: driver.full_name, phone: driver.phone } : null
 
-    // 4. Build WhatsApp URL — pour en_livraison, slot et formatDate ne sont pas utilisés
+    // 3. Build WhatsApp URL — pour en_livraison, slot et formatDate ne sont pas utilisés
     const formatDateLocal = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
     const waUrl = buildWhatsAppUrl(order, null, 'en_livraison', formatDateLocal, undefined, undefined, currency, driverInfo)
 
-    // 5. Beacon status change
-    sendStatusBeacon(order.id, 'en_livraison')
-
+    // 4. Vue succès : statut en_livraison appliqué dans finishDispatch (WA ou Fermer)
     const dispatched: DispatchedPayload = { orderId: order.id, driverId: selectedDriver, driverInfo }
-    if (waUrl) {
-      setPendingPayload(dispatched)
-      setSuccessWaUrl(waUrl)
-    } else {
-      onDispatched(dispatched)
-      onClose()
-    }
+    setPendingPayload(dispatched)
+    setSuccessWaUrl(waUrl)
   }
 
   const finishDispatch = () => {
+    // Passage en en_livraison déclenché ici, après confirmation visuelle admin
+    sendStatusBeacon(order.id, 'en_livraison')
     if (pendingPayload) onDispatched(pendingPayload)
     onClose()
   }
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={successWaUrl ? finishDispatch : onClose}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={pendingPayload ? finishDispatch : onClose}>
       <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 420, fontFamily: 'DM Sans, sans-serif' }} onClick={e => e.stopPropagation()}>
-        <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, fontWeight: 800, color: '#F5EDD6', marginBottom: 6 }}>{successWaUrl ? 'Livreur dispatché' : 'Dispatcher vers un livreur'}</div>
+        <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, fontWeight: 800, color: '#F5EDD6', marginBottom: 6 }}>{pendingPayload ? 'Livreur dispatché' : 'Dispatcher vers un livreur'}</div>
         <div style={{ fontSize: 12, color: '#C8B99A', marginBottom: 20 }}>Commande #{order.id.slice(0,8).toUpperCase()} - {order.customer_name} - {order.total.toFixed(2)} {currency}</div>
-        {successWaUrl ? (
+        {pendingPayload ? (
           <>
             <div style={{ marginBottom: 20, padding: '12px 14px', borderRadius: 10, background: 'rgba(91,197,122,0.08)', border: '1px solid rgba(91,197,122,0.25)', color: '#5BC57A', fontSize: 12, fontFamily: 'DM Sans, sans-serif' }}>Commande dispatchée. Prévenez le client par WhatsApp avec les infos du livreur.</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <a
-                href={successWaUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={finishDispatch}
-                style={{ display: 'block', textAlign: 'center', padding: '12px 0', borderRadius: 50, background: '#25D366', color: '#0A0804', fontSize: 13, fontWeight: 700, textDecoration: 'none', fontFamily: 'DM Sans, sans-serif' }}
-              >Envoyer message WhatsApp au client</a>
+              {successWaUrl && (
+                <a
+                  href={successWaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={finishDispatch}
+                  style={{ display: 'block', textAlign: 'center', padding: '12px 0', borderRadius: 50, background: '#25D366', color: '#0A0804', fontSize: 13, fontWeight: 700, textDecoration: 'none', fontFamily: 'DM Sans, sans-serif' }}
+                >Envoyer message WhatsApp au client</a>
+              )}
               <button onClick={finishDispatch} style={{ padding: '10px 0', borderRadius: 50, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#C8B99A', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Fermer</button>
             </div>
           </>
