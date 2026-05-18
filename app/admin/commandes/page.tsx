@@ -36,7 +36,10 @@ const WA_BUTTON_LABELS: Record<string, string> = {
 
 function cleanPhone(phone: string) {
   const p = phone.replace(/[\s\-]/g, '')
-  return p.startsWith('+') ? p : p.replace(/^0/, '212')
+  if (p.startsWith('+')) return p
+  if (p.startsWith('00')) return '+' + p.slice(2)
+  if (p.startsWith('0')) return '+243' + p.slice(1)
+  return p
 }
 
 function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDate: (d: string) => string, shopAddress?: string, factureUrl?: string, currency = 'DH', driverInfo?: { full_name: string; phone: string } | null): string | null {
