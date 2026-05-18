@@ -186,11 +186,35 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
       return
     }
 
+    // 3. Update order status to en_livraison
+    const { error: statusErr } = await supabase
+      .from('orders')
+      .update({ status: 'en_livraison' })
+      .eq('id', order.id)
+    if (statusErr) {
+      setSaving(false)
+      setErrorMsg(`Mise a jour statut echouee : ${statusErr.message}`)
+      return
+    }
+
     setSaving(false)
+
+    const driverInfo = driver ? { full_name: driver.full_name, phone: driver.phone } : null
+
+    // 4. Build WhatsApp URL and open
+    const formatDateLocal = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
+    const waUrl = buildWhatsAppUrl(order, null, 'en_livraison', formatDateLocal, undefined, undefined, currency, driverInfo)
+    if (waUrl) {
+      window.open(waUrl, '_blank')
+    }
+
+    // 5. Beacon status change
+    sendStatusBeacon(order.id, 'en_livraison')
+
     onDispatched({
       orderId: order.id,
       driverId: selectedDriver,
-      driverInfo: driver ? { full_name: driver.full_name, phone: driver.phone } : null,
+      driverInfo,
     })
     onClose()
   }
