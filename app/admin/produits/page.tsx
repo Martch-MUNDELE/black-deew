@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useCurrency } from '@/lib/currency'
 
-type Product = { id: string; name: string; price: number; image_url: string; subcategory: string; active: boolean; featured: boolean; popular: boolean; is_vip: boolean; is_coup_de_coeur: boolean; stock: number | null; discount: number | null }
+import type { Product } from '@/lib/types'
 
 
 
