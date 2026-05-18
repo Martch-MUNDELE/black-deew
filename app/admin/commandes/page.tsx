@@ -400,9 +400,7 @@ function CommandesAdminInner() {
                 </div>
               )}
 
-              {order.status === 'en_preparation' && order.delivery_mode !== 'pickup' && (
-                <div style={{ marginTop: 10 }}><button onClick={() => setDispatchOrder(order)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 50, border: '1px solid rgba(56,182,255,0.35)', background: 'rgba(56,182,255,0.1)', color: '#38B6FF', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Passer en livraison</button></div>
-              )}
+
               {order.status === 'en_livraison' && (
                 <div style={{ marginTop: 10 }}>
                   <button
@@ -418,9 +416,15 @@ function CommandesAdminInner() {
                 <a href={`tel:${order.customer_phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.06)', color: '#E8A020', textDecoration: 'none', fontSize: 11, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
                   <IconPhone /> Appeler
                 </a>
-                <a href={`https://wa.me/${cleanPhone(order.customer_phone)}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.2)', background: 'rgba(91,197,122,0.06)', color: '#5BC57A', textDecoration: 'none', fontSize: 11, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
-                  <IconChat /> WhatsApp
-                </a>
+                {order.status === 'en_preparation' && order.delivery_mode !== 'pickup' && !order.driver_id ? (
+                  <button onClick={() => setDispatchOrder(order)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, border: '1px solid rgba(56,182,255,0.35)', background: 'rgba(56,182,255,0.1)', color: '#38B6FF', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                    Sélectionner un livreur
+                  </button>
+                ) : (
+                  <a href={`https://wa.me/${cleanPhone(order.customer_phone)}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.2)', background: 'rgba(91,197,122,0.06)', color: '#5BC57A', textDecoration: 'none', fontSize: 11, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
+                    <IconChat /> WhatsApp
+                  </a>
+                )}
                 {order.lat && order.lng && (
                   <a href={`https://www.google.com/maps?q=${order.lat},${order.lng}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, border: '1px solid rgba(255,107,32,0.2)', background: 'rgba(255,107,32,0.06)', color: '#FF6B20', textDecoration: 'none', fontSize: 11, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
                     <IconPin /> Maps
