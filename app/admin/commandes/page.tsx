@@ -124,6 +124,7 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
   const [errorMsg, setErrorMsg] = useState<string>('')
   const [successWaUrl, setSuccessWaUrl] = useState<string | null>(null)
   const [pendingPayload, setPendingPayload] = useState<DispatchedPayload | null>(null)
+  const [phase, setPhase] = useState<'form' | 'success'>('form')
   const supabase = createClient()
   useEffect(() => {
     const load = async () => {
@@ -200,6 +201,7 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
     const dispatched: DispatchedPayload = { orderId: order.id, driverId: selectedDriver, driverInfo }
     setPendingPayload(dispatched)
     setSuccessWaUrl(waUrl)
+    setPhase('success')
   }
 
   const finishDispatch = () => {
@@ -209,11 +211,11 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
     onClose()
   }
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={pendingPayload ? finishDispatch : onClose}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={phase === 'success' ? finishDispatch : onClose}>
       <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 420, fontFamily: 'DM Sans, sans-serif' }} onClick={e => e.stopPropagation()}>
-        <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, fontWeight: 800, color: '#F5EDD6', marginBottom: 6 }}>{pendingPayload ? 'Livreur dispatché' : 'Dispatcher vers un livreur'}</div>
+        <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, fontWeight: 800, color: '#F5EDD6', marginBottom: 6 }}>{phase === 'success' ? 'Livreur dispatché' : 'Dispatcher vers un livreur'}</div>
         <div style={{ fontSize: 12, color: '#C8B99A', marginBottom: 20 }}>Commande #{order.id.slice(0,8).toUpperCase()} - {order.customer_name} - {order.total.toFixed(2)} {currency}</div>
-        {pendingPayload ? (
+        {phase === 'success' ? (
           <>
             <div style={{ marginBottom: 20, padding: '12px 14px', borderRadius: 10, background: 'rgba(91,197,122,0.08)', border: '1px solid rgba(91,197,122,0.25)', color: '#5BC57A', fontSize: 12, fontFamily: 'DM Sans, sans-serif' }}>Commande dispatchée. Prévenez le client par WhatsApp avec les infos du livreur.</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
