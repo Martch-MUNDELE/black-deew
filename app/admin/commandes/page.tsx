@@ -295,34 +295,16 @@ function CommandesAdminInner() {
 
 
   const markLivree = async (order: any) => {
-    const supabase2 = createClient()
-    // 1. Update order status
-    await supabase2.from('orders').update({ status: 'livrée' }).eq('id', order.id)
-    // 2. Update order_deliveries
-    await supabase2.from('order_deliveries')
-      .update({ status: 'delivered', delivered_at: new Date().toISOString(), amount_collected: order.total })
-      .eq('order_id', order.id)
-    // 3. Recalculer driver_sessions collected_cash + net_to_remit
-    const { data: delRow } = await supabase2.from('order_deliveries')
-      .select('driver_id').eq('order_id', order.id).single()
-    if (delRow?.driver_id) {
-      const { data: sess } = await supabase2.from('driver_sessions')
-        .select('id').eq('driver_id', delRow.driver_id).eq('session_status', 'open').single()
-      if (sess?.id) {
-        const { data: deliveries } = await supabase2.from('order_deliveries')
-          .select('amount_collected, driver_fee_total')
-          .eq('driver_id', delRow.driver_id)
-          .eq('status', 'delivered')
-        const { data: sessDetail } = await supabase2.from('driver_sessions')
-          .select('id, opening_cash').eq('id', sess.id).single()
-        const openingCash = sessDetail?.opening_cash || 0
-        const collected = (deliveries || []).reduce((s: number, d: any) => s + (d.amount_collected || 0), 0)
-        const feesTotal = (deliveries || []).reduce((s: number, d: any) => s + (d.driver_fee_total || 0), 0)
-        await supabase2.from('driver_sessions').update({
-          collected_cash: collected,
-          net_to_remit: openingCash + collected - feesTotal
-        }).eq('id', sess.id)
-      }
+    // Route serveur (service_role) — RLS bloque l'update client sur order_deliveries
+    const res = await fetch('/api/mark-livree', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId: order.id, total: Number(order.total) }),
+    })
+    if (!res.ok) {
+      const { error } = await res.json().catch(() => ({ error: 'erreur inconnue' }))
+      alert(`Marquage livrée échoué : ${error}`)
+      return
     }
     reload()
   }
