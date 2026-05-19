@@ -92,10 +92,6 @@ export default function LivreursPage() {
       .select('driver_id, amount_collected')
       .eq('status', 'delivered')
       .in('driver_id', driverIds)
-    const { data: allSessions } = await supabase
-      .from('driver_sessions')
-      .select('driver_id, opening_cash')
-      .in('driver_id', driverIds)
     const { data: deliveriesWithFee } = await supabase
       .from('order_deliveries')
       .select('driver_id, driver_fee_total')
@@ -104,15 +100,15 @@ export default function LivreursPage() {
     const kpis: Record<string, DriverKPIs> = {}
     for (const id of driverIds) {
       const dd = (deliveries || []).filter((d: any) => d.driver_id === id)
-      const allSess = (allSessions || []).filter((s: any) => s.driver_id === id)
       const ddFee = (deliveriesWithFee || []).filter((d: any) => d.driver_id === id)
-      const sumOpeningCash = allSess.reduce((sum: number, s: any) => sum + (s.opening_cash || 0), 0)
+      const openSess = sessionMap[id] || null
+      const openingCashCurrent = openSess ? (openSess.opening_cash || 0) : 0
       const caCollected = dd.reduce((sum: number, d: any) => sum + (d.amount_collected || 0), 0)
       const sumDriverFee = ddFee.reduce((sum: number, d: any) => sum + (d.driver_fee_total || 0), 0)
       kpis[id] = {
         deliveries: dd.length,
         caCollected,
-        totalToRemit: sumOpeningCash + caCollected - sumDriverFee,
+        totalToRemit: openingCashCurrent + caCollected - sumDriverFee,
       }
     }
     setDriverKPIs(kpis)
