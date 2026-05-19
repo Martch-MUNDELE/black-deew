@@ -80,7 +80,7 @@ export default function LivreursPage() {
     if (!driversRaw) { setLoading(false); return }
     const { data: sessions } = await supabase
       .from('driver_sessions')
-      .select('id, driver_id, started_at, collected_cash, expected_cash, net_to_remit')
+      .select('id, driver_id, started_at, opening_cash, collected_cash, expected_cash, net_to_remit')
       .eq('session_status', 'open')
     const sessionMap: Record<string, any> = {}
     for (const s of sessions || []) { sessionMap[s.driver_id] = s }
@@ -92,19 +92,27 @@ export default function LivreursPage() {
       .select('driver_id, amount_collected')
       .eq('status', 'delivered')
       .in('driver_id', driverIds)
-    const { data: closedSessions } = await supabase
+    const { data: allSessions } = await supabase
       .from('driver_sessions')
-      .select('driver_id, net_to_remit')
-      .eq('session_status', 'closed')
+      .select('driver_id, opening_cash')
+      .in('driver_id', driverIds)
+    const { data: deliveriesWithFee } = await supabase
+      .from('order_deliveries')
+      .select('driver_id, driver_fee_total')
+      .eq('status', 'delivered')
       .in('driver_id', driverIds)
     const kpis: Record<string, DriverKPIs> = {}
     for (const id of driverIds) {
       const dd = (deliveries || []).filter((d: any) => d.driver_id === id)
-      const ds = (closedSessions || []).filter((s: any) => s.driver_id === id)
+      const allSess = (allSessions || []).filter((s: any) => s.driver_id === id)
+      const ddFee = (deliveriesWithFee || []).filter((d: any) => d.driver_id === id)
+      const sumOpeningCash = allSess.reduce((sum: number, s: any) => sum + (s.opening_cash || 0), 0)
+      const caCollected = dd.reduce((sum: number, d: any) => sum + (d.amount_collected || 0), 0)
+      const sumDriverFee = ddFee.reduce((sum: number, d: any) => sum + (d.driver_fee_total || 0), 0)
       kpis[id] = {
         deliveries: dd.length,
-        caCollected: dd.reduce((sum: number, d: any) => sum + (d.amount_collected || 0), 0),
-        totalToRemit: ds.reduce((sum: number, s: any) => sum + (s.net_to_remit || 0), 0),
+        caCollected,
+        totalToRemit: sumOpeningCash + caCollected - sumDriverFee,
       }
     }
     setDriverKPIs(kpis)
