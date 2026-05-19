@@ -1,4 +1,5 @@
 'use client'
+import { useEffect } from 'react'
 import ProductCard from '@/components/ProductCard'
 import { useCatalogue } from '@/store/catalogue'
 import type { Product } from '@/lib/types'
@@ -12,8 +13,23 @@ const GROUPES_FALLBACK: GroupeFilter[] = [
 ]
 
 export default function CatalogueClient({ products, isOpen, groupes: groupesProp }: { products: Product[], isOpen: boolean, groupes?: GroupeFilter[] }) {
-  const { activeGroupe, activeSous, hasSelected } = useCatalogue()
+  const { activeGroupe, activeSous, hasSelected, setGroupe, reset } = useCatalogue()
   const groupes = (groupesProp && groupesProp.length > 0) ? groupesProp : GROUPES_FALLBACK
+
+  // Reset activeGroupe si le groupe mémorisé n'existe plus dans les groupes disponibles
+  useEffect(() => {
+    if (!activeGroupe) return
+    const exists = groupes.some(g => g.id === activeGroupe)
+    if (!exists) {
+      if (groupes.length > 0) {
+        const first = groupes[0]
+        setGroupe(first.id, first.sous.length > 0 ? first.sous[0].id : '')
+      } else {
+        reset()
+      }
+    }
+  }, [activeGroupe, groupes])
+
   const groupe = groupes.find(g => g.id === activeGroupe) ?? { id: activeGroupe, sous: [] as { id: string }[] }
 
   const popularId = products.find(p => p.subcategory === activeSous && p.popular)?.id
