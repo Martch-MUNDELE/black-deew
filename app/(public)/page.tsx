@@ -47,6 +47,11 @@ export default async function HomePage() {
       .filter((g): g is NonNullable<typeof g> => g !== null)
   })()
 
+  // DEBUG TEMPORAIRE
+  console.log('[BD-DEBUG] cats raw:', JSON.stringify(cats.map(c => ({id:c.id,slug:c.slug,level:c.level,parent_id:c.parent_id,active:c.active}))))
+  console.log('[BD-DEBUG] menuGroupes:', JSON.stringify(menuGroupes))
+  console.log('[BD-DEBUG] visibleProducts subcategories:', [...new Set((visibleProducts as any[]).map((p:any)=>p.subcategory))])
+
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
 
