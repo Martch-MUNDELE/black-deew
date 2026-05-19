@@ -76,6 +76,7 @@ export default function LivreursPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState({ full_name: '', phone: '', vehicle_type: 'scooter', zone: '', status: 'active' })
   const [addLoading, setAddLoading] = useState(false)
+  const [contactPickerAvailable, setContactPickerAvailable] = useState(false)
   const [addError, setAddError] = useState('')
   const [sessionDriver, setSessionDriver] = useState<Driver | null>(null)
   const [openingCash, setOpeningCash] = useState('')
@@ -182,6 +183,26 @@ export default function LivreursPage() {
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window) {
+      setContactPickerAvailable(true)
+    }
+  }, [])
+
+  async function handleContactPicker() {
+    try {
+      const contacts = await (navigator as any).contacts.select(['name', 'tel'], { multiple: false })
+      if (contacts && contacts.length > 0) {
+        const contact = contacts[0]
+        const name = contact.name && contact.name.length > 0 ? contact.name[0] : ''
+        const tel = contact.tel && contact.tel.length > 0 ? contact.tel[0] : ''
+        setAddForm(f => ({ ...f, full_name: name || f.full_name, phone: tel || f.phone }))
+      }
+    } catch (e) {
+      // user cancelled or API error
+    }
+  }
 
   async function handleAddDriver() {
     setAddError('')
@@ -488,7 +509,17 @@ export default function LivreursPage() {
           <div style={{ background: '#1A1610', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 440, fontFamily: 'DM Sans, sans-serif' }}>
             <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, fontWeight: 700, color: '#F5EDD6', margin: '0 0 20px' }}>Nouveau livreur</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div><label style={LBL}>Nom complet *</label><input value={addForm.full_name} onChange={e => setAddForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Ex: Ahmed Benali" style={INP} /></div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <label style={LBL}>Nom complet *</label>
+                  {contactPickerAvailable && (
+                    <button onClick={handleContactPicker} type="button" style={{ background: 'rgba(245,200,66,0.12)', color: '#F5C842', border: '1px solid rgba(245,200,66,0.3)', borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      📇 Choisir contact
+                    </button>
+                  )}
+                </div>
+                <input value={addForm.full_name} onChange={e => setAddForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Ex: Ahmed Benali" style={INP} />
+              </div>
               <div><label style={LBL}>Telephone *</label><PhoneInput value={addForm.phone} initialValue={addForm.phone} onChange={v => setAddForm(f => ({ ...f, phone: v }))} /></div>
               <div><label style={LBL}>Vehicule</label>
                 <select value={addForm.vehicle_type} onChange={e => setAddForm(f => ({ ...f, vehicle_type: e.target.value }))} style={SEL}>
