@@ -294,20 +294,7 @@ function CommandesAdminInner() {
   const supabase = createClient()
 
 
-  const markLivree = async (order: any) => {
-    // Route serveur (service_role) — RLS bloque l'update client sur order_deliveries
-    const res = await fetch('/api/mark-livree', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orderId: order.id, total: Number(order.total) }),
-    })
-    if (!res.ok) {
-      const { error } = await res.json().catch(() => ({ error: 'erreur inconnue' }))
-      alert(`Marquage livrée échoué : ${error}`)
-      return
-    }
-    reload()
-  }
+
 
   const loadCounts = async () => {
     const countResults = await Promise.all([
@@ -523,16 +510,6 @@ function CommandesAdminInner() {
               )}
 
 
-              {order.status === 'en_livraison' && (
-                <div style={{ marginTop: 10 }}>
-                  <button
-                    onClick={() => markLivree(order)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.4)', background: 'rgba(91,197,122,0.12)', color: '#5BC57A', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
-                  >
-                    ✓ Marquer livrée
-                  </button>
-                </div>
-              )}
               {/* ACTIONS */}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <a href={`tel:${order.customer_phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.06)', color: '#E8A020', textDecoration: 'none', fontSize: 11, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
@@ -615,6 +592,9 @@ function CommandesAdminInner() {
                         rel="noopener noreferrer"
                         onClick={() => {
                           sendStatusBeacon(order.id, pending)
+                          if (pending === 'livrée') {
+                            fetch('/api/mark-livree', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: order.id, total: Number(order.total) }) })
+                          }
                           applyStatusChange(order.id, pending)
                         }}
                         style={btnStyle}
