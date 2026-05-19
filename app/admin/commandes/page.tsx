@@ -173,12 +173,34 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
       .select('id')
       .eq('order_id', order.id)
       .maybeSingle()
+    // Calcul real_delivery_cost selon tranches delivery_zones
+    const distKm = Number(order.distance_km) || 0
+    let realDeliveryCost = 0
+    let driverFeeDue = 0
+    const { data: zones } = await supabase
+      .from('delivery_zones')
+      .select('min_km, max_km, price')
+      .eq('active', true)
+      .order('min_km', { ascending: true })
+    if (zones && zones.length > 0) {
+      const mz = zones.find((z: any) => distKm >= Number(z.min_km) && distKm < Number(z.max_km))
+      if (mz) {
+        realDeliveryCost = Number(mz.price)
+      } else if (distKm >= Number(zones[zones.length - 1].max_km)) {
+        realDeliveryCost = Number(zones[zones.length - 1].price)
+      }
+      driverFeeDue = realDeliveryCost
+    }
     const payload = {
       driver_id: selectedDriver,
       status: 'assigned',
       assigned_at: new Date().toISOString(),
       amount_to_collect: order.total,
       delivery_fee_charged_to_customer: order.delivery_fee || 0,
+      real_delivery_cost: realDeliveryCost,
+      driver_fee_due: driverFeeDue,
+      driver_fee_total: driverFeeDue,
+      amount_to_remit_by_driver: order.total - driverFeeDue,
     }
     const { error: delErr } = existing
       ? await supabase.from('order_deliveries').update(payload).eq('id', existing.id)
@@ -288,14 +310,17 @@ function CommandesAdminInner() {
         .select('id').eq('driver_id', delRow.driver_id).eq('session_status', 'open').single()
       if (sess?.id) {
         const { data: deliveries } = await supabase2.from('order_deliveries')
-          .select('amount_collected, delivery_fee_charged_to_customer')
+          .select('amount_collected, driver_fee_total')
           .eq('driver_id', delRow.driver_id)
           .eq('status', 'delivered')
+        const { data: sessDetail } = await supabase2.from('driver_sessions')
+          .select('id, opening_cash').eq('id', sess.id).single()
+        const openingCash = sessDetail?.opening_cash || 0
         const collected = (deliveries || []).reduce((s: number, d: any) => s + (d.amount_collected || 0), 0)
-        const fees = (deliveries || []).reduce((s: number, d: any) => s + (d.delivery_fee_charged_to_customer || 0), 0)
+        const feesTotal = (deliveries || []).reduce((s: number, d: any) => s + (d.driver_fee_total || 0), 0)
         await supabase2.from('driver_sessions').update({
           collected_cash: collected,
-          net_to_remit: collected - fees
+          net_to_remit: openingCash + collected - feesTotal
         }).eq('id', sess.id)
       }
     }
