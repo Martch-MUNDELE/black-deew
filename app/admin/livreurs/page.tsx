@@ -518,14 +518,9 @@ export default function LivreursPage() {
                     </button>
                   )}
                 </div>
-                <input value={addForm.full_name} onChange={e => setAddForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Ex: Ahmed Benali" style={INP} />
+                <input value={addForm.full_name} onChange={e => setAddForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Ex: James Brown" style={INP} />
               </div>
               <div><label style={LBL}>Telephone *</label><PhoneInput value={addForm.phone} initialValue={addForm.phone} onChange={v => setAddForm(f => ({ ...f, phone: v }))} /></div>
-              <div><label style={LBL}>Vehicule</label>
-                <select value={addForm.vehicle_type} onChange={e => setAddForm(f => ({ ...f, vehicle_type: e.target.value }))} style={SEL}>
-                  <option value="scooter">Scooter</option><option value="bike">Velo</option><option value="car">Voiture</option><option value="on_foot">A pied</option>
-                </select></div>
-              <div><label style={LBL}>Zone</label><input value={addForm.zone} onChange={e => setAddForm(f => ({ ...f, zone: e.target.value }))} placeholder="Ex: Centre-ville" style={INP} /></div>
               <div><label style={LBL}>Statut</label>
                 <select value={addForm.status} onChange={e => setAddForm(f => ({ ...f, status: e.target.value }))} style={SEL}>
                   <option value="active">Actif</option><option value="inactive">Inactif</option><option value="suspended">Suspendu</option>
@@ -547,11 +542,6 @@ export default function LivreursPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div><label style={LBL}>Nom complet *</label><input value={editForm.full_name} onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))} style={INP} /></div>
               <div><label style={LBL}>Telephone *</label><PhoneInput value={editForm.phone} initialValue={editForm.phone} onChange={v => setEditForm(f => ({ ...f, phone: v }))} /></div>
-              <div><label style={LBL}>Vehicule</label>
-                <select value={editForm.vehicle_type} onChange={e => setEditForm(f => ({ ...f, vehicle_type: e.target.value }))} style={SEL}>
-                  <option value="scooter">Scooter</option><option value="bike">Velo</option><option value="car">Voiture</option><option value="on_foot">A pied</option>
-                </select></div>
-              <div><label style={LBL}>Zone</label><input value={editForm.zone} onChange={e => setEditForm(f => ({ ...f, zone: e.target.value }))} style={INP} /></div>
               <div><label style={LBL}>Statut</label>
                 <select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))} style={SEL}>
                   <option value="active">Actif</option><option value="inactive">Inactif</option><option value="suspended">Suspendu</option>
