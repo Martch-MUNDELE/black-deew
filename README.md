@@ -5,6 +5,9 @@ Application de livraison food — Marché cible : Kinshasa, RDC
 
 Projet Next.js bootstrapped avec [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+> v3.1 — 18 mai 2026 — Session 18 mai (5) : module livreurs `/admin/livreurs` en cours — type `Driver` défini (id, started_at, opening_cash, collected_cash, expected_cash, net_to_remit), intégration PhoneInput (49 pays, RDC en tête), connexion Supabase client + hook `useCurrency`. Page incomplète, diff tronqué, aucun commit enregistré.
+> v3.0 — 18 mai 2026 — Session 18 mai (4) : formulaire livreur simplifié — suppression champs Vehicule (select) et Zone (input) dans Nouveau livreur et Modifier livreur. Placeholder nom mis à jour ("Ex: James Brown"). Commit : 7c36b0a.
+> v2.9 — 18 mai 2026 — Session 18 mai (3) : analytics historiques CA semaine (4 semaines glissantes, barres gold #F5C842, décomposition Classique/VIP) + commandes par jour dans admin/page.tsx (+74 lignes). Affichage variant_name dans admin/commandes. import type Product corrigé. Commits : 007f575, 9dc0b2a, 367f7b1, 0a949dc.
 > v2.8 — 18 mai 2026 — Session 18 mai (2) : vérification patch aria_agent.py (WATCH_TIMEOUT=600, MAX_RETRIES=2, polling 1s) — non confirmée. Aucun push git documenté cette session.
 > v2.7 — 18 mai 2026 — Session 18 mai : KpiCardCA (total CA + badges Classique/VIP) + fonctions isVipOrder/vipCATotal/classicCATotal + graphe double barres + badge VIP pipeline + refactor admin/page.tsx −253 lignes (1d03ecb).
 > v2.6 — 17 mai 2026 — Session 17 mai : uploadHeroImage timestamp + upsert immédiat + cache-buster (63c20f6) · favicon + apple-icon depuis logo Supabase (5854701) · site_description admin + generateMetadata dynamique + footer tab fix (9ddc62a) · OG image + Twitter card metadata (f95fb82) · toggle ON/OFF par argument dans admin settings (4319cca).
@@ -59,50 +62,39 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 - Dropdown avec drapeau emoji + nom pays + indicatif
 - Marché cible : Kinshasa, RDC → RD Congo toujours en tête de liste
 - Dernière modification : session 14 mai (3) — 3 lignes modifiées (3 insertions, 3 suppressions)
+- Utilisé dans : formulaire livreurs (`/admin/livreurs`)
 
 ### Page nouveau produit (`app/admin/produits/nouveau/page.tsx`)
 - Bloc discount/promo : champs `discount` et `is_vip` présents dans le formulaire de création
 - Module variantes : champs `variant_name` / `variant_price` transmis au panier
 - Parité fonctionnelle avec la page modifier produit atteinte session 14 mai (4)
-- Refactoring layout session 15 mai (1) : ~111 → ~75 lignes effectives (-33 lignes)
-- **⚠️ Note** : pas de composant partagé avec `/modifier` — tout nouveau champ doit être ajouté manuellement aux deux pages
 
-### FeaturesBar (`components/FeaturesBar.tsx`)
-- 8 icônes SVG disponibles dans le switch : `chef`, `delivery`, `fresh`, `star`, `clock`, `heart`, `shield`, `fire`
-- Dernière modification : session 17 mai — 6 lignes modifiées (ajout icônes star, clock, heart, shield, fire)
-
-### Dashboard admin (`app/admin/page.tsx`) — mis à jour session 18 mai
-- **`KpiCardCA`** : composant KPI dédié affichant le CA total en grand format (Playfair Display 26px, `#F5C842`) avec sous-ligne séparée Classique / VIP (badges colorés distincts)
-- **`isVipOrder(order)`** : retourne `true` si au moins un item de la commande est marqué VIP
-- **`vipCATotal(orders)`** : somme du CA des commandes VIP uniquement
-- **`classicCATotal(orders)`** : somme du CA des commandes classiques uniquement
-- **`timeAgo(date)`** : formatage relatif des dates commandes
-- **`STATUS`** : mapping statut → label / couleur / fond pour les 6 états du pipeline
-- **`PIPELINE`** : séquence ordonnée des 4 états actifs
-- **`OrderWithItems`** : type local pour le typage des items enrichis
-- Refactoring session 18 mai : 469 → 216 lignes nettes (−253 lignes)
-- **⚠️ Note** : diff tronqué observé en session — valider visuellement en local avant push
+### Module livreurs (`app/admin/livreurs/`)
+- **Statut :** en cours de développement — page incomplète, non commitée
+- Type `Driver` défini avec les champs :
+  - `id`, `started_at`, `opening_cash`
+  - `collected_cash`, `expected_cash`, `net_to_remit` (logique de caisse)
+- Intégration `PhoneInput` (49 pays, RDC en tête)
+- Connexion Supabase client + hook `useCurrency` présents
+- Champs `open_session` impliquent une logique de caisse livreur (remise de fonds)
+- Formulaire simplifié : sans champs Véhicule ni Zone (supprimés en session 18 mai (4))
 
 ---
 
 ## Dette technique
 
-| Dette | Priorité | Statut |
-|---|---|---|
-| Patch timeout `aria_agent.py` (WATCH_TIMEOUT=600, MAX_RETRIES=2, polling 1s) | **Haute** | **Non vérifié / Non confirmé — priorité absolue prochaine session** |
-| GPS shop Kinshasa (`delivery_shop_lat/lng` encore sur Agadir) | Haute | Toujours en attente — Tiana Care |
-| Test cron `check-payment` | Haute | Début juin 2026 |
-| Email Resend domaine custom | Moyenne | En attente |
-| Infinite scroll >50 commandes en prod | Moyenne | À vérifier |
-| `app/admin/page.tsx` diff partiel visible — composant `KpiCardCA` tronqué dans le diff | Moyenne | À valider visuellement en local avant push |
-| Template email notifications (style basique) | Basse | En attente |
-| Bug VIP visible home prod | Basse | À confirmer/investiguer |
-| Slug `menu_categories` non synchronisé avec subcategory products | Basse | Connu |
+- Page `/admin/livreurs` incomplète — diff tronqué, structure `open_session` non fermée, logique d'affichage et actions non visibles
+- Aucun commit git enregistré pour la session 18 mai (5) — travail non versionné
+- Champs `open_session` (collected_cash, expected_cash, net_to_remit) impliquent une logique de caisse livreur non documentée dans la doc maître
+- Schéma table sessions livreurs à documenter (section 4 — Base de données)
 
 ---
 
 ## Prochaines étapes
 
-1. **Vérifier manuellement `aria_agent.py`** — confirmer la présence de `WATCH_TIMEOUT=600`, `MAX_RETRIES=2`, polling 1 s avant tout push :
-   ```bash
-   grep -n "WATCH_TIMEOUT\
+1. Finaliser et valider la page `/admin/livreurs` (affichage liste, gestion sessions, remise caisse)
+2. Documenter le schéma de la table sessions livreurs dans la doc maître (section 4 — Base de données)
+3. Committer le travail en cours dès que la page est stable (`git add -A && git commit`)
+4. Vérifier que les RLS Supabase couvrent les données de session livreur
+5. Tester en local (port 3001) avant tout push
+```

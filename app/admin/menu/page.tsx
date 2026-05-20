@@ -6,7 +6,7 @@ import {
   CupSoda, Wine, Beer, Soup, Salad, Apple, Beef, Fish, Egg, Cookie, Cake,
   IceCream, Candy, Carrot, Wheat, Flame, Snowflake, Droplets, Star, Heart,
   Leaf, Sun, Moon, Clock, MapPin, Home, ShoppingBag, ShoppingCart, Package,
-  Tag, Percent, Gift, Award, Zap, Sparkles, ThumbsUp,
+  Tag, Percent, Gift, Award, Zap, Sparkles, ThumbsUp, Eye, EyeOff,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -20,6 +20,7 @@ type Category = {
   icon_type: string
   icon_value: string
   level: number
+  is_visible: boolean
 }
 
 type FormState = {
@@ -160,7 +161,7 @@ const BTN_ORDER: React.CSSProperties = {
 }
 
 function CatRow({
-  cat, indent = false, onEdit, onDelete,
+  cat, indent = false, onEdit, onDelete, onToggleVisible,
   isDragging, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd,
   isFirst = false, isLast = false, onMoveUp, onMoveDown,
 }: {
@@ -168,6 +169,7 @@ function CatRow({
   indent?: boolean
   onEdit: (c: Category) => void
   onDelete: (id: string) => void
+  onToggleVisible: (id: string, val: boolean) => void
   isDragging: boolean
   isDragOver: boolean
   onDragStart: () => void
@@ -222,6 +224,12 @@ function CatRow({
         {isLast  ? <div style={{ width: 28 }} /> : <button onClick={onMoveDown} style={BTN_ORDER}>↓</button>}
       </div>
       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+        <button
+          onClick={() => onToggleVisible(cat.id, !cat.is_visible)}
+          style={{ ...BTN_ORDER, color: cat.is_visible ? '#F5C842' : '#7A6E58' }}
+        >
+          {cat.is_visible ? <Eye size={14} /> : <EyeOff size={14} />}
+        </button>
         <button onClick={() => onEdit(cat)} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.06)', color: '#E8A020', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <IconEdit />
         </button>
@@ -351,6 +359,12 @@ export default function MenuAdmin() {
     } finally {
       setUploadingIcon(false)
     }
+  }
+
+  async function handleToggleVisible(id: string, val: boolean) {
+    const supabase = createClient()
+    await supabase.from('menu_categories').update({ is_visible: val }).eq('id', id)
+    setCats(prev => prev.map(c => c.id === id ? { ...c, is_visible: val } : c))
   }
 
   const del = async (id: string) => {
@@ -629,6 +643,7 @@ export default function MenuAdmin() {
                 cat={parent}
                 onEdit={openEdit}
                 onDelete={del}
+                onToggleVisible={handleToggleVisible}
                 isDragging={dragId === parent.id}
                 isDragOver={dragOverId === parent.id && dragGroupKey === 'root'}
                 onDragStart={() => startDrag(parent.id, 'root')}
@@ -647,6 +662,7 @@ export default function MenuAdmin() {
                   indent
                   onEdit={openEdit}
                   onDelete={del}
+                  onToggleVisible={handleToggleVisible}
                   isDragging={dragId === child.id}
                   isDragOver={dragOverId === child.id && dragGroupKey === parent.id}
                   onDragStart={() => startDrag(child.id, parent.id)}

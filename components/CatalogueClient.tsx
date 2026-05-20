@@ -13,8 +13,15 @@ const GROUPES_FALLBACK: GroupeFilter[] = [
 ]
 
 export default function CatalogueClient({ products, isOpen, groupes: groupesProp }: { products: Product[], isOpen: boolean, groupes?: GroupeFilter[] }) {
-  const { activeGroupe, activeSous, hasSelected, setGroupe, reset } = useCatalogue()
+  const { activeGroupe, activeSous, hasSelected, setGroupe, reset, setMenuGroupes } = useCatalogue()
   const groupes = (groupesProp && groupesProp.length > 0) ? groupesProp : GROUPES_FALLBACK
+
+  // Synchroniser menuGroupes dans le store pour la Navbar
+  useEffect(() => {
+    if (groupes.length > 0) {
+      setMenuGroupes(groupes.map(g => ({ id: g.id, label: g.label ?? g.id, sous: g.sous.map(s => ({ id: s.id, label: s.label ?? s.id })) })))
+    }
+  }, [JSON.stringify(groupes)])
 
   // Reset activeGroupe si le groupe mémorisé n'existe plus dans les groupes disponibles
   useEffect(() => {

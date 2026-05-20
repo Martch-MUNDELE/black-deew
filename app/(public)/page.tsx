@@ -14,7 +14,7 @@ export default async function HomePage() {
   const [{ data: products }, { data: settings }, { data: menuCats }, { data: stockSetting }] = await Promise.all([
     supabase.from('products').select('*').eq('active', true).eq('is_vip', false).order('name'),
     supabase.from('settings').select('*').eq('key', 'status'),
-    supabase.from('menu_categories').select('id, slug, name, parent_id, display_order, active, level').order('display_order'),
+    supabase.from('menu_categories').select('id, slug, name, parent_id, display_order, active, level, is_visible').order('display_order'),
     supabase.from('settings').select('value').eq('key', 'stock_enabled').single(),
   ])
 
@@ -25,11 +25,11 @@ export default async function HomePage() {
 
   const isOpen = ((settings as any[])?.find?.((s: any) => s.key === 'status')?.value || '') === 'open'
 
-  type MenuCatMin = { id: string; slug: string; name: string; parent_id: string | null; display_order: number; active: boolean; level: number }
+  type MenuCatMin = { id: string; slug: string; name: string; parent_id: string | null; display_order: number; active: boolean; level: number; is_visible: boolean }
   const cats = (menuCats as MenuCatMin[] | null) ?? []
   const menuGroupes = (() => {
-    const l0 = cats.filter(c => c.level === 0 && c.active).sort((a, b) => a.display_order - b.display_order)
-    const l1 = cats.filter(c => c.level === 1 && c.active).sort((a, b) => a.display_order - b.display_order)
+    const l0 = cats.filter(c => c.level === 0 && c.active && c.is_visible).sort((a, b) => a.display_order - b.display_order)
+    const l1 = cats.filter(c => c.level === 1 && c.active && c.is_visible).sort((a, b) => a.display_order - b.display_order)
     const activeProducts = visibleProducts as any[]
     return l0
       .map(g => {

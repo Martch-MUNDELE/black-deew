@@ -28,11 +28,12 @@ type GroupeItem = { id: string; label: string; emoji: string; icon_type: string;
 interface MenuCat {
   id: string; slug: string; name: string; parent_id: string | null
   display_order: number; active: boolean; icon_type: string; icon_value: string | null; level: number
+  is_visible?: boolean
 }
 
 function buildGroupes(cats: MenuCat[]): GroupeItem[] {
-  const l0 = cats.filter(c => c.level === 0 && c.active).sort((a, b) => a.display_order - b.display_order)
-  const l1 = cats.filter(c => c.level === 1 && c.active).sort((a, b) => a.display_order - b.display_order)
+  const l0 = cats.filter(c => c.level === 0 && c.active && c.is_visible !== false).sort((a, b) => a.display_order - b.display_order)
+  const l1 = cats.filter(c => c.level === 1 && c.active && c.is_visible !== false).sort((a, b) => a.display_order - b.display_order)
   return l0.map(g => ({
     id: g.slug, label: g.name, emoji: g.icon_value ?? g.slug, icon_type: g.icon_type,
     sous: l1.filter(s => s.parent_id === g.id).map(s => ({ id: s.slug, label: s.name, emoji: s.icon_value ?? s.slug, icon_type: s.icon_type }))
@@ -81,11 +82,33 @@ export default function Navbar() {
   const [menuPlaceholderIcon, setMenuPlaceholderIcon] = useState('')
   const [menuPlaceholderIconType, setMenuPlaceholderIconType] = useState<'builtin' | 'custom'>('builtin')
   const [menuPlaceholderBuiltinIcon, setMenuPlaceholderBuiltinIcon] = useState('Coffee')
-  const { activeGroupe, activeSous, hasSelected, setGroupe, setHasSelected } = useCatalogue()
+  const { activeGroupe, activeSous, hasSelected, setGroupe, setHasSelected, menuGroupes: storeGroupes } = useCatalogue()
   const pathname = usePathname()
   const isHome = pathname === '/'
   const [openDropdown, setOpenDropdown] = useState(false)
   const [groupes, setGroupes] = useState<GroupeItem[]>(GROUPES)
+
+  // Sync depuis store quand menuGroupes disponibles (chargés par CatalogueClient)
+  useEffect(() => {
+    if (storeGroupes && storeGroupes.length > 0) {
+      // Merger avec icônes déjà chargées si disponibles
+      setGroupes(prev => {
+        return storeGroupes.map(sg => {
+          const existing = prev.find(p => p.id === sg.id)
+          return {
+            id: sg.id,
+            label: sg.label,
+            emoji: existing?.emoji ?? sg.id,
+            icon_type: existing?.icon_type ?? 'builtin',
+            sous: sg.sous.map(ss => {
+              const exs = existing?.sous.find(p => p.id === ss.id)
+              return { id: ss.id, label: ss.label, emoji: exs?.emoji ?? ss.id, icon_type: exs?.icon_type ?? 'builtin' }
+            })
+          }
+        })
+      })
+    }
+  }, [storeGroupes])
   const dropRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
