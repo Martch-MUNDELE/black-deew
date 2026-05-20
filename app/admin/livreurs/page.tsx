@@ -98,6 +98,11 @@ export default function LivreursPage() {
   const [expandedDeliveries, setExpandedDeliveries] = useState<Set<string>>(new Set())
   const [settleLoading, setSettleLoading] = useState<string | null>(null)
 
+async function updateDriverStatus(id: string, status: string) {
+  await supabase.from('delivery_drivers').update({ status: status }).eq('id', id)
+}
+
+
   async function load() {
     setLoading(true)
     const { data: driversRaw } = await supabase
@@ -111,7 +116,11 @@ export default function LivreursPage() {
       .eq('session_status', 'open')
     const sessionMap: Record<string, any> = {}
     for (const s of sessions || []) { sessionMap[s.driver_id] = s }
-    const driversList = driversRaw.map((d: any) => ({ ...d, open_session: sessionMap[d.id] || null }))
+    const driversList = driversRaw.map((d: any) => {
+      const openSess = sessionMap[d.id] || null
+      const dynamicStatus = d.status === 'suspended' ? 'suspended' : (openSess ? 'active' : 'inactive')
+      return { ...d, status: dynamicStatus, open_session: openSess }
+    })
     setDrivers(driversList)
     const driverIds = driversRaw.map((d: any) => d.id)
     const { data: deliveries } = await supabase
@@ -265,7 +274,8 @@ export default function LivreursPage() {
     })
     setSessionLoading(false)
     if (error) { setSessionError(error.message); return }
-    setSessionDriver(null); setOpeningCash(''); load()
+    await updateDriverStatus(sessionDriver.id, "active")
+    setSessionDriver(null); setOpeningCash(""); load()
   }
 
   async function handleCloseSession() {
@@ -274,6 +284,7 @@ export default function LivreursPage() {
     await supabase.from('driver_sessions')
       .update({ session_status: 'closed', closed_at: new Date().toISOString() })
       .eq('id', closeDriver.open_session.id)
+    await updateDriverStatus(closeDriver.id, "inactive")
     setCloseLoading(false); setCloseDriver(null); load()
   }
 
@@ -491,7 +502,6 @@ export default function LivreursPage() {
                             <button onClick={() => setCloseDriver(driver)} style={{ background: 'rgba(255,107,107,0.1)', color: '#FF6B6B', border: '1px solid rgba(255,107,107,0.25)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Cloture session</button>
                           )}
                           <button onClick={() => openEdit(driver)} style={{ background: 'rgba(232,160,32,0.1)', color: '#E8A020', border: '1px solid rgba(232,160,32,0.25)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Modifier</button>
-                          <button onClick={() => handleToggleStatus(driver)} disabled={isToggling} style={{ background: driver.status === 'active' ? 'rgba(122,110,88,0.1)' : 'rgba(91,197,122,0.1)', color: driver.status === 'active' ? '#C8B99A' : '#5BC57A', border: driver.status === 'active' ? '1px solid rgba(122,110,88,0.25)' : '1px solid rgba(91,197,122,0.25)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: isToggling ? 'wait' : 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: isToggling ? 0.6 : 1 }}>{isToggling ? '...' : driver.status === 'active' ? 'Desactiver' : 'Activer'}</button>
                           <button onClick={() => setDeleteDriver(driver)} style={{ background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', border: '1px solid rgba(255,107,107,0.2)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Supprimer</button>
                         </div>
                       </div>
