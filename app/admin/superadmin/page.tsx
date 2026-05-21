@@ -86,6 +86,8 @@ export default function SuperAdminPage() {
   const [purging, setPurging] = useState(false)
   const [platformClosed, setPlatformClosed] = useState(false)
   const [reactivating, setReactivating] = useState(false)
+  const [moduleLivreurs, setModuleLivreurs] = useState(false)
+  const [savingModule, setSavingModule] = useState(false)
   const supabase = createClient()
   const router = useRouter()
 
@@ -103,6 +105,9 @@ export default function SuperAdminPage() {
       // Vérifier statut plateforme
       supabase.from('settings').select('value').eq('key', 'status').single().then(({ data }) => {
         setPlatformClosed(data?.value === 'closed')
+      })
+      supabase.from('settings').select('value').eq('key', 'module_livreurs').single().then(({ data }) => {
+        setModuleLivreurs(data?.value === 'true')
       })
     })
   }, [])
@@ -214,6 +219,16 @@ export default function SuperAdminPage() {
     setMsg(`📧 Identifiants envoyés à ${admin.email}`)
   }
 
+  const toggleModuleLivreurs = async () => {
+    setSavingModule(true)
+    const newVal = !moduleLivreurs
+    await supabase.from('settings').upsert({ key: 'module_livreurs', value: String(newVal) }, { onConflict: 'key' })
+    setModuleLivreurs(newVal)
+    setSavingModule(false)
+    setTimeout(() => window.location.reload(), 500)
+    setMsg(newVal ? '✅ Module Livreurs activé' : '⚫ Module Livreurs désactivé')
+  }
+
   const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(255,255,255,0.03)', color: '#F5EDD6', fontSize: 13, outline: 'none', fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' as const }
 
   return (
@@ -307,6 +322,39 @@ export default function SuperAdminPage() {
           </div>
         </div>
       )}
+
+      {/* MODULES */}
+      <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: '18px 20px', marginBottom: 24 }}>
+        <div style={{ fontSize: 10, fontWeight: 800, color: '#C8B99A', letterSpacing: '1.5px', textTransform: 'uppercase' as const, marginBottom: 14 }}>⚙️ Modules</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#F5EDD6', marginBottom: 2 }}>Module Livreurs</div>
+            <div style={{ fontSize: 11, color: '#C8B99A' }}>Active la gestion des livreurs dans l&apos;interface admin.</div>
+          </div>
+          <button
+            onClick={toggleModuleLivreurs}
+            disabled={savingModule}
+            style={{
+              flexShrink: 0,
+              padding: '8px 20px',
+              borderRadius: 50,
+              border: '1px solid',
+              borderColor: moduleLivreurs ? 'rgba(91,197,122,0.4)' : 'rgba(200,185,154,0.2)',
+              background: moduleLivreurs ? 'rgba(91,197,122,0.12)' : 'rgba(255,255,255,0.03)',
+              color: moduleLivreurs ? '#5BC57A' : '#C8B99A',
+              fontFamily: 'DM Sans, sans-serif',
+              fontWeight: 800,
+              fontSize: 12,
+              cursor: savingModule ? 'not-allowed' : 'pointer',
+              opacity: savingModule ? 0.6 : 1,
+              transition: 'all 0.2s',
+              whiteSpace: 'nowrap' as const,
+            }}
+          >
+            {savingModule ? '...' : moduleLivreurs ? '🟢 Activé' : '⚫ Désactivé'}
+          </button>
+        </div>
+      </div>
 
       {/* TABS */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
