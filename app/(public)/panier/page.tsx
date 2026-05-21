@@ -383,13 +383,13 @@ export default function PanierPage() {
                 }, 0)
               })()
               const basePrice = (i.product.discount ?? 0) > 0
-                ? parseFloat((i.product.price * (1 - (i.product.discount ?? 0) / 100)).toFixed(2))
+                ? Math.ceil(i.product.price * (1 - (i.product.discount ?? 0) / 100))
                 : i.product.price
               return {
                 product_id: i.product.id,
                 product_name: i.product.name,
                 quantity: i.quantity,
-                unit_price: parseFloat((basePrice + variantExtra).toFixed(2)),
+                unit_price: Math.ceil(basePrice + variantExtra),
                 variant_price_extra: variantExtra,
                 isVip: i.product.is_vip ?? false,
                 selected_variants: i.selectedVariants ?? null,
@@ -530,7 +530,7 @@ export default function PanierPage() {
                     {(item.product.discount ?? 0) > 0 && (
                       <span style={{ fontSize: 11, color: '#7A6E58', textDecoration: 'line-through', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>{(item.product.price * item.quantity).toFixed(2)}</span>
                     )}
-                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 14, color: '#F5C842' }}>{((item.product.discount ?? 0) > 0 ? item.product.price * (1 - (item.product.discount ?? 0) / 100) * item.quantity : item.product.price * item.quantity).toFixed(2)} {currency}</span>
+                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 14, color: '#F5C842' }}>{((item.product.discount ?? 0) > 0 ? Math.ceil(item.product.price * (1 - (item.product.discount ?? 0) / 100)) * item.quantity : item.product.price * item.quantity).toFixed(2)} {currency}</span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 0, background: 'rgba(255,255,255,0.04)', borderRadius: 50, border: '1px solid rgba(232,160,32,0.15)', flexShrink: 0 }}>
@@ -602,7 +602,7 @@ export default function PanierPage() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 10px 10px', marginTop: 'auto' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
                         {(p.discount ?? 0) > 0 && <span style={{ fontSize: 9, color: '#7A6E58', textDecoration: 'line-through', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>{p.price.toFixed(2)}</span>}
-                        <span style={{ fontSize: 12, fontWeight: 800, color: '#F5C842', fontFamily: 'Playfair Display, serif' }}>{(p.discount ?? 0) > 0 ? (p.price * (1 - (p.discount ?? 0) / 100)).toFixed(2) : p.price.toFixed(2)} {currency}</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: '#F5C842', fontFamily: 'Playfair Display, serif' }}>{(p.discount ?? 0) > 0 ? Math.ceil(p.price * (1 - (p.discount ?? 0) / 100)).toFixed(2) : p.price.toFixed(2)} {currency}</span>
                       </div>
                       <button type="button" onClick={() => add(p)} style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#F5C842,#FF6B20)', border: 'none', color: '#0A0804', fontSize: 18, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                     </div>

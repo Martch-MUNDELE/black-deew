@@ -47,7 +47,7 @@ export const useCart = create<CartStore>()(
       clear: () => set({ items: [] }),
       total: () => get().items.reduce((sum, i) => {
         const basePrice = (i.product.discount ?? 0) > 0
-          ? i.product.price * (1 - (i.product.discount ?? 0) / 100)
+          ? Math.ceil(i.product.price * (1 - (i.product.discount ?? 0) / 100))
           : i.product.price
         let variantExtra = 0
         if (i.selectedVariants && i.product.variants) {
