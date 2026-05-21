@@ -5,6 +5,7 @@ Application de livraison food — Marché cible : Kinshasa, RDC
 
 Projet Next.js bootstrapped avec [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+> v3.2 — 18 mai 2026 — Session 18 mai (6) : statut livreur dynamique basé sur session ouverte (4477892) · menu visibility toggle icône œil admin + filtre vitrine + navbar (b6d8319) · fixes catégories : reset activeGroupe si groupe absent (c8a1511), masquage catégories vides si tous produits inactifs (7866ec2), debug catégories vides BD (c8a1511) · PhoneInput utilisé dans formulaire livreurs · README mis à jour.
 > v3.1 — 18 mai 2026 — Session 18 mai (5) : module livreurs `/admin/livreurs` en cours — type `Driver` défini (id, started_at, opening_cash, collected_cash, expected_cash, net_to_remit), intégration PhoneInput (49 pays, RDC en tête), connexion Supabase client + hook `useCurrency`. Page incomplète, diff tronqué, aucun commit enregistré.
 > v3.0 — 18 mai 2026 — Session 18 mai (4) : formulaire livreur simplifié — suppression champs Vehicule (select) et Zone (input) dans Nouveau livreur et Modifier livreur. Placeholder nom mis à jour ("Ex: James Brown"). Commit : 7c36b0a.
 > v2.9 — 18 mai 2026 — Session 18 mai (3) : analytics historiques CA semaine (4 semaines glissantes, barres gold #F5C842, décomposition Classique/VIP) + commandes par jour dans admin/page.tsx (+74 lignes). Affichage variant_name dans admin/commandes. import type Product corrigé. Commits : 007f575, 9dc0b2a, 367f7b1, 0a949dc.
@@ -61,40 +62,40 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 - Couvre : Afrique centrale, Afrique de l'Ouest, Maghreb, Europe, Amérique du Nord, Moyen-Orient
 - Dropdown avec drapeau emoji + nom pays + indicatif
 - Marché cible : Kinshasa, RDC → RD Congo toujours en tête de liste
+- Utilisé dans : formulaire livreurs (`/admin/livreurs`), autres formulaires admin
 - Dernière modification : session 14 mai (3) — 3 lignes modifiées (3 insertions, 3 suppressions)
-- Utilisé dans : formulaire livreurs (`/admin/livreurs`)
 
-### Page nouveau produit (`app/admin/produits/nouveau/page.tsx`)
-- Bloc discount/promo : champs `discount` et `is_vip` présents dans le formulaire de création
-- Module variantes : champs `variant_name` / `variant_price` transmis au panier
-- Parité fonctionnelle avec la page modifier produit atteinte session 14 mai (4)
+---
 
-### Module livreurs (`app/admin/livreurs/`)
-- **Statut :** en cours de développement — page incomplète, non commitée
-- Type `Driver` défini avec les champs :
-  - `id`, `started_at`, `opening_cash`
-  - `collected_cash`, `expected_cash`, `net_to_remit` (logique de caisse)
-- Intégration `PhoneInput` (49 pays, RDC en tête)
-- Connexion Supabase client + hook `useCurrency` présents
-- Champs `open_session` impliquent une logique de caisse livreur (remise de fonds)
-- Formulaire simplifié : sans champs Véhicule ni Zone (supprimés en session 18 mai (4))
+## Module Livreurs (`/admin/livreurs`)
+
+- **Type `Driver`** : id, started_at, opening_cash, collected_cash, expected_cash, net_to_remit
+- **Statut dynamique** : basé sur session ouverte (commit `4477892`)
+- **Formulaire simplifié** : sans champs Vehicule ni Zone (commit `7c36b0a`)
+- **Intégrations** : PhoneInput, Supabase client, hook `useCurrency`
+- ⚠️ Page incomplète — diff tronqué, état instable à surveiller
+
+---
+
+## Menu Visibility Toggle
+
+- Icône œil dans l'interface admin pour activer/désactiver la visibilité d'un item
+- Filtre appliqué côté vitrine + navbar
+- Commit : `b6d8319`
+
+---
+
+## Fixes Catégories (session 18 mai 6)
+
+- Reset `activeGroupe` si groupe absent : commit `c8a1511`
+- Masquage catégories vides si tous les produits sont inactifs : commit `7866ec2`
+- Debug catégories vides BD : commit `c8a1511`
 
 ---
 
 ## Dette technique
 
-- Page `/admin/livreurs` incomplète — diff tronqué, structure `open_session` non fermée, logique d'affichage et actions non visibles
-- Aucun commit git enregistré pour la session 18 mai (5) — travail non versionné
-- Champs `open_session` (collected_cash, expected_cash, net_to_remit) impliquent une logique de caisse livreur non documentée dans la doc maître
-- Schéma table sessions livreurs à documenter (section 4 — Base de données)
-
----
-
-## Prochaines étapes
-
-1. Finaliser et valider la page `/admin/livreurs` (affichage liste, gestion sessions, remise caisse)
-2. Documenter le schéma de la table sessions livreurs dans la doc maître (section 4 — Base de données)
-3. Committer le travail en cours dès que la page est stable (`git add -A && git commit`)
-4. Vérifier que les RLS Supabase couvrent les données de session livreur
-5. Tester en local (port 3001) avant tout push
-```
+- Page `/admin/livreurs` incomplète — diff tronqué, aucun commit enregistré pour la page complète, état instable
+- Aucun composant partagé entre `/produits/nouveau` et `/produits/modifier` — tout nouveau champ doit être dupliqué manuellement
+- Patch `aria_agent.py` (WATCH_TIMEOUT=600, MAX_RETRIES=2, polling 1s) non confirmé, aucun push documenté
+- GPS shop toujours sur Agadir — Tiana Care doit se géolocaliser depuis `/admin/

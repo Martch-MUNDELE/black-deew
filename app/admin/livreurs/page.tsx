@@ -18,6 +18,7 @@ type Driver = {
     collected_cash: number
     expected_cash: number
     net_to_remit: number
+    driver_fee_total?: number
   } | null
 }
 
@@ -25,6 +26,7 @@ type DriverKPIs = {
   deliveries: number
   caCollected: number
   totalToRemit: number
+  win: number
 }
 
 type OrderDelivery = {
@@ -97,6 +99,8 @@ export default function LivreursPage() {
   const [driverClosedSessions, setDriverClosedSessions] = useState<Record<string, ClosedSession[]>>({})
   const [expandedDeliveries, setExpandedDeliveries] = useState<Set<string>>(new Set())
   const [settleLoading, setSettleLoading] = useState<string | null>(null)
+  const [driverDailyCA, setDriverDailyCA] = useState<Record<string, number>>({})
+  const [driverDailyWin, setDriverDailyWin] = useState<Record<string, number>>({})
 
 async function updateDriverStatus(id: string, status: string) {
   await supabase.from('delivery_drivers').update({ status: status }).eq('id', id)
@@ -123,25 +127,49 @@ async function updateDriverStatus(id: string, status: string) {
     })
     setDrivers(driversList)
     const driverIds = driversRaw.map((d: any) => d.id)
-    const { data: deliveries } = await supabase
-      .from('order_deliveries')
-      .select('driver_id, amount_collected, driver_fee_total')
-      .eq('status', 'delivered')
-      .in('driver_id', driverIds)
     const kpis: Record<string, DriverKPIs> = {}
     for (const id of driverIds) {
-      const dd = (deliveries || []).filter((d: any) => d.driver_id === id)
       const openSess = sessionMap[id] || null
-      const openingCashCurrent = openSess ? (openSess.opening_cash || 0) : 0
+      if (!openSess) {
+        kpis[id] = { deliveries: 0, caCollected: 0, totalToRemit: 0, win: 0 }
+        continue
+      }
+      const { data: driverDels } = await supabase
+        .from('order_deliveries')
+        .select('driver_id, amount_collected, driver_fee_total')
+        .in('status', ['pending', 'delivered'])
+        .eq('driver_id', id)
+        .gte('created_at', openSess.started_at)
+      const dd = driverDels || []
+      const openingCashCurrent = openSess.opening_cash || 0
       const caCollected = dd.reduce((sum: number, d: any) => sum + (d.amount_collected || 0), 0)
       const sumDriverFee = dd.reduce((sum: number, d: any) => sum + (d.driver_fee_total || 0), 0)
       kpis[id] = {
         deliveries: dd.length,
         caCollected,
         totalToRemit: openingCashCurrent + caCollected - sumDriverFee,
+        win: sumDriverFee,
       }
     }
     setDriverKPIs(kpis)
+    // Daily CA + WIN query (last 24h)
+    const now = new Date()
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+    const dailyCA: Record<string, number> = {}
+    const dailyWin: Record<string, number> = {}
+    for (const id of driverIds) {
+      const { data: dayDels } = await supabase
+        .from('order_deliveries')
+        .select('amount_collected, driver_fee_total')
+        .eq('driver_id', id)
+        .gte('created_at', startOfDay.toISOString())
+        .lte('created_at', endOfDay.toISOString())
+      dailyCA[id] = (dayDels || []).reduce((sum: number, d: any) => sum + (d.amount_collected || 0), 0)
+      dailyWin[id] = (dayDels || []).reduce((sum: number, d: any) => sum + (d.driver_fee_total || 0), 0)
+    }
+    setDriverDailyCA(dailyCA)
+    setDriverDailyWin(dailyWin)
     setLoading(false)
   }
 
@@ -187,7 +215,10 @@ async function updateDriverStatus(id: string, status: string) {
       .eq('id', sessionId)
     setSettleLoading(null)
     load()
-    const driver = drivers.find(d => d.open_session?.id === sessionId)
+    const driver = drivers.find(d =>
+      d.open_session?.id === sessionId ||
+      (driverClosedSessions[d.id] || []).some(s => s.id === sessionId)
+    )
     if (driver) loadDriverDetails(driver.id)
   }
 
@@ -258,6 +289,9 @@ async function updateDriverStatus(id: string, status: string) {
   async function handleDeleteDriver() {
     if (!deleteDriver) return
     setDeleteLoading(true)
+    await supabase.from('orders').update({ driver_id: null }).eq('driver_id', deleteDriver.id)
+    await supabase.from('order_deliveries').delete().eq('driver_id', deleteDriver.id)
+    await supabase.from('driver_sessions').delete().eq('driver_id', deleteDriver.id)
     await supabase.from('delivery_drivers').delete().eq('id', deleteDriver.id)
     setDeleteLoading(false); setDeleteDriver(null); load()
   }
@@ -281,8 +315,18 @@ async function updateDriverStatus(id: string, status: string) {
   async function handleCloseSession() {
     if (!closeDriver?.open_session) return
     setCloseLoading(true)
+    const { data: deliveries } = await supabase
+      .from('order_deliveries')
+      .select('amount_collected')
+      .eq('driver_id', closeDriver.id)
+      .in('status', ['pending', 'delivered'])
+      .gte('created_at', closeDriver.open_session.started_at)
+    const collected_cash = (deliveries || []).reduce((sum: number, d: any) => sum + (d.amount_collected || 0), 0)
+    const opening_cash = closeDriver.open_session.opening_cash || 0
+    const driver_fee_total = closeDriver.open_session.driver_fee_total || 0
+    const net_to_remit = opening_cash + collected_cash - driver_fee_total
     await supabase.from('driver_sessions')
-      .update({ session_status: 'closed', closed_at: new Date().toISOString() })
+      .update({ session_status: 'closed', closed_at: new Date().toISOString(), collected_cash, net_to_remit })
       .eq('id', closeDriver.open_session.id)
     await updateDriverStatus(closeDriver.id, "inactive")
     setCloseLoading(false); setCloseDriver(null); load()
@@ -399,10 +443,11 @@ async function updateDriverStatus(id: string, status: string) {
                         </div>
                       </div>
                       {kpi && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 12, background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: '10px 12px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginTop: 12, background: 'rgba(0,0,0,0.15)', borderRadius: 10, padding: '10px 12px' }}>
                           <div><div style={{ fontSize: 9, color: '#7A6E58', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>Livraisons</div><div style={{ fontSize: 16, color: '#F5C842', fontWeight: 700 }}>{kpi.deliveries}</div></div>
-                          <div><div style={{ fontSize: 9, color: '#7A6E58', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>CA collecte</div><div style={{ fontSize: 13, color: '#5BC57A', fontWeight: 700 }}>{kpi.caCollected.toFixed(0)} {currency}</div></div>
-                          <div><div style={{ fontSize: 9, color: '#7A6E58', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>A remettre</div><div style={{ fontSize: 13, color: '#E8A020', fontWeight: 700 }}>{kpi.totalToRemit.toFixed(0)} {currency}</div></div>
+                          <div><div style={{ fontSize: 9, color: '#7A6E58', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>WIN</div><div style={{ fontSize: 13, color: '#5BC57A', fontWeight: 700 }}>{(driverDailyWin[driver.id] || 0).toFixed(0)} {currency}</div></div>
+                          <div><div style={{ fontSize: 9, color: '#7A6E58', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>A remettre</div><div style={{ fontSize: 13, color: kpi.totalToRemit > 0 ? '#FF6B6B' : '#7A6E58', fontWeight: 700 }}>{kpi.totalToRemit.toFixed(0)} {currency}</div></div>
+                          <div><div style={{ fontSize: 9, color: '#7A6E58', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>CA/j.</div><div style={{ fontSize: 13, color: '#C8B99A', fontWeight: 700 }}>{(driverDailyCA[driver.id] || 0).toFixed(0)} {currency}</div></div>
                         </div>
                       )}
                     </div>
@@ -489,6 +534,14 @@ async function updateDriverStatus(id: string, status: string) {
                                     <div><div style={{ fontSize: 9, color: '#7A6E58', textTransform: 'uppercase', marginBottom: 2 }}>Net remis</div><div style={{ fontSize: 12, color: '#F5C842', fontWeight: 600 }}>{(cs.net_to_remit || 0).toFixed(0)} {currency}</div></div>
                                   </div>
                                   {cs.settled_at && <div style={{ marginTop: 6, fontSize: 10, color: '#5BC57A' }}>Regle le {formatDate(cs.settled_at)} a {formatTime(cs.settled_at)}</div>}
+                                  {cs.session_status === 'closed' && !cs.settled_at && (
+                                    <button
+                                      onClick={e => { e.stopPropagation(); handleSettle(cs.id) }}
+                                      disabled={settleLoading === cs.id}
+                                      style={{ marginTop: 10, width: '100%', background: 'linear-gradient(135deg,rgba(91,197,122,0.2),rgba(91,197,122,0.1))', color: '#5BC57A', border: '1px solid rgba(91,197,122,0.3)', borderRadius: 8, padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: settleLoading === cs.id ? 'wait' : 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: settleLoading === cs.id ? 0.6 : 1 }}>
+                                      {settleLoading === cs.id ? 'Traitement...' : '✅ Argent remis'}
+                                    </button>
+                                  )}
                                 </div>
                               ))}
                             </div>

@@ -128,17 +128,12 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
   const supabase = createClient()
   useEffect(() => {
     const load = async () => {
-      const { data: sessions } = await supabase
-        .from('driver_sessions')
-        .select('driver_id')
-        .eq('session_status', 'open')
-      const driverIds = (sessions || []).map((s: any) => s.driver_id)
-      if (driverIds.length === 0) { setDrivers([]); setLoading(false); return }
       const { data } = await supabase
-        .from('delivery_drivers')
-        .select('id, full_name, phone, vehicle_type, zone')
-        .in('id', driverIds)
-      setDrivers(data || [])
+        .from('driver_sessions')
+        .select('driver_id, delivery_drivers(id, full_name, phone, vehicle_type, zone)')
+        .eq('session_status', 'open')
+      const mapped = (data || []).map((s: any) => s.delivery_drivers).filter(Boolean)
+      setDrivers(mapped)
       setLoading(false)
     }
     load()
@@ -147,10 +142,7 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
     if (!selectedDriver) return
     setErrorMsg('')
     setSaving(true)
-
     const driver = drivers.find(d => d.id === selectedDriver)
-
-    // 1. orders.driver_id — .select() to surface RLS-zero-row writes
     const { data: updatedRows, error: updErr } = await supabase
       .from('orders')
       .update({ driver_id: selectedDriver })
@@ -166,60 +158,36 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
       setErrorMsg('Aucune ligne mise à jour — vérifie les permissions (RLS).')
       return
     }
-
-    // 2. order_deliveries — gérer une éventuelle ligne existante (re-dispatch)
-    const { data: existing } = await supabase
-      .from('order_deliveries')
-      .select('id')
-      .eq('order_id', order.id)
-      .maybeSingle()
-    // Calcul real_delivery_cost selon tranches delivery_zones
-    const distKm = Number(order.distance_km) || 0
-    let realDeliveryCost = 0
-    let driverFeeDue = 0
-    const { data: zones } = await supabase
-      .from('delivery_zones')
-      .select('min_km, max_km, price')
-      .eq('active', true)
-      .order('min_km', { ascending: true })
-    if (zones && zones.length > 0) {
-      const mz = zones.find((z: any) => distKm >= Number(z.min_km) && distKm < Number(z.max_km))
-      if (mz) {
-        realDeliveryCost = Number(mz.price)
-      } else if (distKm >= Number(zones[zones.length - 1].max_km)) {
-        realDeliveryCost = Number(zones[zones.length - 1].price)
+    let driver_fee_total = 0
+    if (order.delivery_fee > 0) {
+      driver_fee_total = order.delivery_fee
+    } else if (order.delivery_fee === 0 && order.distance_km) {
+      const { data: zones } = await supabase
+        .from('delivery_zones')
+        .select('min_km, max_km, price')
+        .eq('active', true)
+        .order('min_km', { ascending: true })
+      if (zones && zones.length > 0) {
+        const distKm = Number(order.distance_km) || 0
+        const zone = zones.find((z: any) => distKm >= Number(z.min_km) && distKm < Number(z.max_km))
+        driver_fee_total = zone ? Number(zone.price) : 0
       }
-      driverFeeDue = realDeliveryCost
     }
-    const payload = {
+    const { error: insErr } = await supabase.from('order_deliveries').insert({
+      order_id: order.id,
       driver_id: selectedDriver,
-      status: 'assigned',
-      assigned_at: new Date().toISOString(),
-      amount_to_collect: order.total,
-      delivery_fee_charged_to_customer: order.delivery_fee || 0,
-      real_delivery_cost: realDeliveryCost,
-      driver_fee_due: driverFeeDue,
-      driver_fee_total: driverFeeDue,
-      amount_to_remit_by_driver: order.total - driverFeeDue,
+      status: 'pending',
+      amount_collected: order.total,
+      delivery_fee: order.delivery_fee || 0,
+      driver_fee_total,
+    })
+    if (insErr) {
+      console.error('[order_deliveries insert failed]', insErr.message)
     }
-    const { error: delErr } = existing
-      ? await supabase.from('order_deliveries').update(payload).eq('id', existing.id)
-      : await supabase.from('order_deliveries').insert({ order_id: order.id, ...payload })
-    if (delErr) {
-      setSaving(false)
-      setErrorMsg(`Création livraison échouée : ${delErr.message}`)
-      return
-    }
-
     setSaving(false)
-
     const driverInfo = driver ? { full_name: driver.full_name, phone: driver.phone } : null
-
-    // 3. Build WhatsApp URL — pour en_livraison, slot et formatDate ne sont pas utilisés
     const formatDateLocal = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
     const waUrl = buildWhatsAppUrl(order, null, 'en_livraison', formatDateLocal, undefined, undefined, currency, driverInfo)
-
-    // 4. Vue succès : statut en_livraison appliqué dans finishDispatch (WA ou Fermer)
     const dispatched: DispatchedPayload = { orderId: order.id, driverId: selectedDriver, driverInfo }
     setPendingPayload(dispatched)
     setSuccessWaUrl(waUrl)
@@ -255,7 +223,13 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
           </>
         ) : (
           <>
-            {loading ? (<div style={{ color: '#7A6E58', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Chargement...</div>) : drivers.length === 0 ? (<div style={{ color: '#FF6B6B', fontSize: 13, textAlign: 'center', padding: '20px 0', background: 'rgba(255,107,107,0.07)', borderRadius: 10, border: '1px solid rgba(255,107,107,0.15)' }}>Aucun livreur avec session ouverte</div>) : (
+            {loading ? (<div style={{ color: '#7A6E58', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Chargement...</div>) : drivers.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                <div style={{ fontSize: 36 }}>🛵</div>
+                <div style={{ color: '#C8B99A', fontSize: 15, fontWeight: 700, fontFamily: 'Playfair Display, serif' }}>Aucun livreur disponible</div>
+                <div style={{ color: 'rgba(200,185,154,0.6)', fontSize: 12, fontFamily: 'DM Sans, sans-serif' }}>Ouvrez une session livreur avant de dispatcher.</div>
+              </div>
+            ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
                 {drivers.map(d => (<button key={d.id} onClick={() => setSelectedDriver(d.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 10, border: `1px solid ${selectedDriver === d.id ? 'rgba(56,182,255,0.5)' : 'rgba(255,255,255,0.08)'}`, background: selectedDriver === d.id ? 'rgba(56,182,255,0.08)' : 'rgba(255,255,255,0.02)', cursor: 'pointer', textAlign: 'left' }}><div><div style={{ fontWeight: 700, fontSize: 13, color: selectedDriver === d.id ? '#38B6FF' : '#F5EDD6' }}>{d.full_name}</div><div style={{ fontSize: 11, color: '#C8B99A', marginTop: 2 }}>{d.phone}</div></div>{selectedDriver === d.id && <span style={{ color: '#38B6FF' }}>OK</span>}</button>))}
               </div>
