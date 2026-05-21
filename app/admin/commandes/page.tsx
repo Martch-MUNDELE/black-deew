@@ -176,9 +176,10 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
     const { error: insErr } = await supabase.from('order_deliveries').insert({
       order_id: order.id,
       driver_id: selectedDriver,
-      status: 'pending',
-      amount_collected: order.total,
-      delivery_fee: order.delivery_fee || 0,
+      status: 'assigned',
+      amount_to_collect: order.total,
+      delivery_fee_charged_to_customer: order.delivery_fee || 0,
+      driver_fee_due: driver_fee_total,
       driver_fee_total,
     })
     if (insErr) {
