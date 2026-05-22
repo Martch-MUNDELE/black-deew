@@ -439,7 +439,10 @@ function CommandesAdminInner() {
         )}
         {orders.map(order => {
           const sc = STATUS_COLORS[order.status] || STATUS_COLORS['nouvelle']
-          const transitions = STATUS_TRANSITIONS[order.status] || []
+          const rawTransitions = STATUS_TRANSITIONS[order.status] || []
+          const transitions = order.delivery_mode === 'pickup'
+            ? rawTransitions.map((s: string) => s === 'en_livraison' ? 'livrée' : s)
+            : rawTransitions
           const pending = pendingStatuses[order.id] || ''
           return (
             <div key={order.id} id={`order-${order.id}`} style={{ background: '#131009', border: highlightId === order.id ? '2px solid #F5C842' : '1px solid rgba(232,160,32,0.1)', borderRadius: 16, padding: '18px 20px', transition: 'border 0.3s', boxShadow: highlightId === order.id ? '0 0 20px rgba(245,200,66,0.2)' : 'none' }}>
