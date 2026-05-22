@@ -33,6 +33,12 @@ const WA_BUTTON_LABELS: Record<string, string> = {
   livrée:         'Envoyer message Livrée',
   annulée:        'Envoyer message Annulation',
 }
+const WA_BUTTON_LABELS_PICKUP: Record<string, string> = {
+  confirmée:      'Envoyer message Confirmation',
+  en_preparation: 'Envoyer message Préparation',
+  livrée:         'Envoyer message Retrait confirmé',
+  annulée:        'Envoyer message Annulation',
+}
 
 function cleanPhone(phone: string) {
   const p = phone.replace(/[\s\-]/g, '')
@@ -69,8 +75,13 @@ function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDat
     const driverLine = driverInfo ? `\n\n Votre livreur : ${driverInfo.full_name} - Tel : ${driverInfo.phone}` : ''
     msg = `Bonjour ${name}, votre commande Black Deew est en route ! Notre livreur arrive bientot chez vous.${driverLine}`
   } else if (targetStatus === 'livrée') {
+    const isPickup = order.delivery_mode === 'pickup'
     const factureLine = factureUrl ? `\n\n🧾 Votre facture (72h) : ${factureUrl}` : ''
-    msg = `Merci ${name} ! Votre commande a bien été livrée. Bon appétit et à très bientôt chez Black Deew !${factureLine}`
+    if (isPickup) {
+      msg = `Merci ${name} ! Votre commande Black Deew a bien été retirée. Bon appétit et à très bientôt !${factureLine}`
+    } else {
+      msg = `Merci ${name} ! Votre commande a bien été livrée. Bon appétit et à très bientôt chez Black Deew !${factureLine}`
+    }
   } else if (targetStatus === 'annulée') {
     msg = `Bonjour ${name}, nous sommes désolés mais votre commande a dû être annulée. Contactez-nous pour plus d'informations.`
   }
@@ -540,7 +551,7 @@ function CommandesAdminInner() {
                         >
                           <option value="" disabled style={{ background: '#131009', color: '#7A6E58' }}>— Changer statut —</option>
                           {transitions.map(s => (
-                            <option key={s} value={s} style={{ background: '#131009', color: '#F5EDD6' }}>{STATUS_LABELS[s]}</option>
+                            <option key={s} value={s} style={{ background: '#131009', color: '#F5EDD6' }}>{order.delivery_mode === 'pickup' && s === 'livrée' ? 'Retirée' : STATUS_LABELS[s]}</option>
                           ))}
                         </select>
                         <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: pending ? (STATUS_COLORS[pending]?.color || '#E8A020') : '#7A6E58', fontSize: 10 }}>▾</span>
@@ -577,7 +588,7 @@ function CommandesAdminInner() {
                         }}
                         style={btnStyle}
                       >
-                        {WA_BUTTON_LABELS[pending] || 'Envoyer message WhatsApp'}
+                        {(order.delivery_mode === 'pickup' ? WA_BUTTON_LABELS_PICKUP[pending] : WA_BUTTON_LABELS[pending]) || 'Envoyer message WhatsApp'}
                       </a>
                     )
                   })()}
