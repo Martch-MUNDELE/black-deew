@@ -297,7 +297,7 @@ export default function PanierPage() {
       async (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr`, { headers: { 'User-Agent': 'AbouJoudia/1.0' } })
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr`, { headers: { 'User-Agent': 'BlackDeew/1.0' } })
           const data = await res.json()
           updateForm(f => ({ ...f, lat, lng, address: data.display_name || '', geo_address: data.display_name || '' }))
         } catch { updateForm(f => ({ ...f, lat, lng })) }
@@ -316,7 +316,7 @@ export default function PanierPage() {
   const geocodeAddress = async (addr: string) => {
     if (!addr.trim() || addr.length < 6) return
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1&accept-language=fr`, { headers: { 'User-Agent': 'AbouJoudia/1.0' } })
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1&accept-language=fr`, { headers: { 'User-Agent': 'BlackDeew/1.0' } })
       const data = await res.json()
       if (data && data.length > 0) {
         updateForm(f => ({ ...f, lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), geo_address: f.address }))

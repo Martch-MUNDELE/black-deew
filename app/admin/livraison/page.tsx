@@ -93,7 +93,7 @@ function LivraisonContent() {
       async (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr`, { headers: { 'User-Agent': 'AbouJoudia/1.0' } })
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr`, { headers: { 'User-Agent': 'BlackDeew/1.0' } })
           const d = await res.json()
           setShopLat(lat.toFixed(6)); setShopLng(lng.toFixed(6))
           setShopAddress(d.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`)
@@ -111,7 +111,7 @@ function LivraisonContent() {
     if (!mapSearch.trim()) return
     setGeoLoading(true); setGeoError('')
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(mapSearch)}&format=json&limit=1&accept-language=fr`, { headers: { 'User-Agent': 'AbouJoudia/1.0' } })
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(mapSearch)}&format=json&limit=1&accept-language=fr`, { headers: { 'User-Agent': 'BlackDeew/1.0' } })
       const d = await res.json()
       if (d && d.length > 0) {
         setShopLat(parseFloat(d[0].lat).toFixed(6)); setShopLng(parseFloat(d[0].lon).toFixed(6))
@@ -148,7 +148,7 @@ function LivraisonContent() {
     if (!simAddress.trim()) { setSimResult({ error: 'Entrez une adresse.' }); return }
     setSimLoading(true); setSimResult(null)
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(simAddress)}&format=json&limit=1&accept-language=fr`, { headers: { 'User-Agent': 'AbouJoudia/1.0' } })
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(simAddress)}&format=json&limit=1&accept-language=fr`, { headers: { 'User-Agent': 'BlackDeew/1.0' } })
       const d = await res.json()
       if (!d || d.length === 0) { setSimResult({ error: 'Adresse introuvable.' }); setSimLoading(false); return }
       const lat = parseFloat(d[0].lat), lng = parseFloat(d[0].lon)

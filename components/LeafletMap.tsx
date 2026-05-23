@@ -69,7 +69,7 @@ export default function LeafletMap({ lat, lng, onPositionChange, height = 250 }:
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${rlat}&lon=${rlng}&format=json&accept-language=fr`,
-            { headers: { 'User-Agent': 'AbouJoudia/1.0' } }
+            { headers: { 'User-Agent': 'BlackDeew/1.0' } }
           )
           const data = await res.json()
           return data.display_name || ''
