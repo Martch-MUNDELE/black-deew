@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   UtensilsCrossed, Utensils, ChefHat, Pizza, Sandwich, Coffee,
@@ -209,7 +209,7 @@ function CatRow({
         {cat.icon_type === 'builtin'
           ? renderIcon(cat.icon_value, 14)
           : cat.icon_value
-            ? <img src={cat.icon_value} style={{ width: 20, height: 20, objectFit: 'contain' }} alt="" />
+            ? <span aria-hidden="true" style={{ width: 20, height: 20, display: 'inline-block', backgroundImage: `url(${cat.icon_value})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} />
             : null}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -270,16 +270,16 @@ export default function MenuAdmin() {
   // Ref for immediate access in event handlers (avoids stale closure on fast drags)
   const dragRef = useRef<{ id: string | null; groupKey: string | null }>({ id: null, groupKey: null })
 
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data } = await supabase.from('menu_categories').select('*').order('display_order')
     setCats((data as Category[]) || [])
-  }
+  }, [supabase])
 
   useEffect(() => {
-    load()
-    supabase.from('settings').select('*').then(({ data }) => {
+    const timer = window.setTimeout(() => { void load() }, 0)
+    void supabase.from('settings').select('*').then(({ data }) => {
       data?.forEach((s: { key: string; value: string }) => {
         if (s.key === 'menu_placeholder') setMenuPlaceholder(s.value)
         if (s.key === 'menu_placeholder_icon') setMenuPlaceholderIcon(s.value)
@@ -287,7 +287,8 @@ export default function MenuAdmin() {
         if (s.key === 'menu_placeholder_builtin_icon') setMenuPlaceholderBuiltinIcon(s.value)
       })
     })
-  }, [])
+    return () => window.clearTimeout(timer)
+  }, [load, supabase])
 
   const parents = cats.filter(c => c.level === 0).sort((a, b) => a.display_order - b.display_order)
   const childrenOf = (pid: string) => cats.filter(c => c.parent_id === pid).sort((a, b) => a.display_order - b.display_order)
@@ -527,7 +528,7 @@ export default function MenuAdmin() {
             <label style={LBL}>Icône du placeholder (PNG/SVG, max 200 KB)</label>
             {menuPlaceholderIcon && (
               <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <img src={menuPlaceholderIcon} alt="Icône placeholder" style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: 8, background: 'rgba(232,160,32,0.1)', padding: 4 }} />
+                <span role="img" aria-label="Icône placeholder" style={{ width: 32, height: 32, display: 'inline-block', borderRadius: 8, backgroundColor: 'rgba(232,160,32,0.1)', backgroundImage: `url(${menuPlaceholderIcon})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', padding: 4 }} />
                 <button onClick={() => setMenuPlaceholderIcon('')} style={{ background: 'transparent', color: '#FF6B6B', border: '1px solid rgba(255,107,107,0.3)', borderRadius: 8, padding: '4px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Supprimer</button>
               </div>
             )}
@@ -598,7 +599,7 @@ export default function MenuAdmin() {
                   {iconUploadError && <div style={{ fontSize: 11, color: '#FF6B6B', marginTop: 4, fontFamily: 'DM Sans, sans-serif' }}>{iconUploadError}</div>}
                   {form.icon_value && !uploadingIcon && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
-                      <img src={form.icon_value} width={32} height={32} style={{ objectFit: 'contain', borderRadius: 8, border: '1px solid rgba(232,160,32,0.2)' }} alt="" />
+                      <span aria-hidden="true" style={{ width: 32, height: 32, display: 'inline-block', borderRadius: 8, border: '1px solid rgba(232,160,32,0.2)', backgroundImage: `url(${form.icon_value})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} />
                       <span style={{ fontSize: 12, color: '#C8B99A', fontFamily: 'DM Sans, sans-serif' }}>Aperçu icône</span>
                     </div>
                   )}

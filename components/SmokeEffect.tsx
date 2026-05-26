@@ -1,6 +1,62 @@
 'use client'
 import { useEffect, useRef } from 'react'
 
+class Particle {
+  x: number
+  y: number
+  size: number
+  speedX: number
+  speedY: number
+  opacity: number
+  life: number
+  maxLife: number
+  wobble: number
+  wobbleSpeed: number
+
+  constructor(x: number, y: number) {
+    this.x = x + (Math.random() - 0.5) * 40
+    this.y = y
+    this.size = (Math.random() * 18 + 8) * 0.25
+    this.speedX = (Math.random() - 0.5) * 0.3
+    this.speedY = -(Math.random() * 0.5 + 0.25)
+    this.opacity = (Math.random() * 0.12 + 0.04) * 0.5
+    this.life = 0
+    this.maxLife = Math.random() * 120 + 80
+    this.wobble = Math.random() * Math.PI * 2
+    this.wobbleSpeed = (Math.random() - 0.5) * 0.03
+  }
+
+  update() {
+    this.life++
+    this.wobble += this.wobbleSpeed
+    this.x += this.speedX + Math.sin(this.wobble) * 0.4
+    this.y += this.speedY
+    this.size += 0.18
+    const progress = this.life / this.maxLife
+    if (progress < 0.2) {
+      this.opacity = (progress / 0.2) * 0.18
+    } else {
+      this.opacity = ((1 - progress) / 0.8) * 0.18
+    }
+  }
+
+  draw(ctx: CanvasRenderingContext2D) {
+    const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size)
+    gradient.addColorStop(0, `rgba(255,200,120,${this.opacity * 1.2})`)
+    gradient.addColorStop(0.4, `rgba(220,160,80,${this.opacity})`)
+    gradient.addColorStop(1, 'rgba(180,120,60,0)')
+    ctx.fillStyle = gradient
+    ctx.beginPath()
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  isDead() {
+    return this.life >= this.maxLife
+  }
+}
+
+
 export default function SmokeEffect() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -13,52 +69,7 @@ export default function SmokeEffect() {
     canvas.width = canvas.offsetWidth
     canvas.height = canvas.offsetHeight
 
-    const particles: any[] = []
-
-    class Particle {
-      x: number; y: number; size: number; speedX: number; speedY: number
-      opacity: number; life: number; maxLife: number; wobble: number; wobbleSpeed: number
-
-      constructor(x: number, y: number) {
-        this.x = x + (Math.random() - 0.5) * 40
-        this.y = y
-        this.size = (Math.random() * 18 + 8) * 0.25
-        this.speedX = (Math.random() - 0.5) * 0.3
-        this.speedY = -(Math.random() * 0.5 + 0.25)
-        this.opacity = (Math.random() * 0.12 + 0.04) * 0.5
-        this.life = 0
-        this.maxLife = Math.random() * 120 + 80
-        this.wobble = Math.random() * Math.PI * 2
-        this.wobbleSpeed = (Math.random() - 0.5) * 0.03
-      }
-
-      update() {
-        this.life++
-        this.wobble += this.wobbleSpeed
-        this.x += this.speedX + Math.sin(this.wobble) * 0.4
-        this.y += this.speedY
-        this.size += 0.18
-        const progress = this.life / this.maxLife
-        if (progress < 0.2) {
-          this.opacity = (progress / 0.2) * 0.18
-        } else {
-          this.opacity = ((1 - progress) / 0.8) * 0.18
-        }
-      }
-
-      draw(ctx: CanvasRenderingContext2D) {
-        const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size)
-        gradient.addColorStop(0, `rgba(255,200,120,${this.opacity * 1.2})`)
-        gradient.addColorStop(0.4, `rgba(220,160,80,${this.opacity})`)
-        gradient.addColorStop(1, `rgba(180,120,60,0)`)
-        ctx.fillStyle = gradient
-        ctx.beginPath()
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2)
-        ctx.fill()
-      }
-
-      isDead() { return this.life >= this.maxLife }
-    }
+    const particles: Particle[] = []
 
     let frame = 0
     let animId: number

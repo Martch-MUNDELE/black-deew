@@ -2,11 +2,44 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Logo from '@/components/Logo'
 import { useCurrency } from '@/lib/currency'
 
-const NAV_GROUPS = [
+type AdminNavSubLink = {
+  label: string
+  anchor: string
+  url?: string
+}
+
+type AdminNavLink = {
+  href: string
+  label: string
+  exact?: boolean
+  sub?: AdminNavSubLink[]
+}
+
+type AdminNavGroup = {
+  label: string
+  links: AdminNavLink[]
+}
+
+type SettingRow = {
+  key: string
+  value: string | null
+}
+
+type OrderIdRow = {
+  id: string
+}
+
+type OrderRealtimeRow = {
+  id: string
+  customer_name?: string | null
+  total?: number | null
+}
+
+const NAV_GROUPS: AdminNavGroup[] = [
   {
     label: 'BOUTIQUE',
     links: [
@@ -62,14 +95,12 @@ const NAV_GROUPS = [
 export default function AdminNav() {
   const pathname = usePathname()
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
-  const [roleLoaded, setRoleLoaded] = useState(false)
   const currency = useCurrency()
   const [siteName, setSiteName] = useState('Black Deew')
   const [siteLogo, setSiteLogo] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [expandedHref, setExpandedHref] = useState<string | null>(null)
   const [toast, setToast] = useState<{ name: string; total: number } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevOrderIds = useRef<Set<string>>(new Set())
@@ -85,8 +116,9 @@ export default function AdminNav() {
 
   useEffect(() => {
     supabase.from('settings').select('*').then(({ data }) => {
-      data?.forEach((s: any) => {
-        if (s.key === 'site_name') setSiteName(s.value)
+      const settingsRows = (data || []) as SettingRow[]
+      settingsRows.forEach((s) => {
+        if (s.key === 'site_name') setSiteName(s.value || 'Black Deew')
         if (s.key === 'site_logo') setSiteLogo(s.value || '')
       })
     })
@@ -101,8 +133,8 @@ export default function AdminNav() {
           .eq('email', email)
           .single()
         if (active) setIsSuperAdmin(admin?.role === 'superadmin')
-      } finally {
-        if (active) setRoleLoaded(true)
+      } catch {
+        if (active) setIsSuperAdmin(false)
       }
     }
 
@@ -128,24 +160,25 @@ export default function AdminNav() {
       active = false
       subscription.unsubscribe()
     }
-  }, [])
+  }, [supabase])
 
   useEffect(() => {
     const sb = createClient()
     // Charge les IDs existants sans déclencher de toast
     sb.from('orders').select('id').then(({ data }) => {
-      prevOrderIds.current = new Set((data || []).map((o: any) => o.id))
+      const orderRows = (data || []) as OrderIdRow[]
+      prevOrderIds.current = new Set(orderRows.map((o) => o.id))
       isFirstLoad.current = false
     })
 
     const channel = sb
       .channel('adminnav-orders')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
-        const o = payload.new as any
+        const o = payload.new as OrderRealtimeRow
         if (!prevOrderIds.current.has(o.id)) {
           prevOrderIds.current.add(o.id)
           if (toastTimer.current) clearTimeout(toastTimer.current)
-          setToast({ name: o.customer_name, total: o.total || 0 })
+          setToast({ name: o.customer_name || 'Client', total: Number(o.total) || 0 })
           toastTimer.current = setTimeout(() => setToast(null), 8000)
         }
       })
@@ -165,9 +198,9 @@ export default function AdminNav() {
     router.push('/admin/login')
   }
 
-  const close = () => { setMenuOpen(false); setExpandedHref(null) }
+  const close = () => { setMenuOpen(false) }
 
-  const allGroups = [
+  const allGroups: AdminNavGroup[] = [
     ...NAV_GROUPS,
     { label: 'FACTURATION', links: [{ href: '/admin/abonnement', label: 'Mon abonnement' }] },
     ...(isSuperAdmin
@@ -185,7 +218,7 @@ export default function AdminNav() {
     siteLogo === null ? (
       <div style={{ width: size, height: size, flexShrink: 0 }} />
     ) : siteLogo ? (
-      <img src={siteLogo} alt={siteName} style={{ width: size, height: size, objectFit: 'contain', flexShrink: 0 }} />
+      <span aria-label={siteName} role="img" style={{ width: size, height: size, backgroundImage: `url(${siteLogo})`, backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center', flexShrink: 0, display: 'inline-block' }} />
     ) : (
       <Logo size={size} />
     )
@@ -328,8 +361,8 @@ export default function AdminNav() {
                   {group.label}
                 </div>
                 {group.links.map(link => {
-                  const active = isActive(link.href, (link as any).exact)
-                  const sub = (link as any).sub
+                  const active = isActive(link.href, link.exact)
+                  const sub = link.sub
                   return (
                     <div key={link.href}>
                       <div
@@ -360,7 +393,7 @@ export default function AdminNav() {
                           borderLeft: '1px solid rgba(232,160,32,0.1)',
                           marginLeft: 16,
                         }}>
-                          {sub.map((s: any) => (
+                          {sub.map((s) => (
                             <div
                               key={s.anchor || s.label}
                               onClick={() => {

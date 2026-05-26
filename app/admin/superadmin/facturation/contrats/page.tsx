@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { recalculatePeriod } from '@/app/actions/billing'
 import { BILLING_MODE_LABELS, type BillingMode, type ClientContract, type BillingPeriod, type CommissionRule } from '@/lib/types/billing'
@@ -13,6 +13,30 @@ function getMonthRange() {
   return { start, end }
 }
 
+type AdminRow = {
+  id: string
+  email: string | null
+  auth_user_id: string | null
+}
+
+type CurrentUser = {
+  id: string
+} | null
+
+type ProductSubcategoryRow = {
+  subcategory: string | null
+}
+
+type CommissionRuleInsert = {
+  contract_id: string
+  rule_type: CommissionRule['rule_type']
+  tier_from?: number
+  tier_to?: number | null
+  rate_percent?: number
+  category_slug?: string
+  amount_per_order?: number
+}
+
 const SUBCATEGORY_LABELS: Record<string, string> = {
   sandwichs_chauds: 'Sandwichs chauds',
   sandwichs_froids: 'Sandwichs froids',
@@ -22,30 +46,25 @@ const SUBCATEGORY_LABELS: Record<string, string> = {
 }
 
 export default function ContratsPage() {
-  const [admins, setAdmins]         = useState<any[]>([])
+  const [admins, setAdmins]         = useState<AdminRow[]>([])
   const [contracts, setContracts]   = useState<ClientContract[]>([])
   const [periods, setPeriods]       = useState<BillingPeriod[]>([])
   const [rules, setRules]           = useState<CommissionRule[]>([])
   const [categories, setCategories] = useState<{ slug: string; label: string }[]>([])
-  const [selected, setSelected]     = useState<any>(null)
+  const [selected, setSelected]     = useState<AdminRow | null>(null)
   const [mode, setMode]             = useState<BillingMode>('flat_only')
   const [flatFee, setFlatFee]       = useState('')
   const [startDate, setStartDate]   = useState(new Date().toISOString().slice(0, 10))
   const [saving, setSaving]         = useState(false)
   const [recalculating, setRecalculating] = useState(false)
   const [msg, setMsg]               = useState('')
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<CurrentUser>(null)
   const [tiers, setTiers]           = useState<{ from: string; to: string; rate: string }[]>([{ from: '0', to: '', rate: '' }])
   const [flatPercent, setFlatPercent] = useState('')
   const [catRates, setCatRates]     = useState<Record<string, string>>({})
   const [perOrderAmount, setPerOrderAmount] = useState('')
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setCurrentUser(data.user))
-    loadAll()
-  }, [])
-
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     const [{ data: a }, { data: c }, { data: p }, { data: r }, { data: prods }] = await Promise.all([
       supabase.from('admins').select('*').eq('role', 'admin').order('created_at', { ascending: false }),
       supabase.from('client_contracts').select('*').eq('is_active', true),
@@ -53,22 +72,31 @@ export default function ContratsPage() {
       supabase.from('commission_rules').select('*'),
       supabase.from('products').select('subcategory').eq('active', true),
     ])
-    setAdmins(a || [])
-    setContracts(c || [])
-    setPeriods(p || [])
-    setRules(r || [])
-    const slugs = [...new Set((prods || []).map((p: any) => p.subcategory).filter(Boolean))]
+    setAdmins((a || []) as AdminRow[])
+    setContracts((c || []) as ClientContract[])
+    setPeriods((p || []) as BillingPeriod[])
+    setRules((r || []) as CommissionRule[])
+    const productRows = (prods || []) as ProductSubcategoryRow[]
+    const slugs = [...new Set(productRows.map((p) => p.subcategory).filter((slug): slug is string => Boolean(slug)))]
     const cats = slugs.map(slug => ({ slug, label: SUBCATEGORY_LABELS[slug] || slug }))
     setCategories(cats)
     setCatRates(Object.fromEntries(cats.map(c => [c.slug, ''])))
-  }
+  }, [])
 
-  const getAuthId = (admin: any) => admin.auth_user_id || admin.id
-  const getContract = (admin: any) => contracts.find(c => c.client_id === getAuthId(admin))
-  const getPeriod   = (admin: any) => periods.find(p => p.client_id === getAuthId(admin))
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void supabase.auth.getUser().then(({ data }) => setCurrentUser(data.user ? { id: data.user.id } : null))
+      void loadAll()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [loadAll])
+
+  const getAuthId = (admin: AdminRow) => admin.auth_user_id || admin.id
+  const getContract = (admin: AdminRow) => contracts.find(c => c.client_id === getAuthId(admin))
+  const getPeriod   = (admin: AdminRow) => periods.find(p => p.client_id === getAuthId(admin))
   const getRules    = (contractId: string) => rules.filter(r => r.contract_id === contractId)
 
-  const selectAdmin = (admin: any) => {
+  const selectAdmin = (admin: AdminRow) => {
     setSelected(admin)
     const existing = getContract(admin)
     if (existing) {
@@ -101,7 +129,7 @@ export default function ContratsPage() {
 
   const saveRules = async (contractId: string) => {
     await supabase.from('commission_rules').delete().eq('contract_id', contractId)
-    const inserts: any[] = []
+    const inserts: CommissionRuleInsert[] = []
     if (mode === 'flat_tiered') {
       tiers.forEach(t => {
         if (!t.rate) return

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import ImageUpload from '@/components/ImageUpload'
 import { useCurrency } from '@/lib/currency'
@@ -17,6 +17,29 @@ export type ProductFormData = {
   discount: number | null
   is_vip: boolean
 }
+
+type MenuCategoryRow = {
+  id: string
+  slug: string
+  name: string
+  level: number
+  parent_id: string | null
+}
+
+type ProductFormFieldKey = 'name' | 'description' | 'ingredients' | 'price'
+
+type ProductFormField = {
+  key: ProductFormFieldKey
+  label: string
+  type: 'text' | 'number'
+}
+
+const PRODUCT_FIELDS: ProductFormField[] = [
+  { key: 'name', label: 'Nom', type: 'text' },
+  { key: 'description', label: 'Description', type: 'text' },
+  { key: 'ingredients', label: 'Ingrédients', type: 'text' },
+  { key: 'price', label: 'Prix', type: 'number' },
+]
 
 const FALLBACK_SUBCATS = [
   { slug: 'chaudes', name: 'Boissons Chaudes' },
@@ -50,7 +73,7 @@ type Props = {
 export default function ProductForm({
   form, setForm, variants, setVariants, newOptionInputs, setNewOptionInputs,
 }: Props) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const currency = useCurrency()
   const [subcats, setSubcats] = useState<{ slug: string; name: string; label: string }[]>(
     FALLBACK_SUBCATS.map(s => ({ ...s, label: s.name }))
@@ -62,22 +85,26 @@ export default function ProductForm({
       .eq('active', true).order('display_order')
       .then(({ data }) => {
         if (!data || data.length === 0) return
-        const l0 = data.filter((c: any) => c.level === 0)
-        const l1 = data.filter((c: any) => c.level === 1)
+
+        const categories = data as MenuCategoryRow[]
+        const l0 = categories.filter((c) => c.level === 0)
+        const l1 = categories.filter((c) => c.level === 1)
         const options: { slug: string; name: string; label: string }[] = []
-        l0.forEach((g: any) => {
-          const children = l1.filter((s: any) => s.parent_id === g.id)
+
+        l0.forEach((g) => {
+          const children = l1.filter((s) => s.parent_id === g.id)
           if (children.length === 0) {
             options.push({ slug: g.slug, name: g.name, label: g.name })
           } else {
-            children.forEach((s: any) =>
-              options.push({ slug: s.slug, name: s.name, label: g.name + ' — ' + s.name })
+            children.forEach((s) =>
+              options.push({ slug: s.slug, name: s.name, label: `${g.name} - ${s.name}` })
             )
           }
         })
+
         if (options.length > 0) setSubcats(options)
       })
-  }, [])
+  }, [supabase])
 
   const addVariantType = () => {
     setVariants(v => [...v, { type: '', options: [] }])
@@ -117,17 +144,13 @@ export default function ProductForm({
 
   return (
     <>
-      {([
-        { key: 'name', label: 'Nom', type: 'text' },
-        { key: 'description', label: 'Description', type: 'text' },
-        { key: 'ingredients', label: 'Ingrédients', type: 'text' },
-        { key: 'price', label: 'Prix (' + currency + ')', type: 'number' },
-      ] as Array<{ key: string; label: string; type: string }>).map(f => (
+      {PRODUCT_FIELDS.map(f => (
+
         <div key={f.key}>
-          <label style={labelStyle}>{f.label}</label>
+          <label style={labelStyle}>{f.key === 'price' ? `Prix (${currency})` : f.label}</label>
           <input
             type={f.type}
-            value={(form as any)[f.key] || ''}
+            value={form[f.key] ?? ''}
             onChange={e => setForm(p => ({
               ...p,
               [f.key]: f.type === 'number' ? parseFloat(e.target.value) : e.target.value,

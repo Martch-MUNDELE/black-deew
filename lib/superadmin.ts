@@ -26,7 +26,7 @@ export async function getAllAdmins() {
 
 export async function createAdmin(email: string, password: string, createdBy: string) {
   // Créer dans Supabase Auth
-  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+  const { error: authError } = await supabase.auth.admin.createUser({
     email,
     password,
     email_confirm: true,

@@ -7,6 +7,53 @@ const cream = '#F5EDD6'
 const muted = '#C8B99A'
 const border = '#2A2318'
 
+type FactureOrder = {
+  id?: string | null
+  customer_name?: string | null
+  customer_phone?: string | null
+  customer_address?: string | null
+  delivery_mode?: string | null
+  delivery_fee?: number | null
+}
+
+type FactureItem = {
+  quantity?: number | null
+  product_name?: string | null
+  unit_price?: number | null
+  selected_variants?: unknown
+}
+
+type FactureSlot = {
+  date?: string | null
+  time_start?: string | null
+  time_end?: string | null
+} | null
+
+type FacturePDFProps = {
+  order: FactureOrder
+  items: FactureItem[]
+  slot?: FactureSlot
+  siteName?: string
+  siteBaseline?: string
+  factureNum?: string
+  currency?: string
+}
+
+const getItemQuantity = (item: FactureItem) => item.quantity ?? 0
+const getItemUnitPrice = (item: FactureItem) => item.unit_price ?? 0
+const getItemName = (item: FactureItem) => item.product_name ?? ''
+
+const getItemVariantsLabel = (item: FactureItem) => {
+  const variants = item.selected_variants
+  if (!variants || typeof variants !== 'object' || Array.isArray(variants)) return ''
+
+  const entries = Object.entries(variants as Record<string, unknown>)
+    .filter(([, value]) => value !== null && value !== undefined && value !== '')
+    .map(([type, option]) => `${type}: ${String(option)}`)
+
+  return entries.length > 0 ? '\n' + entries.join(' · ') : ''
+}
+
 const styles = StyleSheet.create({
   page: { padding: 0, fontFamily: 'Helvetica', backgroundColor: dark },
 
@@ -53,12 +100,14 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: border, marginHorizontal: 32, marginBottom: 20 },
 })
 
-export function FacturePDF({ order, items, slot, siteName, siteBaseline, factureNum, currency = 'DH' }: { order: any, items: any[], slot: any, siteName?: string, siteBaseline?: string, factureNum?: string, currency?: string }) {
+export function FacturePDF({ order, items, slot, siteName, siteBaseline, factureNum, currency = 'DH' }: FacturePDFProps) {
   const date = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
   const slotDate = slot?.date
     ? new Date(slot.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
     : '—'
-  const orderId = factureNum ?? order.id?.slice(0, 8).toUpperCase()
+  const orderId = factureNum ?? order.id?.slice(0, 8).toUpperCase() ?? 'FACTURE'
+  const deliveryFee = order.delivery_fee ?? 0
+  const subtotal = items.reduce((sum, item) => sum + getItemQuantity(item) * getItemUnitPrice(item), 0)
 
   return (
     <Document>
@@ -123,11 +172,11 @@ export function FacturePDF({ order, items, slot, siteName, siteBaseline, facture
           {/* COMMANDE */}
           <Text style={styles.sectionTitle}>Commande</Text>
           <View style={styles.sectionCard}>
-            {items.map((item: any, i: number) => (
+            {items.map((item, i) => (
               <View key={i} style={i < items.length - 1 ? styles.itemRow : styles.itemRowLast}>
-                <Text style={styles.itemQty}>{item.quantity}x</Text>
-                <Text style={styles.itemName}>{item.product_name}{item.selected_variants && Object.keys(item.selected_variants).length > 0 ? '\n' + Object.entries(item.selected_variants).map(([t, o]) => `${t}: ${o}`).join(' · ') : ''}</Text>
-                <Text style={styles.itemPrice}>{(item.quantity * item.unit_price).toFixed(2)} {currency}</Text>
+                <Text style={styles.itemQty}>{getItemQuantity(item)}x</Text>
+                <Text style={styles.itemName}>{getItemName(item)}{getItemVariantsLabel(item)}</Text>
+                <Text style={styles.itemPrice}>{(getItemQuantity(item) * getItemUnitPrice(item)).toFixed(2)} {currency}</Text>
               </View>
             ))}
           </View>
@@ -139,15 +188,15 @@ export function FacturePDF({ order, items, slot, siteName, siteBaseline, facture
               <Text style={{ fontSize: 10, color: '#C8B99A', fontFamily: 'Helvetica' }}>Mode</Text>
               <Text style={{ fontSize: 10, color: '#F5EDD6', fontFamily: 'Helvetica-Bold' }}>Retrait sur place</Text>
             </View>
-          ) : order.delivery_fee > 0 ? (
+          ) : deliveryFee > 0 ? (
             <View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
                 <Text style={{ fontSize: 10, color: '#C8B99A', fontFamily: 'Helvetica' }}>Sous-total</Text>
-                <Text style={{ fontSize: 10, color: '#F5EDD6', fontFamily: 'Helvetica' }}>{(items.reduce((s, i) => s + i.quantity * i.unit_price, 0)).toFixed(2)} {currency}</Text>
+                <Text style={{ fontSize: 10, color: '#F5EDD6', fontFamily: 'Helvetica' }}>{subtotal.toFixed(2)} {currency}</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
                 <Text style={{ fontSize: 10, color: '#C8B99A', fontFamily: 'Helvetica' }}>Frais de livraison</Text>
-                <Text style={{ fontSize: 10, color: '#F5C842', fontFamily: 'Helvetica-Bold' }}>{order.delivery_fee.toFixed(2)} {currency}</Text>
+                <Text style={{ fontSize: 10, color: '#F5C842', fontFamily: 'Helvetica-Bold' }}>{deliveryFee.toFixed(2)} {currency}</Text>
               </View>
             </View>
           ) : (
@@ -158,7 +207,7 @@ export function FacturePDF({ order, items, slot, siteName, siteBaseline, facture
           )}
           <View style={styles.totalCard}>
             <Text style={styles.totalLabel}>Total à payer</Text>
-            <Text style={styles.totalValue}>{(items.reduce((s, i) => s + i.quantity * i.unit_price, 0) + (order.delivery_fee ?? 0)).toFixed(2)} {currency}</Text>
+            <Text style={styles.totalValue}>{(subtotal + deliveryFee).toFixed(2)} {currency}</Text>
           </View>
 
         </View>

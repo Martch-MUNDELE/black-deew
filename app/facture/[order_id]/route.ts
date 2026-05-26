@@ -1,9 +1,25 @@
 import { createClient } from '@supabase/supabase-js'
 import { renderToBuffer } from '@react-pdf/renderer'
+import type { DocumentProps } from '@react-pdf/renderer'
 import { FacturePDF } from '@/lib/pdf'
 import { verifyFactureToken } from '@/lib/facture-token'
+import type { ReactElement } from 'react'
 
 export const dynamic = 'force-dynamic'
+
+type SettingRow = {
+  key: string
+  value: string | null
+}
+
+type OrderItemRow = {
+  is_vip?: boolean | null
+  quantity?: number | null
+  unit_price?: number | null
+  product_id?: string | null
+  product_name?: string | null
+}
+
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -40,8 +56,9 @@ export async function GET(
   }
 
   const { data: settings } = await supabase.from('settings').select('*')
-  const siteName = settings?.find((s: any) => s.key === 'site_name')?.value || 'Black Deew'
-  const siteBaseline = settings?.find((s: any) => s.key === 'site_baseline')?.value || 'Kinshasa · Livraison à domicile'
+  const settingsRows = (settings || []) as SettingRow[]
+  const siteName = settingsRows.find((s) => s.key === 'site_name')?.value || 'Black Deew'
+  const siteBaseline = settingsRows.find((s) => s.key === 'site_baseline')?.value || 'Kinshasa · Livraison à domicile'
 
   let factureNum = order.invoice_number
   if (!factureNum) {
@@ -55,8 +72,11 @@ export async function GET(
     factureNum = `BD-${today.replace(/-/g, '')}-${seqNum}`
   }
 
+  const orderItems = (order.order_items || []) as OrderItemRow[]
+  const itemsForPdf = orderItems.filter((i) => !i.is_vip)
+
   const buffer = await renderToBuffer(
-    FacturePDF({ order, items: (order.order_items || []).filter((i: any) => !i.is_vip), slot, siteName, siteBaseline, factureNum }) as any
+    FacturePDF({ order, items: itemsForPdf, slot, siteName, siteBaseline, factureNum }) as ReactElement<DocumentProps>
   )
 
   return new Response(new Uint8Array(buffer), {

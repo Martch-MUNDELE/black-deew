@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
 
     const { data } = supabase.storage.from(bucket).getPublicUrl(fileName)
     return NextResponse.json({ url: data.publicUrl })
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Erreur upload image'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

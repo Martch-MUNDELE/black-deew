@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Image, { type ImageLoaderProps } from 'next/image'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { useCart } from '@/store/cart'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/lib/currency'
@@ -10,6 +10,8 @@ import SlotPicker from '@/components/SlotPicker'
 import PhoneInput from '@/components/PhoneInput'
 import LeafletMap from '@/components/LeafletMap'
 import type { Product } from '@/lib/types'
+
+const panierImageLoader = ({ src }: ImageLoaderProps) => src
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -43,6 +45,16 @@ interface DeliveryResult {
   zone: DeliveryZone | null
   inZone: boolean
   reason: 'ok' | 'pickup_only' | 'out_of_zone' | 'no_shop' | 'no_zones' | 'free'
+}
+
+interface DeliverySettingRow {
+  key: string
+  value: string | null
+}
+
+interface ProductVariant {
+  type: string
+  prices?: Record<string, number> | null
 }
 
 // ── Haversine ─────────────────────────────────────────────────────────────────
@@ -92,9 +104,9 @@ function calcDelivery(
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function PanierPage() {
-  const { items, update, total, clear, add } = useCart()
+  const { items, update, total, add } = useCart()
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const currency = useCurrency()
 
   const [step, setStep] = useState<'cart' | 'info' | 'slot'>('cart')
@@ -129,6 +141,14 @@ export default function PanierPage() {
   // Delivery calculation result
   const [deliveryResult, setDeliveryResult] = useState<DeliveryResult | null>(null)
 
+  const scheduleDeliveryResult = useCallback((result: DeliveryResult | null) => {
+    window.setTimeout(() => setDeliveryResult(result), 0)
+  }, [])
+
+  const scheduleSuggestedProducts = useCallback((products: Product[]) => {
+    window.setTimeout(() => setSuggestedProducts(products), 0)
+  }, [])
+
   const [form, setForm] = useState(() => {
     if (typeof window === 'undefined') return { name: '', phone: '', address: '', note: '', email: '', wantFacture: false, lat: null as number | null, lng: null as number | null, geo_address: '' }
     try {
@@ -153,9 +173,9 @@ export default function PanierPage() {
       ])
       if (settingsData) {
         const map: Record<string, string> = {}
-        settingsData.forEach((s: any) => { map[s.key] = s.value })
+        settingsData.forEach((s: DeliverySettingRow) => { map[s.key] = s.value ?? '' })
         setDeliverySettings({
-          mode: (map.delivery_mode as any) || 'all',
+          mode: (['all', 'delivery_only', 'pickup_only'].includes(map.delivery_mode) ? map.delivery_mode : 'all') as DeliverySettings['mode'],
           shopLat: map.delivery_shop_lat ? parseFloat(map.delivery_shop_lat) : null,
           shopLng: map.delivery_shop_lng ? parseFloat(map.delivery_shop_lng) : null,
           shopAddress: map.delivery_shop_address || '',
@@ -165,7 +185,7 @@ export default function PanierPage() {
           freeAbove: parseFloat(map.delivery_free_above) || 0,
           outOfZoneMessage: map.delivery_out_of_zone_message || 'Désolé, votre adresse est hors de notre zone de livraison.',
           pickupMessage: map.delivery_pickup_message || 'Venez récupérer votre commande directement à notre boutique.',
-          minOrderStrategy: (map.delivery_min_order_strategy as any) || 'global',
+          minOrderStrategy: (map.delivery_min_order_strategy === 'per_zone' ? 'per_zone' : 'global'),
         })
         if (map.delivery_mode === 'pickup_only') setChosenMode('pickup')
         else if (map.delivery_mode === 'delivery_only') setChosenMode('delivery')
@@ -174,23 +194,23 @@ export default function PanierPage() {
       setDeliveryLoaded(true)
     }
     loadDelivery()
-  }, [])
+  }, [supabase])
 
   // ── Recompute delivery when lat/lng or mode changes ────────────────────────
 
   useEffect(() => {
     if (!deliveryLoaded) return
     if (chosenMode === 'pickup') {
-      setDeliveryResult({ mode: 'pickup', fee: 0, distance: null, zone: null, inZone: true, reason: 'pickup_only' })
+      scheduleDeliveryResult({ mode: 'pickup', fee: 0, distance: null, zone: null, inZone: true, reason: 'pickup_only' })
       return
     }
     if (form.lat && form.lng) {
       const result = calcDelivery(form.lat, form.lng, deliverySettings, deliveryZones, total())
-      setDeliveryResult(result)
+      scheduleDeliveryResult(result)
     } else {
-      setDeliveryResult(null)
+      scheduleDeliveryResult(null)
     }
-  }, [form.lat, form.lng, chosenMode, deliveryLoaded, deliverySettings, deliveryZones, items])
+  }, [form.lat, form.lng, chosenMode, deliveryLoaded, deliverySettings, deliveryZones, scheduleDeliveryResult, total])
 
   // ── Recalcul initial si position restaurée depuis localStorage ────────────
 
@@ -199,9 +219,9 @@ export default function PanierPage() {
     if (form.lat && form.lng && deliveryLoaded && deliverySettings.shopLat) {
       initialCalcDoneRef.current = true
       const result = calcDelivery(form.lat, form.lng, deliverySettings, deliveryZones, total())
-      setDeliveryResult(result)
+      scheduleDeliveryResult(result)
     }
-  }, [form.lat, form.lng, deliveryLoaded])
+  }, [form.lat, form.lng, deliveryLoaded, deliverySettings, deliveryZones, scheduleDeliveryResult, total])
 
   // ── Min order ─────────────────────────────────────────────────────────────
 
@@ -226,7 +246,7 @@ export default function PanierPage() {
   }, [isBelowMinOrder, deliveryLoaded, deliverySettings.mode])
 
   useEffect(() => {
-    if (!showSuggestions) { setSuggestedProducts([]); return }
+    if (!showSuggestions) { scheduleSuggestedProducts([]); return }
     const cartSubcategories = items.map(i => i.product.subcategory)
     const hasChaud = cartSubcategories.includes('chaudes')
     const hasFroid = cartSubcategories.includes('froides')
@@ -253,11 +273,13 @@ export default function PanierPage() {
         const reste = pool.filter((p: Product) => !result.find(r => r.id === p.id)).sort((a: Product, b: Product) => (b.popular ? 1 : 0) - (a.popular ? 1 : 0))
         result.push(...reste.slice(0, 3 - result.length))
       }
-      setSuggestedProducts(result.slice(0, 3) as Product[])
+      scheduleSuggestedProducts(result.slice(0, 3))
     })
-  }, [showSuggestions])
+  }, [showSuggestions, items, scheduleSuggestedProducts, supabase])
 
   // ── Verification stock au chargement et changement panier ────────────────
+  const cartStockKey = items.map(i => i.product.id).join('|')
+
   useEffect(() => {
     if (items.length === 0) return
     async function checkStock() {
@@ -278,7 +300,7 @@ export default function PanierPage() {
       setStockWarnings(prev => ({ ...prev, ...warnings }))
     }
     checkStock()
-  }, [items.reduce((s, i) => s + i.product.id, '')])
+  }, [cartStockKey, items, supabase, update])
 
   // ── Form helpers ───────────────────────────────────────────────────────────
 
@@ -297,7 +319,7 @@ export default function PanierPage() {
       async (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr`, { headers: { 'User-Agent': 'AbouJoudia/1.0' } })
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr`, { headers: { 'User-Agent': 'BlackDeew/1.0' } })
           const data = await res.json()
           updateForm(f => ({ ...f, lat, lng, address: data.display_name || '', geo_address: data.display_name || '' }))
         } catch { updateForm(f => ({ ...f, lat, lng })) }
@@ -312,17 +334,6 @@ export default function PanierPage() {
     )
   }
 
-  // Geocode address typed manually
-  const geocodeAddress = async (addr: string) => {
-    if (!addr.trim() || addr.length < 6) return
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1&accept-language=fr`, { headers: { 'User-Agent': 'AbouJoudia/1.0' } })
-      const data = await res.json()
-      if (data && data.length > 0) {
-        updateForm(f => ({ ...f, lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), geo_address: f.address }))
-      }
-    } catch {}
-  }
 
   const [geocodeError, setGeocodeError] = useState('')
   const [geocodeLoading, setGeocodeLoading] = useState(false)
@@ -376,7 +387,7 @@ export default function PanierPage() {
           items: items.map(i => {
               const variantExtra = (() => {
                 if (!i.product.variants || !i.selectedVariants) return 0
-                return i.product.variants.reduce((sum: number, vt: any) => {
+                return (i.product.variants as ProductVariant[]).reduce((sum: number, vt: ProductVariant) => {
                   const chosen = i.selectedVariants![vt.type]
                   if (chosen && vt.prices && vt.prices[chosen] !== undefined) return sum + vt.prices[chosen]
                   return sum
@@ -509,8 +520,20 @@ export default function PanierPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {items.map((item) => (
               <div key={`${item.product.id}-${JSON.stringify(item.selectedVariants || {})}`} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '13px 0', borderBottom: '1px solid rgba(232,160,32,0.06)' }}>
-                <div style={{ width: 'clamp(44px,12vw,56px)', height: 'clamp(44px,12vw,56px)', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: '2px solid rgba(232,160,32,0.15)' }}>
-                  {item.product.image_url ? <img src={item.product.image_url} alt={item.product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg,#1E1A10,#2A2310)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(232,160,32,0.3)" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>}
+                <div style={{ width: 'clamp(44px,12vw,56px)', height: 'clamp(44px,12vw,56px)', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, border: '2px solid rgba(232,160,32,0.15)', position: 'relative' }}>
+                  {item.product.image_url ? (
+                    <Image
+                      loader={panierImageLoader}
+                      src={item.product.image_url}
+                      alt={item.product.name}
+                      fill
+                      sizes="56px"
+                      unoptimized
+                      style={{ objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg,#1E1A10,#2A2310)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(232,160,32,0.3)" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+                  )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14, color: '#F5EDD6', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.product.name}</div>
@@ -597,7 +620,19 @@ export default function PanierPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
                 {suggestedProducts.map(p => (
                   <div key={p.id} style={{ minWidth: 0, overflow: 'hidden', borderRadius: 12, display: 'flex', flexDirection: 'column', background: 'rgba(245,200,66,0.05)', border: '1px solid rgba(245,200,66,0.1)' }}>
-                    <img src={p.image_url || undefined} alt={p.name} style={{ width: '100%', height: 90, objectFit: 'cover' }} loading="lazy" />
+                    <div style={{ position: 'relative', width: '100%', height: 90, background: '#1A1510' }}>
+                      {p.image_url && (
+                        <Image
+                          loader={panierImageLoader}
+                          src={p.image_url}
+                          alt={p.name}
+                          fill
+                          sizes="33vw"
+                          unoptimized
+                          style={{ objectFit: 'cover' }}
+                        />
+                      )}
+                    </div>
                     <div style={{ flex: 1, padding: '8px 10px 4px', fontSize: 10, color: '#F5EDD6', fontWeight: 600, lineHeight: 1.3, wordBreak: 'break-word', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.name}</div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 10px 10px', marginTop: 'auto' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>

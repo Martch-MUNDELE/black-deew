@@ -2,6 +2,11 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { createClient } from '@/lib/supabase/server'
 
+type MetadataSettingRow = {
+  key: string
+  value: string | null
+}
+
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -13,7 +18,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const supabase = await createClient()
   const { data } = await supabase.from('settings').select('key, value').in('key', ['site_name', 'site_description', 'site_logo'])
   const s: Record<string, string> = {}
-  data?.forEach((r: any) => { s[r.key] = r.value })
+  const rows = (data || []) as MetadataSettingRow[]
+  rows.forEach((r) => { if (r.value) s[r.key] = r.value })
   const title = s['site_name'] || 'Black Deew'
   const description = s['site_description'] || 'Black Deew — Livraison food à Kinshasa'
   const ogImage = 'https://black-deew.vercel.app/og-image.png'

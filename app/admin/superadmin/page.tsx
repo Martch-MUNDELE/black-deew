@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -15,6 +15,39 @@ const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
   admin:      { bg: 'rgba(56,182,255,0.1)',  color: '#38B6FF' },
 }
 
+type AdminRow = {
+  id: string
+  email: string
+  role?: string | null
+  status?: string | null
+  created_at?: string | null
+  last_login?: string | null
+}
+
+type AdminLogRow = {
+  id: string
+  action?: string | null
+  performed_by?: string | null
+  target_email?: string | null
+  details?: string | null
+  created_at?: string | null
+}
+
+type CredentialRow = {
+  email?: string | null
+  temp_password?: string | null
+}
+
+type CurrentUser = {
+  email: string | null
+} | null
+
+type BillingPeriodStatRow = {
+  status: string | null
+  total_due: number | null
+  total_paid: number | null
+}
+
 function generatePassword() {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$'
   return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
@@ -23,33 +56,32 @@ function generatePassword() {
 
 function FacturationOverview() {
   const [stats, setStats] = useState<{ totalDu: number; totalPaye: number; impayes: number } | null>(null)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
+
+  const load = useCallback(async () => {
+    const { data: periods } = await supabase
+      .from('billing_periods')
+      .select('status, total_due, total_paid')
+
+    const periodRows = (periods || []) as BillingPeriodStatRow[]
+
+    const totalDu = periodRows
+      .filter(p => p.status === 'en_cours' || p.status === 'cloture' || p.status === 'facture')
+      .reduce((s, p) => s + (p.total_due || 0), 0)
+
+    const totalPaye = periodRows
+      .filter(p => p.status === 'paye')
+      .reduce((s, p) => s + (p.total_paid || 0), 0)
+
+    const impayes = periodRows.filter(p => p.status === 'facture').length
+
+    setStats({ totalDu, totalPaye, impayes })
+  }, [supabase])
 
   useEffect(() => {
-    const load = async () => {
-      const { data: periods } = await supabase
-        .from('billing_periods')
-        .select('status, total_due, total_paid')
-
-      if (!periods) return
-
-      const now = new Date()
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
-
-      const totalDu = periods
-        .filter(p => p.status === 'en_cours' || p.status === 'cloture' || p.status === 'facture')
-        .reduce((s, p) => s + (p.total_due || 0), 0)
-
-      const totalPaye = periods
-        .filter(p => p.status === 'paye')
-        .reduce((s, p) => s + (p.total_paid || 0), 0)
-
-      const impayes = periods.filter(p => p.status === 'facture').length
-
-      setStats({ totalDu, totalPaye, impayes })
-    }
-    load()
-  }, [])
+    const timer = window.setTimeout(() => { void load() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [load])
 
   const fmt = (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} MAD`
 
@@ -71,8 +103,8 @@ function FacturationOverview() {
 }
 
 export default function SuperAdminPage() {
-  const [admins, setAdmins] = useState<any[]>([])
-  const [logs, setLogs] = useState<any[]>([])
+  const [admins, setAdmins] = useState<AdminRow[]>([])
+  const [logs, setLogs] = useState<AdminLogRow[]>([])
   const [credentials, setCredentials] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<'admins' | 'logs' | 'facturation'>('admins')
   const [showNew, setShowNew] = useState(false)
@@ -82,48 +114,50 @@ export default function SuperAdminPage() {
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
   const [showPwd, setShowPwd] = useState<Record<string, boolean>>({})
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<CurrentUser>(null)
   const [purging, setPurging] = useState(false)
   const [platformClosed, setPlatformClosed] = useState(false)
   const [reactivating, setReactivating] = useState(false)
   const [moduleLivreurs, setModuleLivreurs] = useState(false)
   const [savingModule, setSavingModule] = useState(false)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
 
-  useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) { router.replace('/admin'); return }
-      setCurrentUser(data.user)
-      const { data: admin } = await supabase
-        .from('admins')
-        .select('role')
-        .eq('email', data.user.email)
-        .single()
-      if (admin?.role !== 'superadmin') { router.replace('/admin'); return }
-      load()
-      // Vérifier statut plateforme
-      supabase.from('settings').select('value').eq('key', 'status').single().then(({ data }) => {
-        setPlatformClosed(data?.value === 'closed')
-      })
-      supabase.from('settings').select('value').eq('key', 'module_livreurs').single().then(({ data }) => {
-        setModuleLivreurs(data?.value === 'true')
-      })
-    })
-  }, [])
-
-  const load = async () => {
+  const load = useCallback(async () => {
     const [{ data: a }, { data: l }, { data: c }] = await Promise.all([
       supabase.from('admins').select('*').order('created_at', { ascending: false }),
       supabase.from('admin_logs').select('*').order('created_at', { ascending: false }).limit(50),
       supabase.from('admin_credentials').select('*'),
     ])
-    setAdmins(a || [])
-    setLogs(l || [])
+    setAdmins((a || []) as AdminRow[])
+    setLogs((l || []) as AdminLogRow[])
     const cmap: Record<string, string> = {}
-    ;(c || []).forEach((x: any) => { if (x.email && x.temp_password) cmap[x.email] = x.temp_password })
+    ;((c || []) as CredentialRow[]).forEach((x) => { if (x.email && x.temp_password) cmap[x.email] = x.temp_password })
     setCredentials(cmap)
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void supabase.auth.getUser().then(async ({ data }) => {
+        if (!data.user) { router.replace('/admin'); return }
+        setCurrentUser({ email: data.user.email ?? null })
+        const { data: admin } = await supabase
+          .from('admins')
+          .select('role')
+          .eq('email', data.user.email)
+          .single()
+        if (admin?.role !== 'superadmin') { router.replace('/admin'); return }
+        await load()
+        void supabase.from('settings').select('value').eq('key', 'status').single().then(({ data }) => {
+          setPlatformClosed(data?.value === 'closed')
+        })
+        void supabase.from('settings').select('value').eq('key', 'module_livreurs').single().then(({ data }) => {
+          setModuleLivreurs(data?.value === 'true')
+        })
+      })
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [load, router, supabase])
 
   const logAction = async (action: string, targetEmail?: string, details?: string) => {
     await supabase.from('admin_logs').insert({
@@ -158,7 +192,7 @@ export default function SuperAdminPage() {
       if (!res.ok) throw new Error('Erreur API')
       await logAction('PURGE_COMMANDES', undefined, 'Toutes les commandes et order_items supprimés, slots remis à zéro')
       setMsg('✅ Toutes les commandes ont été supprimées et les créneaux remis à zéro.')
-    } catch (e) {
+    } catch {
       setMsg('❌ Erreur lors de la purge')
     }
     setPurging(false)
@@ -181,23 +215,23 @@ export default function SuperAdminPage() {
       setShowNew(false)
       setNewEmail('')
       setNewPassword('')
-      load()
-    } catch (e) { setMsg('Erreur création') }
+      await load()
+    } catch { setMsg('Erreur création') }
     setLoading(false)
   }
 
-  const blockAdmin = async (admin: any) => {
+  const blockAdmin = async (admin: AdminRow) => {
     if (!confirm(`Bloquer ${admin.email} ?`)) return
     await fetch('/api/superadmin/block', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminId: admin.id, performedBy: currentUser?.email }) })
     await load()
   }
 
-  const unblockAdmin = async (admin: any) => {
+  const unblockAdmin = async (admin: AdminRow) => {
     await fetch('/api/superadmin/unblock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminId: admin.id, performedBy: currentUser?.email }) })
     await load()
   }
 
-  const resetPassword = async (admin: any) => {
+  const resetPassword = async (admin: AdminRow) => {
     if (!confirm(`Réinitialiser le mot de passe de ${admin.email} ?`)) return
     const newPwd = generatePassword()
     await fetch('/api/superadmin/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminId: admin.id, newPassword: newPwd, performedBy: currentUser?.email }) })
@@ -206,13 +240,13 @@ export default function SuperAdminPage() {
     await load()
   }
 
-  const deleteAdmin = async (admin: any) => {
+  const deleteAdmin = async (admin: AdminRow) => {
     if (!confirm(`Supprimer définitivement ${admin.email} ? Cette action est irréversible.`)) return
     await fetch('/api/superadmin/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminId: admin.id, performedBy: currentUser?.email }) })
     await load()
   }
 
-  const sendCredentials = async (admin: any) => {
+  const sendCredentials = async (admin: AdminRow) => {
     const pwd = credentials[admin.email]
     if (!pwd) { setMsg('Aucun mot de passe temporaire disponible'); return }
     await fetch('/api/superadmin/send-credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: admin.email, password: pwd }) })
@@ -299,7 +333,7 @@ export default function SuperAdminPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#F5EDD6', marginBottom: 2 }}>La plateforme est fermée automatiquement</div>
-              <div style={{ fontSize: 11, color: '#C8B99A' }}>Une période facturée n'a pas été réglée dans les 5 jours. Les clients ne peuvent plus passer commande.</div>
+              <div style={{ fontSize: 11, color: '#C8B99A' }}>Une période facturée n&apos;a pas été réglée dans les 5 jours. Les clients ne peuvent plus passer commande.</div>
             </div>
             <button onClick={reactiverPlateforme} disabled={reactivating} style={{ flexShrink: 0, padding: '9px 18px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.4)', background: 'rgba(91,197,122,0.08)', color: '#5BC57A', fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 12, cursor: reactivating ? 'not-allowed' : 'pointer', opacity: reactivating ? 0.6 : 1, whiteSpace: 'nowrap' }}>
               {reactivating ? 'Réactivation...' : '✅ Réactiver'}
@@ -373,22 +407,26 @@ export default function SuperAdminPage() {
       {tab === 'admins' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {admins.filter(a => a.status !== 'deleted').map(admin => {
-            const sc = STATUS_COLORS[admin.status] || STATUS_COLORS.active
-            const rc = ROLE_COLORS[admin.role] || ROLE_COLORS.admin
+            const adminStatus = admin.status ?? 'active'
+            const adminRole = admin.role ?? 'admin'
+            const sc = STATUS_COLORS[adminStatus] || STATUS_COLORS.active
+            const rc = ROLE_COLORS[adminRole] || ROLE_COLORS.admin
             const pwd = credentials[admin.email]
+            const createdLabel = admin.created_at ? new Date(admin.created_at).toLocaleDateString('fr-FR') : 'Date inconnue'
+            const lastLoginLabel = admin.last_login ? new Date(admin.last_login).toLocaleDateString('fr-FR') : null
             return (
               <div key={admin.id} style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.1)', borderRadius: 14, padding: '16px 18px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14, color: '#F5EDD6', marginBottom: 4 }}>{admin.email}</div>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 50, background: rc.bg, color: rc.color }}>{admin.role}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 50, background: sc.bg, color: sc.color }}>{admin.status}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 50, background: rc.bg, color: rc.color }}>{adminRole}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 50, background: sc.bg, color: sc.color }}>{adminStatus}</span>
                     </div>
                   </div>
                   <div style={{ fontSize: 10, color: '#A89880', textAlign: 'right' }}>
-                    <div>Créé {new Date(admin.created_at).toLocaleDateString('fr-FR')}</div>
-                    {admin.last_login && <div>Connecté {new Date(admin.last_login).toLocaleDateString('fr-FR')}</div>}
+                    <div>Créé {createdLabel}</div>
+                    {lastLoginLabel && <div>Connecté {lastLoginLabel}</div>}
                   </div>
                 </div>
                 {pwd && admin.role !== 'superadmin' && (
@@ -432,8 +470,8 @@ export default function SuperAdminPage() {
                 {log.details && <div style={{ fontSize: 11, color: '#C8B99A', marginTop: 4 }}>{log.details}</div>}
               </div>
               <div style={{ fontSize: 10, color: '#A89880', textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-                <div>{new Date(log.created_at).toLocaleDateString('fr-FR')}</div>
-                <div>{new Date(log.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div>{log.created_at ? new Date(log.created_at).toLocaleDateString('fr-FR') : 'Date inconnue'}</div>
+                <div>{log.created_at ? new Date(log.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : ''}</div>
               </div>
             </div>
           ))}

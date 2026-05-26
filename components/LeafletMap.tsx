@@ -1,5 +1,6 @@
 'use client'
-import { useEffect, useRef } from 'react'
+
+import { useEffect, useId, useRef } from 'react'
 
 interface LeafletMapProps {
   lat: number
@@ -8,47 +9,107 @@ interface LeafletMapProps {
   height?: number
 }
 
+interface LeafletLatLng {
+  lat: number
+  lng: number
+}
+
+interface LeafletClickEvent {
+  latlng: LeafletLatLng
+}
+
+interface LeafletMarker {
+  addTo: (map: LeafletMapInstance) => LeafletMarker
+  getLatLng: () => LeafletLatLng
+  setLatLng: (position: [number, number] | LeafletLatLng) => LeafletMarker
+  on: (eventName: 'dragend', handler: () => void) => void
+}
+
+interface LeafletMapInstance {
+  setView: (position: [number, number], zoom?: number) => LeafletMapInstance
+  getZoom: () => number
+  on: (eventName: 'click', handler: (event: LeafletClickEvent) => void) => void
+  remove: () => void
+}
+
+interface LeafletNamespace {
+  Icon: {
+    Default: {
+      prototype: Record<string, unknown>
+      mergeOptions: (options: Record<string, string>) => void
+    }
+  }
+  map: (element: HTMLElement) => LeafletMapInstance
+  marker: (position: [number, number], options: { draggable: boolean }) => LeafletMarker
+  tileLayer: (
+    url: string,
+    options: { attribution: string }
+  ) => { addTo: (map: LeafletMapInstance) => void }
+}
+
+type WindowWithLeaflet = Window & {
+  L?: LeafletNamespace
+}
+
 let leafletLoadPromise: Promise<void> | null = null
 
 function loadLeaflet(): Promise<void> {
   if (leafletLoadPromise) return leafletLoadPromise
+
   leafletLoadPromise = new Promise<void>((resolve) => {
-    if ((window as any).L) { resolve(); return }
+    const leafletWindow = window as WindowWithLeaflet
+
+    if (leafletWindow.L) {
+      resolve()
+      return
+    }
+
     const link = document.createElement('link')
     link.rel = 'stylesheet'
     link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
     document.head.appendChild(link)
+
     const script = document.createElement('script')
     script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
     script.onload = () => resolve()
     document.head.appendChild(script)
   })
+
   return leafletLoadPromise
 }
 
 export default function LeafletMap({ lat, lng, onPositionChange, height = 250 }: LeafletMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<any>(null)
-  const markerRef = useRef<any>(null)
+  const mapRef = useRef<LeafletMapInstance | null>(null)
+  const markerRef = useRef<LeafletMarker | null>(null)
   const onChangeRef = useRef(onPositionChange)
   const latRef = useRef(lat)
   const lngRef = useRef(lng)
-  const mapId = useRef('')
+  const reactId = useId()
+  const mapId = `lmap-${reactId.replace(/:/g, '')}`
 
-  onChangeRef.current = onPositionChange
-  latRef.current = lat
-  lngRef.current = lng
+  useEffect(() => {
+    onChangeRef.current = onPositionChange
+  }, [onPositionChange])
+
+  useEffect(() => {
+    latRef.current = lat
+    lngRef.current = lng
+  }, [lat, lng])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !containerRef.current) return
-    if (!mapId.current) mapId.current = `lmap-${Math.random().toString(36).slice(2, 8)}`
+
     let cancelled = false
 
     loadLeaflet().then(() => {
       if (cancelled || !containerRef.current || mapRef.current) return
-      const L = (window as any).L
 
-      delete (L.Icon.Default.prototype as any)._getIconUrl
+      const leafletWindow = window as WindowWithLeaflet
+      const L = leafletWindow.L
+      if (!L) return
+
+      delete L.Icon.Default.prototype._getIconUrl
       L.Icon.Default.mergeOptions({
         iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
         iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -69,9 +130,9 @@ export default function LeafletMap({ lat, lng, onPositionChange, height = 250 }:
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${rlat}&lon=${rlng}&format=json&accept-language=fr`,
-            { headers: { 'User-Agent': 'AbouJoudia/1.0' } }
+            { headers: { 'User-Agent': 'BlackDeew/1.0' } }
           )
-          const data = await res.json()
+          const data = await res.json() as { display_name?: string }
           return data.display_name || ''
         } catch {
           return ''
@@ -84,10 +145,10 @@ export default function LeafletMap({ lat, lng, onPositionChange, height = 250 }:
         onChangeRef.current(pos.lat, pos.lng, address)
       })
 
-      map.on('click', async (e: any) => {
-        marker.setLatLng(e.latlng)
-        const address = await reverseGeocode(e.latlng.lat, e.latlng.lng)
-        onChangeRef.current(e.latlng.lat, e.latlng.lng, address)
+      map.on('click', async (event: LeafletClickEvent) => {
+        marker.setLatLng(event.latlng)
+        const address = await reverseGeocode(event.latlng.lat, event.latlng.lng)
+        onChangeRef.current(event.latlng.lat, event.latlng.lng, address)
       })
     })
 
@@ -112,7 +173,7 @@ export default function LeafletMap({ lat, lng, onPositionChange, height = 250 }:
     <div>
       <div
         ref={containerRef}
-        id={mapId.current}
+        id={mapId}
         suppressHydrationWarning
         style={{ height, borderRadius: 12, overflow: 'hidden' }}
       />

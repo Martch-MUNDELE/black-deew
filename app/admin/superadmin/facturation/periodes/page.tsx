@@ -1,10 +1,24 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { recalculatePeriod } from '@/app/actions/billing'
 import { BILLING_STATUS_LABELS, type BillingPeriod, type BillingPeriodStatus } from '@/lib/types/billing'
 
 const supabase = createClient()
+
+type AdminRow = {
+  id: string
+  email: string | null
+  auth_user_id: string | null
+}
+
+type BillingPeriodUpdate = {
+  status: BillingPeriodStatus
+  updated_at: string
+  paid_at?: string
+  total_paid?: number
+  locked_at?: string
+}
 
 const STATUS_COLORS: Record<BillingPeriodStatus, { bg: string; color: string }> = {
   en_cours: { bg: 'rgba(56,182,255,0.1)',  color: '#38B6FF' },
@@ -14,27 +28,25 @@ const STATUS_COLORS: Record<BillingPeriodStatus, { bg: string; color: string }> 
 }
 
 export default function PeriodesPage() {
-  const [admins, setAdmins]     = useState<any[]>([])
+  const [admins, setAdmins]     = useState<AdminRow[]>([])
   const [periods, setPeriods]   = useState<BillingPeriod[]>([])
-  const [selected, setSelected] = useState<BillingPeriod | null>(null)
   const [loading, setLoading]   = useState(false)
   const [msg, setMsg]           = useState('')
-  const [currentUser, setCurrentUser] = useState<any>(null)
   const [filterClient, setFilterClient] = useState<string>('all')
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setCurrentUser(data.user))
-    loadAll()
-  }, [])
-
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     const [{ data: a }, { data: p }] = await Promise.all([
       supabase.from('admins').select('id, email, auth_user_id').eq('role', 'admin'),
       supabase.from('billing_periods').select('*').order('period_start', { ascending: false }),
     ])
-    setAdmins(a || [])
-    setPeriods(p || [])
-  }
+    setAdmins((a || []) as AdminRow[])
+    setPeriods((p || []) as BillingPeriod[])
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadAll() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [loadAll])
 
   const getAdminEmail = (clientId: string) =>
     admins.find(a => a.auth_user_id === clientId)?.email || clientId.slice(0, 8) + '...'
@@ -58,7 +70,7 @@ export default function PeriodesPage() {
       if (!confirm(`Clôturer la période ${formatDate(period.period_start)} → ${formatDate(period.period_end)} ?\n\nLe montant sera figé. Cette action est irréversible.`)) return
     }
     setLoading(true)
-    const update: any = { status: newStatus, updated_at: new Date().toISOString() }
+    const update: BillingPeriodUpdate = { status: newStatus, updated_at: new Date().toISOString() }
     if (newStatus === 'paye') { update.paid_at = new Date().toISOString(); update.total_paid = period.total_due }
     if (newStatus === 'cloture') update.locked_at = new Date().toISOString()
     await supabase.from('billing_periods').update(update).eq('id', period.id)
@@ -99,7 +111,6 @@ export default function PeriodesPage() {
     }
 
     await loadAll()
-    setSelected(null)
     setLoading(false)
     setMsg(`✅ Statut mis à jour : ${BILLING_STATUS_LABELS[newStatus]}`)
   }

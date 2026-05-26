@@ -27,10 +27,18 @@ export default function CoupDeCoeurCard({ product, allProducts }: { product: Pro
         }}
       >
         {product.image_url && (
-          <img
-            src={product.image_url}
-            alt=""
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }}
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              backgroundImage: `url(${product.image_url})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+            }}
           />
         )}
 

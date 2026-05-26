@@ -18,9 +18,10 @@ export default function PopularVipCard() {
     supabase.from('products').select('*').eq('is_vip', true).eq('active', true).then(async ({ data: rawData }) => {
       const { data: stockRow } = await supabase.from('settings').select('value').eq('key', 'stock_enabled').single()
       const stockEnabled = stockRow?.value === 'true'
-      const data = stockEnabled ? (rawData || []).filter((p: any) => p.stock === null || p.stock > 0) : (rawData || [])
-      if (data) { void 0 } // bridge
-      const all = (data as Product[]) || []
+      const products = (rawData || []) as Product[]
+      const all = stockEnabled
+        ? products.filter((p) => p.stock === null || p.stock > 0)
+        : products
       setAllProducts(all)
       setProduct(all.find(p => p.popular) || null)
     })
@@ -36,7 +37,19 @@ export default function PopularVipCard() {
       style={{ margin: '0 16px 24px', position: 'relative', borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(245,200,66,0.2)', minHeight: 'clamp(180px, 50vw, 280px)', cursor: 'pointer' }}
     >
       {product.image_url && (
-        <img src={product.image_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            backgroundImage: `url(${product.image_url})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          }}
+        />
       )}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.15) 40%, rgba(0,0,0,0.75) 100%)' }} />
       <div style={{ position: 'absolute', top: 14, left: 14, zIndex: 3, display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg, #F5C842, #E8A020)', borderRadius: 50, padding: '5px 12px' }}>

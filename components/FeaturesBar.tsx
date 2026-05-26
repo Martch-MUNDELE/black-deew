@@ -1,15 +1,37 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCatalogue } from '@/store/catalogue'
 import { createClient } from '@/lib/supabase/client'
 
 type Feature = { icon: string; title: string; desc: string }
+
+type SettingRow = {
+  key: string
+  value: string | null
+}
+
 
 const DEFAULTS: Feature[] = [
   { icon: 'chef', title: 'Préparé à Kinshasa', desc: 'Par chez vous à Kinshasa, repas cuisinés avec soin par nos équipes.' },
   { icon: 'delivery', title: 'Livraison rapide', desc: 'On vous livre rapidement et directement à votre porte.' },
   { icon: 'fresh', title: 'Frais du jour', desc: 'Profitez de produits toujours frais, choisis chaque jour.' },
 ]
+
+function parseFeature(value: string | null | undefined, fallback: Feature): Feature {
+  if (!value) return fallback
+
+  try {
+    const parsed = JSON.parse(value) as Partial<Feature>
+
+    return {
+      icon: typeof parsed.icon === 'string' ? parsed.icon : fallback.icon,
+      title: typeof parsed.title === 'string' ? parsed.title : fallback.title,
+      desc: typeof parsed.desc === 'string' ? parsed.desc : fallback.desc,
+    }
+  } catch {
+    return fallback
+  }
+}
 
 function Icon({ name }: { name: string }) {
   switch (name) {
@@ -76,23 +98,24 @@ function Icon({ name }: { name: string }) {
 export default function FeaturesBar({ alwaysShow = false }: { alwaysShow?: boolean }) {
   const { hasSelected } = useCatalogue()
   const [features, setFeatures] = useState<Feature[]>(DEFAULTS)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     supabase.from('settings').select('*').then(({ data }) => {
       if (!data) return
+
+      const settingsRows = data as SettingRow[]
       const parsed = DEFAULTS.map((d, i) => {
-        const row = data.find((s: any) => s.key === `feature_${i + 1}`)
-        if (!row) return d
-        try { return JSON.parse(row.value) } catch { return d }
+        const row = settingsRows.find((s) => s.key === `feature_${i + 1}`)
+        return parseFeature(row?.value, d)
       })
       const activeFlags = [1, 2, 3].map(i => {
-        const row = data.find((s: any) => s.key === `feature_${i}_active`)
+        const row = settingsRows.find((s) => s.key === `feature_${i}_active`)
         return row ? row.value !== 'false' : true
       })
       setFeatures(parsed.filter((_, i) => activeFlags[i]))
     })
-  }, [])
+  }, [supabase])
 
   if (!alwaysShow && hasSelected) return null
 

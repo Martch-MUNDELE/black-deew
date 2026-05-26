@@ -1,5 +1,6 @@
 'use client'
 import React from 'react'
+import Image, { type ImageLoaderProps } from 'next/image'
 import { useEffect, useState } from 'react'
 import { useCatalogue } from '@/store/catalogue'
 import { useCurrency } from '@/lib/currency'
@@ -8,6 +9,8 @@ import type { Product } from '@/lib/types'
 import FeaturedCardButton from '@/components/FeaturedCardButton'
 import ProductOverlay from '@/components/ProductOverlay'
 import CoupDeCoeurCard from '@/components/CoupDeCoeurCard'
+
+const productImageLoader = ({ src }: ImageLoaderProps) => src
 
 export default function PopularCard({ fallback }: { fallback?: React.ReactNode }) {
   const { activeSous, hasSelected } = useCatalogue()
@@ -18,18 +21,70 @@ export default function PopularCard({ fallback }: { fallback?: React.ReactNode }
   const [coupProduct, setCoupProduct] = useState<Product | null>(null)
 
   useEffect(() => {
-    if (!hasSelected) { setProduct(null); return }
+    let cancelled = false
+
+    const clearSelection = () => {
+      if (cancelled) return
+      setProduct(null)
+      setAllProducts([])
+      setCoupProduct(null)
+    }
+
+    if (!hasSelected || !activeSous) {
+      Promise.resolve().then(clearSelection)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    const selectedSous = activeSous
     const supabase = createClient()
-    supabase.from('products').select('*').eq('subcategory', activeSous).eq('active', true).eq('is_vip', false).then(async ({ data: rawData }) => {
-      const { data: stockRow } = await supabase.from('settings').select('value').eq('key', 'stock_enabled').single()
-      const stockEnabled = stockRow?.value === 'true'
-      const data = stockEnabled ? (rawData || []).filter((p: any) => p.stock === null || p.stock > 0) : (rawData || [])
-      const all = (data as Product[]) || []
-      setAllProducts(all)
-      setProduct(all.find(p => p.popular) || null)
-      const { data: coupRaw } = await supabase.from('products').select('*').eq('is_coup_de_coeur', true).eq('active', true).single()
-      setCoupProduct(coupRaw as Product | null)
-    })
+
+    Promise.resolve().then(clearSelection)
+
+    supabase
+      .from('products')
+      .select('*')
+      .eq('subcategory', selectedSous)
+      .eq('active', true)
+      .eq('is_vip', false)
+      .then(async ({ data: rawData }) => {
+        if (cancelled) return
+
+        const { data: stockRow } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'stock_enabled')
+          .single()
+
+        if (cancelled) return
+
+        const stockEnabled = stockRow?.value === 'true'
+        const data = stockEnabled
+          ? (rawData || []).filter((p: Product) => p.stock === null || p.stock === undefined || p.stock > 0)
+          : (rawData || [])
+
+        const all = (data as Product[]) || []
+
+        setAllProducts(all)
+        setProduct(all.find(p => p.popular) || all[0] || null)
+
+        const { data: coupRaw } = await supabase
+          .from('products')
+          .select('*')
+          .eq('subcategory', selectedSous)
+          .eq('is_coup_de_coeur', true)
+          .eq('active', true)
+          .eq('is_vip', false)
+          .maybeSingle()
+
+        if (cancelled) return
+        setCoupProduct((coupRaw as Product | null) || null)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [activeSous, hasSelected])
 
   if (!hasSelected) return fallback ?? null
@@ -45,7 +100,15 @@ export default function PopularCard({ fallback }: { fallback?: React.ReactNode }
           style={{ flex: '0 0 68%', position: 'relative', borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(255,107,32,0.2)', cursor: 'pointer' }}
         >
           {product.image_url && (
-            <img src={product.image_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
+            <Image
+              loader={productImageLoader}
+              src={product.image_url}
+              alt={product.name}
+              fill
+              sizes="(max-width: 600px) 100vw, 600px"
+              unoptimized
+              style={{ objectFit: 'cover', objectPosition: 'center' }}
+            />
           )}
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.15) 40%, rgba(0,0,0,0.75) 100%)' }} />
           <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 3, display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg, #FF6B20, #E8501A)', borderRadius: 50, padding: '5px 12px' }}>
@@ -73,7 +136,15 @@ export default function PopularCard({ fallback }: { fallback?: React.ReactNode }
         style={{ margin: '0 16px 24px', position: 'relative', borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(255,107,32,0.2)', minHeight: 'clamp(180px, 50vw, 280px)', cursor: 'pointer' }}
       >
         {product.image_url && (
-          <img src={product.image_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />
+          <Image
+            loader={productImageLoader}
+            src={product.image_url}
+            alt={product.name}
+            fill
+            sizes="(max-width: 600px) 100vw, 600px"
+            unoptimized
+            style={{ objectFit: 'cover', objectPosition: 'center' }}
+          />
         )}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.15) 40%, rgba(0,0,0,0.75) 100%)' }} />
         <div style={{ position: 'absolute', top: 14, left: 14, zIndex: 3, display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg, #FF6B20, #E8501A)', borderRadius: 50, padding: '5px 12px' }}>

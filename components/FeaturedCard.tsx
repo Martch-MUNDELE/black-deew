@@ -11,11 +11,11 @@ export default async function FeaturedCard() {
   ])
   const stockEnabled = stockRow?.value === 'true'
 
-  const filterStock = (p: any) =>
+  const filterStock = (p: Product | null) =>
     !p ? null : (stockEnabled && p.stock !== null && p.stock <= 0) ? null : p
 
-  const product = filterStock(featuredRaw) as Product | null
-  const coupProduct = filterStock(coupRaw) as Product | null
+  const product = filterStock(featuredRaw as Product | null)
+  const coupProduct = filterStock(coupRaw as Product | null)
 
   if (!product) return null
 

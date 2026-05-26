@@ -1,13 +1,16 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useParams } from 'next/navigation'
 import ProductForm, { ProductFormData, Variant } from '@/components/ProductForm'
 
+type VariantFromDb = Variant & { prices?: Record<string, unknown> | null }
+
 export default function ModifierProduit() {
   const router = useRouter()
   const params = useParams()
-  const supabase = createClient()
+  const productId = Array.isArray(params.id) ? params.id[0] : params.id
+  const supabase = useMemo(() => createClient(), [])
   const [form, setForm] = useState<ProductFormData>({
     name: '', description: '', ingredients: '', price: 0,
     subcategory: 'sandwichs_chauds', image_url: '', active: true,
@@ -18,7 +21,7 @@ export default function ModifierProduit() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    supabase.from('products').select('*').eq('id', params.id).single().then(({ data }) => {
+    supabase.from('products').select('*').eq('id', productId).single().then(({ data }) => {
       if (data) {
         setForm({
           name: data.name || '', description: data.description || '',
@@ -28,7 +31,7 @@ export default function ModifierProduit() {
           discount: data.discount ?? null, is_vip: data.is_vip ?? false,
         })
         if (data.variants && Array.isArray(data.variants)) {
-          const normalized = data.variants.map((v: any) => ({
+          const normalized = data.variants.map((v: VariantFromDb) => ({
             ...v,
             prices: v.prices
               ? Object.fromEntries(Object.entries(v.prices).map(([k, val]) => [k, Number(val)]))
@@ -39,7 +42,7 @@ export default function ModifierProduit() {
         }
       }
     })
-  }, [])
+  }, [productId, supabase])
 
   const save = async () => {
     setSaving(true)
@@ -47,7 +50,7 @@ export default function ModifierProduit() {
     const { error } = await supabase.from('products').update({
       ...form,
       variants: cleanVariants.length > 0 ? cleanVariants : null,
-    }).eq('id', params.id)
+    }).eq('id', productId)
     if (error) { alert('Erreur: ' + error.message); setSaving(false); return }
     window.location.href = '/admin/produits'
   }

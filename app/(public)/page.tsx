@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import ProductCard from '@/components/ProductCard'
 import CatalogueClient from '@/components/CatalogueClient'
 import FeaturedCard from '@/components/FeaturedCard'
 import PopularCard from '@/components/PopularCard'
@@ -18,19 +17,23 @@ export default async function HomePage() {
     supabase.from('settings').select('value').eq('key', 'stock_enabled').single(),
   ])
 
-  const stockEnabled = (stockSetting as any)?.value === 'true'
+  type SettingRow = { key: string; value: string | null }
+  type ProductWithStock = Product & { stock?: number | null; subcategory?: string | null }
+
+  const stockEnabled = (stockSetting as { value?: string | null } | null)?.value === 'true'
+  const allProducts = ((products ?? []) as ProductWithStock[])
   const visibleProducts = stockEnabled
-    ? (products || []).filter((p: any) => p.stock === null || p.stock > 0)
-    : (products || [])
+    ? allProducts.filter((p) => p.stock === null || p.stock === undefined || p.stock > 0)
+    : allProducts
 
-  const isOpen = ((settings as any[])?.find?.((s: any) => s.key === 'status')?.value || '') === 'open'
+  const isOpen = (((settings as SettingRow[] | null) ?? []).find((s) => s.key === 'status')?.value ?? '') === 'open'
 
-  type MenuCatMin = { id: string; slug: string; name: string; parent_id: string | null; display_order: number; active: boolean; level: number; is_visible: boolean }
+  type MenuCatMin = { id: string; slug: string; name: string; parent_id: string | null; display_order: number; active: boolean; level: number; is_visible?: boolean | null }
   const cats = (menuCats as MenuCatMin[] | null) ?? []
   const menuGroupes = (() => {
-    const l0 = cats.filter(c => c.level === 0 && c.active && c.is_visible).sort((a, b) => a.display_order - b.display_order)
-    const l1 = cats.filter(c => c.level === 1 && c.active && c.is_visible).sort((a, b) => a.display_order - b.display_order)
-    const activeProducts = visibleProducts as any[]
+    const l0 = cats.filter(c => c.level === 0 && c.active && c.is_visible !== false).sort((a, b) => a.display_order - b.display_order)
+    const l1 = cats.filter(c => c.level === 1 && c.active && c.is_visible !== false).sort((a, b) => a.display_order - b.display_order)
+    const activeProducts = visibleProducts
     return l0
       .map(g => {
         const allSous = l1.filter(s => s.parent_id === g.id)
@@ -46,11 +49,6 @@ export default async function HomePage() {
       })
       .filter((g): g is NonNullable<typeof g> => g !== null)
   })()
-
-  // DEBUG TEMPORAIRE
-  console.log('[BD-DEBUG] cats raw:', JSON.stringify(cats.map(c => ({id:c.id,slug:c.slug,level:c.level,parent_id:c.parent_id,active:c.active}))))
-  console.log('[BD-DEBUG] menuGroupes:', JSON.stringify(menuGroupes))
-  console.log('[BD-DEBUG] visibleProducts subcategories:', [...new Set((visibleProducts as any[]).map((p:any)=>p.subcategory))])
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>

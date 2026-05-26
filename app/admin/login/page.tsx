@@ -1,8 +1,13 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+
+type AdminLoginSettingRow = {
+  key: string
+  value: string | null
+}
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('')
@@ -12,12 +17,12 @@ export default function AdminLogin() {
   const [siteName, setSiteName] = useState('Black Deew')
   const [siteLogo, setSiteLogo] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     supabase.from('settings').select('*').then(({ data }) => {
-      data?.forEach((s: any) => {
-        if (s.key === 'site_name') setSiteName(s.value)
+      ;((data || []) as AdminLoginSettingRow[]).forEach((s) => {
+        if (s.key === 'site_name') setSiteName(s.value || 'Black Deew')
         if (s.key === 'site_logo') setSiteLogo(s.value || '')
       })
     })
@@ -33,7 +38,7 @@ export default function AdminLogin() {
         })
       }
     }
-  }, [])
+  }, [router, supabase])
 
   const login = async () => {
     setLoading(true); setError('')
@@ -49,7 +54,7 @@ export default function AdminLogin() {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <div style={{ margin: '0 auto 16px', display: 'flex', justifyContent: 'center' }}>
-            {siteLogo === null ? <div style={{ width: 64, height: 64 }} /> : siteLogo ? <img src={siteLogo} alt={siteName} style={{ width: 64, height: 64, objectFit: 'contain' }} /> : <Logo size={64} />}
+            {siteLogo === null ? <div style={{ width: 64, height: 64 }} /> : siteLogo ? <span role="img" aria-label={siteName} style={{ width: 64, height: 64, display: 'inline-block', backgroundImage: `url(${siteLogo})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} /> : <Logo size={64} />}
           </div>
           <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: '#F5EDD6', margin: 0 }}>{siteName}</h1>
           <div style={{ fontSize: 11, color: '#C8B99A', letterSpacing: '2px', textTransform: 'uppercase', marginTop: 4 }}>Administration</div>

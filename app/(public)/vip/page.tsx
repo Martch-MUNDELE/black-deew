@@ -1,40 +1,61 @@
 'use client'
+
+import Image, { type ImageLoaderProps } from 'next/image'
 import PopularVipCard from '@/components/PopularVipCard'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCart } from '@/store/cart'
 import { useCurrency } from '@/lib/currency'
 import type { Product } from '@/lib/types'
 
+type ProductWithStock = Product & {
+  stock?: number | null
+  image_url?: string | null
+}
+
+const productImageLoader = ({ src }: ImageLoaderProps) => src
+
 export default function VipPage() {
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<ProductWithStock[]>([])
   const [loading, setLoading] = useState(true)
-  const [quantities, setQuantities] = useState<Record<string, number>>({})
   const { add, update, items } = useCart()
   const currency = useCurrency()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
+    let cancelled = false
+
     async function load() {
       const [{ data }, { data: stockRow }] = await Promise.all([
         supabase.from('products').select('*').eq('is_vip', true).eq('active', true).order('name'),
         supabase.from('settings').select('value').eq('key', 'stock_enabled').single(),
       ])
+
+      if (cancelled) return
+
       const stockEnabled = stockRow?.value === 'true'
+      const rawProducts = (data ?? []) as ProductWithStock[]
       const filtered = stockEnabled
-        ? (data || []).filter((p: any) => p.stock === null || p.stock > 0)
-        : (data || [])
-      setProducts(filtered as Product[])
+        ? rawProducts.filter((p) => p.stock === null || p.stock === undefined || p.stock > 0)
+        : rawProducts
+
+      setProducts(filtered)
       setLoading(false)
     }
-    load()
-  }, [])
 
-  // Sync quantities with cart
-  useEffect(() => {
+    load()
+
+    return () => {
+      cancelled = true
+    }
+  }, [supabase])
+
+  const quantities = useMemo(() => {
     const q: Record<string, number> = {}
-    items.forEach(i => { q[i.product.id] = i.quantity })
-    setQuantities(q)
+    items.forEach(i => {
+      q[i.product.id] = i.quantity
+    })
+    return q
   }, [items])
 
   const handleAdd = (product: Product) => {
@@ -46,7 +67,11 @@ export default function VipPage() {
   }
 
   const cartCount = items.reduce((s, i) => s + i.quantity, 0)
-  const cartTotal = items.reduce((s, i) => s + ((i.product.discount ?? 0) > 0 ? i.product.price * (1 - (i.product.discount ?? 0) / 100) : i.product.price) * i.quantity, 0)
+  const cartTotal = items.reduce((s, i) => {
+    const discount = i.product.discount ?? 0
+    const price = discount > 0 ? i.product.price * (1 - discount / 100) : i.product.price
+    return s + price * i.quantity
+  }, 0)
 
   return (
     <div style={{
@@ -55,7 +80,6 @@ export default function VipPage() {
       fontFamily: 'DM Sans, sans-serif',
       paddingBottom: 120,
     }}>
-      {/* HEADER */}
       <div style={{
         background: 'linear-gradient(180deg, #131009 0%, #080603 100%)',
         borderBottom: '1px solid rgba(245,200,66,0.12)',
@@ -99,7 +123,6 @@ export default function VipPage() {
         </p>
       </div>
 
-      {/* CONTENU */}
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '24px 16px 0' }}>
         <PopularVipCard />
         {loading && (
@@ -118,6 +141,12 @@ export default function VipPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {products.map(product => {
               const qty = quantities[product.id] || 0
+              const stockMax = product.stock !== null && product.stock !== undefined ? product.stock : null
+              const atMax = stockMax !== null && qty >= stockMax
+              const epuise = stockMax !== null && stockMax <= 0
+              const discount = product.discount ?? 0
+              const finalPrice = discount > 0 ? product.price * (1 - discount / 100) : product.price
+
               return (
                 <div key={product.id} style={{
                   background: '#131009',
@@ -129,51 +158,51 @@ export default function VipPage() {
                   alignItems: 'center',
                 }}>
                   {product.image_url && (
-                    <img
-                      src={product.image_url.includes('supabase.co') ? product.image_url + '?width=120&quality=75' : product.image_url}
-                      alt={product.name}
-                      style={{ width: 72, height: 72, borderRadius: 12, objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(245,200,66,0.1)' }}
-                    />
+                    <div style={{ position: 'relative', width: 72, height: 72, borderRadius: 12, overflow: 'hidden', flexShrink: 0, border: '1px solid rgba(245,200,66,0.1)' }}>
+                      <Image
+                        loader={productImageLoader}
+                        src={product.image_url}
+                        alt={product.name}
+                        fill
+                        sizes="72px"
+                        unoptimized
+                        style={{ objectFit: 'cover' }}
+                      />
+                    </div>
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 15, color: '#F5EDD6', marginBottom: 2 }}>{product.name}</div>
                     {product.description && (
-                      <div style={{ fontSize: 12, color: '#7A6E58', marginBottom: 6, lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>{product.description}</div>
+                      <div style={{ fontSize: 12, color: '#7A6E58', marginBottom: 6, lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>{product.description}</div>
                     )}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {(product.discount ?? 0) > 0 && (
+                      {discount > 0 && (
                         <span style={{ fontSize: 11, color: '#7A6E58', textDecoration: 'line-through', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>{product.price.toFixed(2)}</span>
                       )}
-                      <span style={{ fontSize: 14, fontWeight: 700, color: '#F5C842' }}>{(product.discount ?? 0) > 0 ? (product.price * (1 - (product.discount ?? 0) / 100)).toFixed(2) : product.price.toFixed(2)} {currency}</span>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: '#F5C842' }}>{finalPrice.toFixed(2)} {currency}</span>
                     </div>
                   </div>
                   <div style={{ flexShrink: 0 }}>
-                    {(() => {
-                      const stockMax = product.stock !== null && product.stock !== undefined ? product.stock : null
-                      const atMax = stockMax !== null && qty >= stockMax
-                      const epuise = stockMax !== null && stockMax <= 0
-                      if (epuise) return (
-                        <span style={{ fontSize: 11, color: '#FF6B6B', fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>Épuisé</span>
-                      )
-                      return qty === 0 ? (
+                    {epuise ? (
+                      <span style={{ fontSize: 11, color: '#FF6B6B', fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>Épuisé</span>
+                    ) : qty === 0 ? (
+                      <button
+                        onClick={() => handleAdd(product)}
+                        style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg,#F5C842,#E8A020)', color: '#0A0804', fontSize: 20, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                      >+</button>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <button
-                          onClick={() => handleAdd(product)}
-                          style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg,#F5C842,#E8A020)', color: '#0A0804', fontSize: 20, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                          onClick={() => handleUpdate(product.id, qty - 1)}
+                          style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid rgba(245,200,66,0.3)', background: 'transparent', color: '#F5C842', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >−</button>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: '#F5EDD6', minWidth: 16, textAlign: 'center' }}>{qty}</span>
+                        <button
+                          onClick={() => { if (!atMax) handleUpdate(product.id, qty + 1) }}
+                          style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: atMax ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#F5C842,#E8A020)', color: atMax ? '#555' : '#0A0804', fontSize: 18, cursor: atMax ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         >+</button>
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <button
-                            onClick={() => handleUpdate(product.id, qty - 1)}
-                            style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid rgba(245,200,66,0.3)', background: 'transparent', color: '#F5C842', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          >−</button>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: '#F5EDD6', minWidth: 16, textAlign: 'center' }}>{qty}</span>
-                          <button
-                            onClick={() => { if (!atMax) handleUpdate(product.id, qty + 1) }}
-                            style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: atMax ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#F5C842,#E8A020)', color: atMax ? '#555' : '#0A0804', fontSize: 18, cursor: atMax ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          >+</button>
-                        </div>
-                      )
-                    })()}
+                      </div>
+                    )}
                   </div>
                 </div>
               )
@@ -181,7 +210,6 @@ export default function VipPage() {
           </div>
         )}
 
-        {/* BOUTON BOISSONS FROIDES */}
         {!loading && (
           <div style={{ marginTop: 40, textAlign: 'center' }}>
             <div style={{ fontSize: 12, color: '#7A6E58', marginBottom: 12 }}>Une petite soif ?</div>
@@ -205,7 +233,6 @@ export default function VipPage() {
         )}
       </div>
 
-      {/* BARRE PANIER FIXE */}
       {cartCount > 0 && (
         <div style={{
           position: 'fixed',

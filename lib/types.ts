@@ -60,7 +60,7 @@ export interface Order {
   delivery_fee?: number
   distance_km?: number
   zone_id?: string
-  delivery_detail?: Record<string, any>
+  delivery_detail?: Record<string, unknown>
   delivery_slots?: DeliverySlot
   order_items?: OrderItem[]
 }

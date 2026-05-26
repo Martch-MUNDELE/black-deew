@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useMemo, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { addDays } from 'date-fns'
@@ -43,7 +43,7 @@ function CreneauxContent() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [spinIdx, setSpinIdx] = useState(0)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     supabase.from('settings').select('*').then(({ data }) => {
@@ -58,7 +58,7 @@ function CreneauxContent() {
         if (s.key === 'slots_days_ahead') setSlotsDaysAhead(s.value)
       })
     })
-  }, [])
+  }, [supabase])
 
   useEffect(() => {
     if (!saving) return

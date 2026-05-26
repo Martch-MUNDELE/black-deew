@@ -1,11 +1,16 @@
 'use client'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+
+type FooterSettingRow = {
+  key: string
+  value: string | null
+}
 
 export default function FooterHero() {
   const pathname = usePathname()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [line1, setLine1] = useState('Livraison à')
   const [line2, setLine2] = useState('Kinshasa.')
   const [subtitle, setSubtitle] = useState('Directement chez toi.')
@@ -16,14 +21,16 @@ export default function FooterHero() {
       .in('key', ['footer_line1', 'footer_line2', 'footer_subtitle', 'footer_description'])
       .then(({ data }) => {
         if (!data) return
-        data.forEach((s: any) => {
-          if (s.key === 'footer_line1') setLine1(s.value)
-          if (s.key === 'footer_line2') setLine2(s.value)
-          if (s.key === 'footer_subtitle') setSubtitle(s.value)
-          if (s.key === 'footer_description') setDescription(s.value)
+
+        const settingsRows = data as FooterSettingRow[]
+        settingsRows.forEach((s) => {
+          if (s.key === 'footer_line1' && s.value) setLine1(s.value)
+          if (s.key === 'footer_line2' && s.value) setLine2(s.value)
+          if (s.key === 'footer_subtitle' && s.value) setSubtitle(s.value)
+          if (s.key === 'footer_description' && s.value) setDescription(s.value)
         })
       })
-  }, [])
+  }, [supabase])
 
   if (pathname !== '/') return null
   return (
