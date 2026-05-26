@@ -485,7 +485,7 @@ function CommandesAdminInner() {
 
       {/* FILTRES */}
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 24, paddingBottom: 4 }}>
-        {STATUSES.map(s => {
+        {STATUSES.filter((s) => (counts[s] ?? 0) > 0 || filter === s).map(s => {
           const sc = STATUS_COLORS[s]
           const active = filter === s
           return (
@@ -495,10 +495,14 @@ function CommandesAdminInner() {
             </button>
           )
         })}
+        {((counts.retrait ?? 0) > 0 || filter === 'retrait') && (
+
         <button onClick={() => setFilter('retrait')} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 50, border: '1px solid', borderColor: filter === 'retrait' ? 'rgba(232,160,32,0.25)' : 'rgba(255,255,255,0.06)', background: filter === 'retrait' ? 'rgba(232,160,32,0.1)' : 'transparent', color: filter === 'retrait' ? '#E8A020' : '#C8B99A', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
           Retrait
           {counts['retrait'] ? <span style={{ background: filter === 'retrait' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)', padding: '0 6px', borderRadius: 50, fontSize: 10 }}>{counts['retrait']}</span> : null}
         </button>
+
+        )}
       </div>
 
       {/* LISTE */}
