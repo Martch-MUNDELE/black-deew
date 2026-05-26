@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useMemo, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import LeafletMap from '@/components/LeafletMap'
@@ -23,10 +23,32 @@ interface Zone {
   isNew?: boolean
 }
 
+interface DeliverySettingRow {
+  key: string
+  value: string | null
+}
+
+interface SimulationResult {
+  error?: string
+  dist?: number
+  inZone?: boolean
+  message?: string
+  noZone?: boolean
+  zone?: Zone
+  fee?: number
+}
+
 const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#C8B99A', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.8px' }
 const inputStyle: React.CSSProperties = { width: '100%', maxWidth: '100%', minWidth: 0, padding: '10px 14px', boxSizing: 'border-box', borderRadius: 10, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(255,255,255,0.03)', color: '#F5EDD6', fontSize: 13, outline: 'none', fontFamily: 'DM Sans, sans-serif', appearance: 'none' }
 const sectionStyle: React.CSSProperties = { background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: '22px 16px', marginBottom: 14, overflow: 'hidden' }
 const sectionTitleStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 16 }
+
+type DeliveryMode = 'all' | 'delivery_only' | 'pickup_only'
+
+function normalizeDeliveryMode(value: string | null): DeliveryMode {
+  if (value === 'delivery_only' || value === 'pickup_only' || value === 'all') return value
+  return 'all'
+}
 
 const TABS = [
   { key: 'mode', label: 'Mode' },
@@ -39,7 +61,7 @@ function LivraisonContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const activeTab = searchParams.get('tab') || 'mode'
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const currency = useCurrency()
 
   const [deliveryMode, setDeliveryMode] = useState<'all' | 'delivery_only' | 'pickup_only'>('all')
@@ -59,7 +81,7 @@ function LivraisonContent() {
   const [geoLoading, setGeoLoading] = useState(false)
   const [geoError, setGeoError] = useState('')
   const [simAddress, setSimAddress] = useState('')
-  const [simResult, setSimResult] = useState<any>(null)
+  const [simResult, setSimResult] = useState<SimulationResult | null>(null)
   const [simLoading, setSimLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -67,8 +89,8 @@ function LivraisonContent() {
 
   useEffect(() => {
     supabase.from('settings').select('*').then(({ data }) => {
-      data?.forEach((s: any) => {
-        if (s.key === 'delivery_mode') setDeliveryMode(s.value || 'all')
+      data?.forEach((s: DeliverySettingRow) => {
+        if (s.key === 'delivery_mode') setDeliveryMode(normalizeDeliveryMode(s.value))
         if (s.key === 'delivery_shop_lat') setShopLat(s.value || '30.4202')
         if (s.key === 'delivery_shop_lng') setShopLng(s.value || '-9.5981')
         if (s.key === 'delivery_shop_address') setShopAddress(s.value || '')
@@ -82,9 +104,9 @@ function LivraisonContent() {
       })
     })
     supabase.from('delivery_zones').select('*').order('min_km', { ascending: true }).then(({ data }) => {
-      setZones((data || []).map((z: any) => ({ ...z, isNew: false })))
+      setZones((data || []).map((z: Zone) => ({ ...z, isNew: false })))
     })
-  }, [])
+  }, [supabase])
 
   const useGPS = () => {
     if (!navigator.geolocation) { setGeoError('Géolocalisation non supportée'); return }
@@ -127,7 +149,7 @@ function LivraisonContent() {
     setZones(prev => [...prev, { id: `temp-${Date.now()}`, min_km: lastMax, max_km: lastMax + 3, price: 15, min_order: 0, active: true, isNew: true }])
   }
 
-  const updateZone = (id: string, field: keyof Zone, value: any) => {
+  const updateZone = (id: string, field: keyof Zone, value: string | number | boolean) => {
     setZones(prev => prev.map(z => z.id === id ? { ...z, [field]: value } : z))
   }
 
@@ -345,7 +367,7 @@ function LivraisonContent() {
                 })}
               </div>
             )}
-            {overlapErr && <div style={{ background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#FF6B6B', marginBottom: 10 }}>⚠ Des tranches se chevauchent — corrigez avant d'enregistrer.</div>}
+            {overlapErr && <div style={{ background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.25)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#FF6B6B', marginBottom: 10 }}>⚠ Des tranches se chevauchent — corrigez avant d&apos;enregistrer.</div>}
             <button onClick={addZone} style={{ width: '100%', padding: '10px', borderRadius: 10, border: '1.5px dashed rgba(232,160,32,0.3)', background: 'transparent', color: '#E8A020', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>+ Ajouter une tranche</button>
           </div>
 

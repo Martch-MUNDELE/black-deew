@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef, Suspense } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/lib/currency'
@@ -40,6 +40,58 @@ const WA_BUTTON_LABELS_PICKUP: Record<string, string> = {
   annulée:        'Envoyer message Annulation',
 }
 
+type OrderItemRow = {
+  id?: string
+  quantity: number
+  product_name: string
+  variant_name?: string | null
+  unit_price: number
+}
+
+type DeliverySlotRow = {
+  id: string
+  date: string
+  time_start?: string | null
+  time_end?: string | null
+}
+
+type OrderRow = {
+  id: string
+  customer_name: string
+  customer_phone: string
+  customer_address?: string | null
+  delivery_mode?: string | null
+  delivery_fee?: number | null
+  distance_km?: number | null
+  total: number
+  lat?: number | null
+  lng?: number | null
+  slot_id?: string | null
+  status?: string | null
+  driver_id?: string | null
+  order_items?: OrderItemRow[] | null
+  created_at?: string | null
+  [key: string]: unknown
+}
+
+type DriverRow = {
+  id: string
+  full_name: string
+  phone: string
+  vehicle_type?: string | null
+  zone?: string | null
+}
+
+type DriverSessionRow = {
+  delivery_drivers?: DriverRow | DriverRow[] | null
+}
+
+type ZoneRow = {
+  min_km: number | string | null
+  max_km: number | string | null
+  price: number | string | null
+}
+
 function cleanPhone(phone: string) {
   const p = phone.replace(/[\s\-]/g, '')
   if (p.startsWith('+')) return p
@@ -48,27 +100,27 @@ function cleanPhone(phone: string) {
   return p
 }
 
-function buildWhatsAppUrl(order: any, slot: any, targetStatus: string, formatDate: (d: string) => string, shopAddress?: string, factureUrl?: string, currency = 'DH', driverInfo?: { full_name: string; phone: string } | null): string | null {
+function buildWhatsAppUrl(order: OrderRow, slot: DeliverySlotRow | null, targetStatus: string, formatDate: (d: string) => string, shopAddress?: string, factureUrl?: string, currency = 'DH', driverInfo?: { full_name: string; phone: string } | null): string | null {
   const name = order.customer_name
   let msg: string | null = null
 
   if (targetStatus === 'confirmée') {
-    const itemsList = order.order_items?.map((i: any) =>
+    const itemsList = order.order_items?.map((i: OrderItemRow) =>
       `${i.quantity} x ${i.product_name}${i.variant_name ? ` (${i.variant_name})` : ''} — ${(i.unit_price * i.quantity).toFixed(2)} ${currency}`
     ).join('\n') || ''
     const slotDate = slot ? formatDate(slot.date) : 'À confirmer'
     const slotTime = slot ? `${slot.time_start?.slice(0, 5)} à ${slot.time_end?.slice(0, 5)}` : ''
     const address = order.customer_address || ''
-    const mapsLine = order.lat && order.lng ? `\nhttps://maps.google.com/?q=${order.lat},${order.lng}` : ''
+    const mapsLine = order.lat !== null && order.lat !== undefined && order.lng !== null && order.lng !== undefined ? `\nhttps://maps.google.com/?q=${order.lat},${order.lng}` : ''
     let deliveryLines = ''
     if (order.delivery_mode === 'pickup') {
       deliveryLines = `\nMode : Retrait sur place\nAdresse boutique : ${shopAddress || ''}`
     } else if (order.delivery_fee === 0) {
       deliveryLines = '\nLivraison gratuite'
-    } else if (order.delivery_fee > 0) {
-      deliveryLines = `\nFrais de livraison : ${order.delivery_fee} ${currency}`
+    } else if ((order.delivery_fee ?? 0) > 0) {
+      deliveryLines = `\nFrais de livraison : ${order.delivery_fee ?? 0} ${currency}`
     }
-    msg = `Bonjour ${name},\n\nVotre commande Black Deew est confirmée.\n\n${itemsList}${deliveryLines}\n\nTotal : ${order.total.toFixed(2)} ${currency} - paiement cash à la livraison\nCréneau : ${slotDate} de ${slotTime}\n\nVotre adresse de livraison :\n${address}${mapsLine}\n\nMerci pour votre confiance !\nBlack Deew`
+    msg = `Bonjour ${name},\n\nVotre commande Black Deew est confirmée.\n\n${itemsList}${deliveryLines}\n\nTotal : ${(order.total ?? 0).toFixed(2)} ${currency} - paiement cash à la livraison\nCréneau : ${slotDate} de ${slotTime}\n\nVotre adresse de livraison :\n${address}${mapsLine}\n\nMerci pour votre confiance !\nBlack Deew`
   } else if (targetStatus === 'en_preparation') {
     msg = `Bonjour ${name}, votre commande Black Deew est en cours de préparation. Encore un peu de patience !`
   } else if (targetStatus === 'en_livraison') {
@@ -112,14 +164,7 @@ const IconPin = () => (
     <circle cx="12" cy="8" r="2"/>
   </svg>
 )
-const IconCal = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="18" rx="3"/>
-    <line x1="16" y1="2" x2="16" y2="6"/>
-    <line x1="8" y1="2" x2="8" y2="6"/>
-    <line x1="3" y1="10" x2="21" y2="10"/>
-  </svg>
-)
+
 
 type DispatchedPayload = {
   orderId: string
@@ -127,8 +172,8 @@ type DispatchedPayload = {
   driverInfo: { full_name: string; phone: string } | null
 }
 
-function DispatchModal({ order, onClose, onDispatched, currency }: { order: any, onClose: () => void, onDispatched: (info: DispatchedPayload) => void, currency: string }) {
-  const [drivers, setDrivers] = useState<any[]>([])
+function DispatchModal({ order, onClose, onDispatched, currency }: { order: OrderRow, onClose: () => void, onDispatched: (info: DispatchedPayload) => void, currency: string }) {
+  const [drivers, setDrivers] = useState<DriverRow[]>([])
   const [selectedDriver, setSelectedDriver] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -136,19 +181,22 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
   const [successWaUrl, setSuccessWaUrl] = useState<string | null>(null)
   const [pendingPayload, setPendingPayload] = useState<DispatchedPayload | null>(null)
   const [phase, setPhase] = useState<'form' | 'success'>('form')
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase
         .from('driver_sessions')
         .select('driver_id, delivery_drivers(id, full_name, phone, vehicle_type, zone)')
         .eq('session_status', 'open')
-      const mapped = (data || []).map((s: any) => s.delivery_drivers).filter(Boolean)
+      const rows = (data || []) as DriverSessionRow[]
+      const mapped = rows
+        .map((s) => Array.isArray(s.delivery_drivers) ? s.delivery_drivers[0] : s.delivery_drivers)
+        .filter((driver): driver is DriverRow => Boolean(driver))
       setDrivers(mapped)
       setLoading(false)
     }
     load()
-  }, [])
+  }, [supabase])
   const handleConfirm = async () => {
     if (!selectedDriver) return
     setErrorMsg('')
@@ -166,12 +214,12 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
     }
     if (!updatedRows || updatedRows.length === 0) {
       setSaving(false)
-      setErrorMsg('Aucune ligne mise à jour — vérifie les permissions (RLS).')
+      setErrorMsg('Aucune ligne mise a jour - verifie les permissions (RLS).')
       return
     }
     let driver_fee_total = 0
-    if (order.delivery_fee > 0) {
-      driver_fee_total = order.delivery_fee
+    if ((order.delivery_fee ?? 0) > 0) {
+      driver_fee_total = order.delivery_fee ?? 0
     } else if (order.delivery_fee === 0 && order.distance_km) {
       const { data: zones } = await supabase
         .from('delivery_zones')
@@ -180,7 +228,7 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
         .order('min_km', { ascending: true })
       if (zones && zones.length > 0) {
         const distKm = Number(order.distance_km) || 0
-        const zone = zones.find((z: any) => distKm >= Number(z.min_km) && distKm < Number(z.max_km))
+        const zone = ((zones || []) as ZoneRow[]).find((z) => distKm >= Number(z.min_km) && distKm < Number(z.max_km))
         driver_fee_total = zone ? Number(zone.price) : 0
       }
     }
@@ -216,7 +264,7 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={phase === 'success' ? finishDispatch : onClose}>
       <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 420, fontFamily: 'DM Sans, sans-serif' }} onClick={e => e.stopPropagation()}>
         <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, fontWeight: 800, color: '#F5EDD6', marginBottom: 6 }}>{phase === 'success' ? 'Livreur dispatché' : 'Dispatcher vers un livreur'}</div>
-        <div style={{ fontSize: 12, color: '#C8B99A', marginBottom: 20 }}>Commande #{order.id.slice(0,8).toUpperCase()} - {order.customer_name} - {order.total.toFixed(2)} {currency}</div>
+        <div style={{ fontSize: 12, color: '#C8B99A', marginBottom: 20 }}>Commande #{order.id.slice(0, 8).toUpperCase()} - {order.customer_name} - {(order.total ?? 0).toFixed(2)} {currency}</div>
         {phase === 'success' ? (
           <>
             <div style={{ marginBottom: 20, padding: '12px 14px', borderRadius: 10, background: 'rgba(91,197,122,0.08)', border: '1px solid rgba(91,197,122,0.25)', color: '#5BC57A', fontSize: 12, fontFamily: 'DM Sans, sans-serif' }}>Commande dispatchée. Prévenez le client par WhatsApp avec les infos du livreur.</div>
@@ -261,28 +309,25 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: any,
 }
 
 function CommandesAdminInner() {
-  const [orders, setOrders] = useState<any[]>([])
+  const [orders, setOrders] = useState<OrderRow[]>([])
   const currency = useCurrency()
   const searchParams = useSearchParams()
   const [filter, setFilter] = useState(() => searchParams.get('tab') || 'nouvelle')
   const [highlightIdParam] = useState(() => searchParams.get('highlight'))
   const [counts, setCounts] = useState<Record<string, number>>({})
-  const [slots, setSlots] = useState<Record<string, any>>({})
+  const [slots, setSlots] = useState<Record<string, DeliverySlotRow>>({})
   const [pendingStatuses, setPendingStatuses] = useState<Record<string, string>>({})
   const [factureUrls, setFactureUrls] = useState<Record<string, string>>({})
   const [shopAddress, setShopAddress] = useState('')
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [dispatchOrder, setDispatchOrder] = useState<any | null>(null)
+  const [dispatchOrder, setDispatchOrder] = useState<OrderRow | null>(null)
   const [driverInfos, setDriverInfos] = useState<Record<string, { full_name: string; phone: string }>>({})
   const sentinelRef = useRef<HTMLDivElement | null>(null)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
-
-
-
-  const loadCounts = async () => {
+  const loadCounts = useCallback(async () => {
     const countResults = await Promise.all([
       ...STATUSES.map(s => supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', s)),
       supabase.from('orders').select('id', { count: 'exact', head: true }).eq('delivery_mode', 'pickup'),
@@ -291,10 +336,10 @@ function CommandesAdminInner() {
     STATUSES.forEach((s, i) => { c[s] = countResults[i].count || 0 })
     c['retrait'] = countResults[STATUSES.length].count || 0
     setCounts(c)
-  }
+  }, [supabase])
 
   // Charge un slice via .range() côté serveur. append=true ajoute, sinon remplace.
-  const fetchOrders = async (offset: number, append: boolean) => {
+  const fetchOrders = useCallback(async (offset: number, append: boolean) => {
     if (append) setLoadingMore(true)
     const from = offset
     const to = offset + PAGE_SIZE - 1
@@ -307,16 +352,17 @@ function CommandesAdminInner() {
     else query = query.eq('status', filter)
 
     const { data, count } = await query
-    if (!data) {
+    const fetched = (data || []) as OrderRow[]
+    if (!fetched.length) {
       if (append) setLoadingMore(false)
       return
     }
     const total = count || 0
-    if (append) setOrders(prev => [...prev, ...data])
-    else setOrders(data)
-    setHasMore(offset + data.length < total)
+    if (append) setOrders(prev => [...prev, ...fetched])
+    else setOrders(fetched)
+    setHasMore(offset + fetched.length < total)
 
-    const slotIds = [...new Set(data.filter(o => o.slot_id).map(o => o.slot_id as string))]
+    const slotIds = [...new Set(fetched.filter(o => o.slot_id).map(o => o.slot_id as string))]
     if (slotIds.length > 0) {
       const { data: slotData } = await supabase.from('delivery_slots').select('*').in('id', slotIds)
       if (slotData) {
@@ -327,56 +373,67 @@ function CommandesAdminInner() {
         })
       }
     }
-    const driverIds = [...new Set(data.filter((o: any) => o.driver_id).map((o: any) => o.driver_id as string))]
+    const driverIds = [...new Set(fetched.filter(o => o.driver_id).map(o => o.driver_id as string))]
     if (driverIds.length > 0) {
       const { data: driverData } = await supabase.from('delivery_drivers').select('id, full_name, phone').in('id', driverIds)
       if (driverData) {
         setDriverInfos(prev => {
-          const map = { ...prev }
-          driverData.forEach((d: any) => { map[d.id] = { full_name: d.full_name, phone: d.phone } })
+          const map: Record<string, { full_name: string; phone: string }> = { ...prev }
+          const driversList = (driverData || []) as DriverRow[]
+          driversList.forEach((d: DriverRow) => { map[d.id] = { full_name: d.full_name, phone: d.phone } })
           return map
         })
       }
     }
     if (append) setLoadingMore(false)
-  }
+  }, [filter, supabase])
 
-  const reload = () => Promise.all([loadCounts(), fetchOrders(0, false)])
+  const reload = useCallback(() => Promise.all([loadCounts(), fetchOrders(0, false)]), [loadCounts, fetchOrders])
 
   useEffect(() => {
     supabase.from('settings').select('value').eq('key', 'delivery_shop_address').single()
-      .then(({ data }) => { if (data) setShopAddress(data.value || '') })
-  }, [])
+      .then(({ data }) => { if (data) setShopAddress(String(data.value || '')) })
+  }, [supabase])
 
   useEffect(() => {
     if (!highlightIdParam) return
-    setHighlightId(highlightIdParam)
-    setTimeout(() => {
+    const showTimer = window.setTimeout(() => {
+      setHighlightId(highlightIdParam)
       const el = document.getElementById(`order-${highlightIdParam}`)
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }, 500)
-    setTimeout(() => setHighlightId(null), 3500)
-  }, [orders, highlightIdParam])
+    const hideTimer = window.setTimeout(() => setHighlightId(null), 3500)
+    return () => {
+      window.clearTimeout(showTimer)
+      window.clearTimeout(hideTimer)
+    }
+  }, [highlightIdParam])
+
+  const tabParam = searchParams.get('tab') || 'nouvelle'
 
   useEffect(() => {
-    const tab = searchParams.get('tab')
-    if (tab && tab !== filter) setFilter(tab)
-  }, [searchParams.toString()])
-  useEffect(() => { reload() }, [filter])
+    const timer = window.setTimeout(() => setFilter(tabParam), 0)
+    return () => window.clearTimeout(timer)
+  }, [tabParam])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void reload() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [reload])
 
   // Refresh auto + realtime
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
       .channel(`admin-commandes-${filter}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => reload())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { void reload() })
       .subscribe()
-    const interval = setInterval(() => reload(), 30000)
+    const interval = window.setInterval(() => { void reload() }, 30000)
     return () => {
       supabase.removeChannel(channel)
-      clearInterval(interval)
+      window.clearInterval(interval)
     }
-  }, [filter])
+  }, [filter, reload])
 
   // Infinite scroll: observe la sentinelle et appende la suite quand visible
   useEffect(() => {
@@ -384,11 +441,11 @@ function CommandesAdminInner() {
     const node = sentinelRef.current
     if (!node) return
     const observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) fetchOrders(orders.length, true)
+      if (entries[0].isIntersecting) void fetchOrders(orders.length, true)
     }, { rootMargin: '200px' })
     observer.observe(node)
     return () => observer.disconnect()
-  }, [hasMore, loadingMore, orders.length, filter])
+  }, [hasMore, loadingMore, orders.length, fetchOrders])
 
   const formatDate = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
 
@@ -403,6 +460,7 @@ function CommandesAdminInner() {
 
   // Applique le changement de statut côté UI (optimiste) et recharge après délai
   const applyStatusChange = (orderId: string, newStatus: string) => {
+    void newStatus
     setOrders(prev => prev.filter(o => o.id !== orderId))
     setPendingStatuses(prev => { const n = { ...prev }; delete n[orderId]; return n })
     setTimeout(() => reload(), 2000)
@@ -449,8 +507,17 @@ function CommandesAdminInner() {
           <div style={{ textAlign: 'center', color: '#C8B99A', padding: '40px 0', fontSize: 14 }}>Aucune commande</div>
         )}
         {orders.map(order => {
-          const sc = STATUS_COLORS[order.status] || STATUS_COLORS['nouvelle']
-          const rawTransitions = STATUS_TRANSITIONS[order.status] || []
+          const status = order.status || 'nouvelle'
+          const customerAddress = order.customer_address ?? ''
+          const createdAt = order.created_at ? new Date(order.created_at) : null
+          const slotForOrder: DeliverySlotRow | null = order.slot_id ? slots[order.slot_id] ?? null : null
+          const driverInfoForOrder: { full_name: string; phone: string } | null = order.driver_id ? driverInfos[order.driver_id] ?? null : null
+          const sc = STATUS_COLORS[status] || STATUS_COLORS['nouvelle']
+          const assignedDriver = order.driver_id ? driverInfos[order.driver_id] : undefined
+          const topStatusLabel = status === 'en_livraison'
+            ? (assignedDriver?.full_name || 'Livreur assigné')
+            : (STATUS_LABELS[status] ?? status)
+          const rawTransitions = STATUS_TRANSITIONS[status] || []
           const transitions = order.delivery_mode === 'pickup'
             ? rawTransitions.map((s: string) => s === 'en_livraison' ? 'livrée' : s)
             : rawTransitions
@@ -462,13 +529,13 @@ function CommandesAdminInner() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 15, color: '#F5EDD6' }}>{order.customer_name}</div>
-                  <div style={{ fontSize: 11, color: '#C8B99A', marginTop: 3 }}>{order.customer_phone} · {order.customer_address?.slice(0, 40)}{order.customer_address?.length > 40 ? '…' : ''}</div>
-                  <div style={{ fontSize: 10, color: '#A89880', marginTop: 2 }}>#{order.id.slice(0,8).toUpperCase()} · {new Date(order.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                  <div style={{ fontSize: 11, color: '#C8B99A', marginTop: 3 }}>{order.customer_phone} · {customerAddress.slice(0, 40)}{customerAddress.length > 40 ? '…' : ''}</div>
+                  <div style={{ fontSize: 10, color: '#A89880', marginTop: 2 }}>#{order.id.slice(0, 8).toUpperCase()} · {createdAt ? createdAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '--:--'}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: '#F5C842', fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap' }}>{order.total.toFixed(2)} <span style={{ fontSize: 13 }}>{currency}</span></div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#F5C842', fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap' }}>{(order.total ?? 0).toFixed(2)} <span style={{ fontSize: 13 }}>{currency}</span></div>
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end', marginTop: 4 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 50, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`, display: 'inline-block' }}>{STATUS_LABELS[order.status]}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 50, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`, display: 'inline-block' }}>{topStatusLabel}</span>
                     {order.delivery_mode && (
                       <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 50, background: order.delivery_mode === 'pickup' ? 'rgba(232,160,32,0.1)' : 'rgba(91,197,122,0.1)', color: order.delivery_mode === 'pickup' ? '#E8A020' : '#5BC57A', border: `1px solid ${order.delivery_mode === 'pickup' ? 'rgba(232,160,32,0.25)' : 'rgba(91,197,122,0.25)'}`, display: 'inline-block' }}>
                         {order.delivery_mode === 'pickup' ? '🏪 Retrait' : '🛵 Livraison'}
@@ -480,7 +547,7 @@ function CommandesAdminInner() {
 
               {/* ITEMS */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                {order.order_items?.map((item: any) => (
+                {order.order_items?.map((item: OrderItemRow) => (
                   <span key={item.id} style={{ background: 'rgba(232,160,32,0.07)', border: '1px solid rgba(232,160,32,0.12)', color: '#C8B890', padding: '3px 10px', borderRadius: 50, fontSize: 11, fontWeight: 500 }}>
                     {item.quantity}× {item.product_name}{item.variant_name ? ` (${item.variant_name})` : ''}{item.variant_name ? ` (${item.variant_name})` : ''}
                   </span>
@@ -488,13 +555,13 @@ function CommandesAdminInner() {
               </div>
 
               {/* DÉTAIL LIVRAISON */}
-              {(order.delivery_fee > 0 || order.delivery_mode === 'pickup') && (
+              {((order.delivery_fee ?? 0) > 0 || order.delivery_mode === 'pickup') && (
                 <div style={{ fontSize: 11, color: '#C8B99A', fontFamily: 'DM Sans, sans-serif', marginBottom: 10 }}>
                   {order.delivery_mode === 'pickup'
                     ? 'Retrait sur place'
                     : order.delivery_fee === 0
                       ? `Livraison gratuite · ${order.distance_km ? Number(order.distance_km).toFixed(2) : '?'} km`
-                      : `Livraison · ${order.distance_km ? Number(order.distance_km).toFixed(2) : '?'} km · ${order.delivery_fee} ${currency}`}
+                      : `Livraison · ${order.distance_km ? Number(order.distance_km).toFixed(2) : '?'} km · ${order.delivery_fee ?? 0} ${currency}`}
                 </div>
               )}
 
@@ -507,7 +574,7 @@ function CommandesAdminInner() {
                 <a href={`https://wa.me/${cleanPhone(order.customer_phone)}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.2)', background: 'rgba(91,197,122,0.06)', color: '#5BC57A', textDecoration: 'none', fontSize: 11, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
                   <IconChat /> WhatsApp
                 </a>
-                {order.lat && order.lng && (
+                {order.lat !== null && order.lat !== undefined && order.lng !== null && order.lng !== undefined && (
                   <a href={`https://www.google.com/maps?q=${order.lat},${order.lng}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, border: '1px solid rgba(255,107,32,0.2)', background: 'rgba(255,107,32,0.06)', color: '#FF6B20', textDecoration: 'none', fontSize: 11, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
                     <IconPin /> Maps
                   </a>
@@ -550,28 +617,28 @@ function CommandesAdminInner() {
                           style={{ background: '#1A1510', border: '1px solid rgba(232,160,32,0.25)', color: pending ? (STATUS_COLORS[pending]?.color || '#E8A020') : '#7A6E58', borderRadius: 8, padding: '7px 32px 7px 12px', fontSize: 12, fontWeight: 700, outline: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', appearance: 'none', WebkitAppearance: 'none' }}
                         >
                           <option value="" disabled style={{ background: '#131009', color: '#7A6E58' }}>— Changer statut —</option>
-                          {transitions.map(s => (
+                          {transitions.map((s: string) => (
                             <option key={s} value={s} style={{ background: '#131009', color: '#F5EDD6' }}>{order.delivery_mode === 'pickup' && s === 'livrée' ? 'Retirée' : STATUS_LABELS[s]}</option>
                           ))}
                         </select>
                         <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: pending ? (STATUS_COLORS[pending]?.color || '#E8A020') : '#7A6E58', fontSize: 10 }}>▾</span>
                       </div>
                     ) : (
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 50, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}>{STATUS_LABELS[order.status]}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 50, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}>{STATUS_LABELS[status]}</span>
                     )}
                   </div>
-                  {pending && pending !== order.status && (() => {
+                  {pending && pending !== status && (() => {
                     const btnStyle = { marginTop: 10, display: 'inline-block', float: 'right' as const, background: '#25D366', color: '#0A0804', borderRadius: 50, padding: '6px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'none', border: 'none' }
                     if (pending === 'en_livraison' && !order.driver_id) return null
                     const waUrl = buildWhatsAppUrl(
                       order,
-                      slots[order.slot_id] ?? null,
+                      slotForOrder,
                       pending,
                       formatDate,
                       shopAddress,
                       pending === 'livrée' ? factureUrls[order.id] : undefined,
                       currency,
-                      driverInfos[order.driver_id] ?? null
+                      driverInfoForOrder
                     )
                     if (!waUrl) return null
                     return (

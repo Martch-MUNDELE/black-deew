@@ -1,7 +1,10 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image, { type ImageLoaderProps } from 'next/image'
 import { createClient } from '@/lib/supabase/client'
+
+const notFoundImageLoader = ({ src }: ImageLoaderProps) => src
 
 export default function NotFound() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -126,14 +129,16 @@ export default function NotFound() {
 
         {/* Image hero dynamique ou SVG fallback */}
         {heroImage ? (
-          <img
+          <Image
+            loader={notFoundImageLoader}
             src={heroImage}
             alt="hero"
+            width={308}
+            height={308}
+            unoptimized
             style={{
               position: 'relative',
               zIndex: 2,
-              width: 308,
-              height: 308,
               objectFit: 'contain',
               filter: 'drop-shadow(0 8px 40px rgba(245,200,66,0.25))',
             }}
@@ -184,11 +189,11 @@ export default function NotFound() {
       </div>
 
       <div style={{ fontSize: 18, fontWeight: 600, color: '#F5EDD6', marginBottom: 8 }}>
-        Cette page n'existe pas
+        {'Cette page n’existe pas'}
       </div>
 
       <div style={{ fontSize: 14, color: '#8A7A60', marginBottom: 40, textAlign: 'center', maxWidth: 300, lineHeight: 1.6 }}>
-        Elle s'est peut-être perdue en route, comme une commande sans adresse.
+        {'Elle s’est peut-être perdue en route, comme une commande sans adresse.'}
       </div>
 
       <button
@@ -206,7 +211,7 @@ export default function NotFound() {
           letterSpacing: '0.3px',
         }}
       >
-        Retour à l'accueil
+        {'Retour à l’accueil'}
       </button>
     </div>
   )

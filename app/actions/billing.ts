@@ -1,6 +1,6 @@
 'use server'
 import { createClient } from '@/lib/supabase/server'
-import type { CommissionRule, BillingPeriod } from '@/lib/types/billing'
+import type { CommissionRule } from '@/lib/types/billing'
 
 export async function recalculatePeriod(periodId: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()

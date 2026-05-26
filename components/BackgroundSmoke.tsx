@@ -4,6 +4,11 @@ import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import SmokeEffect from '@/components/SmokeEffect'
 
+type BackgroundSettingRow = {
+  key: string
+  value: string | null
+}
+
 export default function BackgroundSmoke() {
   const [heroImage, setHeroImage] = useState('')
   const [backgroundImage, setBackgroundImage] = useState('/background-home.jpg')
@@ -23,11 +28,12 @@ export default function BackgroundSmoke() {
       'background_type', 'background_color', 'background_gradient_start',
       'background_gradient_end', 'background_gradient_dir',
     ]).then(({ data }) => {
-      data?.forEach((s: any) => {
+      const settingsRows = (data || []) as BackgroundSettingRow[]
+      settingsRows.forEach((s) => {
         if (s.key === 'hero_image' && s.value) setHeroImage(s.value)
         if (s.key === 'background_image' && s.value) setBackgroundImage(s.value)
-        if (s.key === 'background_image_active') setBgImageActive(s.value)
-        if (s.key === 'background_type') setBgType(s.value)
+        if (s.key === 'background_image_active' && s.value) setBgImageActive(s.value)
+        if (s.key === 'background_type' && s.value) setBgType(s.value)
         if (s.key === 'background_color' && s.value) setBgColor(s.value)
         if (s.key === 'background_gradient_start' && s.value) setBgGradStart(s.value)
         if (s.key === 'background_gradient_end' && s.value) setBgGradEnd(s.value)
@@ -52,10 +58,20 @@ export default function BackgroundSmoke() {
       <div style={{ position: 'absolute', inset: 0, maxWidth: 600, margin: '0 auto' }}>
 
         {/* Background Kinshasa nuit — zIndex 0 */}
-        <img
-          src={backgroundImage}
-          alt=""
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', opacity: 0.35, zIndex: 0 }}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            backgroundImage: `url(${backgroundImage})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center top',
+            backgroundRepeat: 'no-repeat',
+            opacity: 0.35,
+            zIndex: 0,
+          }}
         />
 
         {/* Fondu haut navbar */}
@@ -69,7 +85,22 @@ export default function BackgroundSmoke() {
 
         {/* Burger — zIndex 2 */}
         {heroImage && (
-          <img src={heroImage} alt="" style={{ position: 'absolute', bottom: 0, right: 0, width: 'min(75%, 450px)', height: 'min(55%, 360px)', objectFit: 'contain', objectPosition: 'right bottom', opacity: 0.95, zIndex: 2 }} />
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              right: 0,
+              width: 'min(75%, 450px)',
+              height: 'min(55%, 360px)',
+              backgroundImage: `url(${heroImage})`,
+              backgroundSize: 'contain',
+              backgroundPosition: 'right bottom',
+              backgroundRepeat: 'no-repeat',
+              opacity: 0.95,
+              zIndex: 2,
+            }}
+          />
         )}
 
         {/* Halo chaud burger */}

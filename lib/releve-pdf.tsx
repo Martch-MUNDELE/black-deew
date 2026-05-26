@@ -7,7 +7,44 @@ const cream = '#F5EDD6'
 const muted = '#C8B99A'
 const border = '#2A2318'
 const green = '#5BC57A'
-const blue = '#38B6FF'
+
+type BillingPeriodForPdf = {
+  period_start?: string | null
+  period_end?: string | null
+  status?: string | null
+  orders_count?: number | null
+  orders_base_amount?: number | null
+  flat_fee_amount?: number | null
+  commission_amount?: number | null
+  adjustments_total?: number | null
+  total_due?: number | null
+  total_paid?: number | null
+}
+
+type BillingContractForPdf = {
+  billing_mode?: string | null
+} | null
+
+type RelevePDFProps = {
+  period: BillingPeriodForPdf
+  contract?: BillingContractForPdf
+  siteName?: string
+  siteBaseline?: string
+  clientEmail?: string
+  currency?: string
+}
+
+const asNumber = (value: number | null | undefined) => value ?? 0
+const asText = (value: string | null | undefined, fallback = '—') => value ?? fallback
+
+const formatDate = (value: string | null | undefined) => {
+  if (!value) return '—'
+  return new Date(value + 'T12:00:00').toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
 
 const styles = StyleSheet.create({
   page: { padding: 0, fontFamily: 'Helvetica', backgroundColor: dark },
@@ -53,18 +90,12 @@ export function RelevePDF({
   siteBaseline = 'Relevé de facturation',
   clientEmail = '',
   currency = 'DH',
-}: {
-  period: any
-  contract: any
-  siteName?: string
-  siteBaseline?: string
-  clientEmail?: string
-  currency?: string
-}) {
+}: RelevePDFProps) {
   const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
-  const periodStart = new Date(period.period_start + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
-  const periodEnd = new Date(period.period_end + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
-  const fmt = (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${currency}`
+  const periodStart = formatDate(period.period_start)
+  const periodEnd = formatDate(period.period_end)
+  const periodStatus = asText(period.status, 'en_cours')
+  const fmt = (n: number | null | undefined) => `${asNumber(n).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${currency}`
 
   const BILLING_MODE_LABELS: Record<string, string> = {
     flat_only: 'Abonnement fixe uniquement',
@@ -103,12 +134,12 @@ export function RelevePDF({
               </View>
               <View style={styles.row}>
                 <Text style={styles.rowLabel}>Mode de facturation</Text>
-                <Text style={styles.rowValue}>{BILLING_MODE_LABELS[contract?.billing_mode] ?? '—'}</Text>
+                <Text style={styles.rowValue}>{BILLING_MODE_LABELS[asText(contract?.billing_mode, '')] ?? '—'}</Text>
               </View>
               <View style={styles.rowLast}>
                 <Text style={styles.rowLabel}>Statut période</Text>
-                <Text style={{ ...styles.rowValue, color: period.status === 'paye' ? green : period.status === 'facture' ? gold : cream }}>
-                  {STATUS_LABELS[period.status] ?? period.status}
+                <Text style={{ ...styles.rowValue, color: periodStatus === 'paye' ? green : periodStatus === 'facture' ? gold : cream }}>
+                  {STATUS_LABELS[periodStatus] ?? periodStatus}
                 </Text>
               </View>
             </View>
@@ -120,7 +151,7 @@ export function RelevePDF({
             <View style={styles.sectionCard}>
               <View style={styles.row}>
                 <Text style={styles.rowLabel}>Commandes livrées</Text>
-                <Text style={styles.rowValue}>{period.orders_count}</Text>
+                <Text style={styles.rowValue}>{asNumber(period.orders_count)}</Text>
               </View>
               <View style={styles.rowLast}>
                 <Text style={styles.rowLabel}>Base de calcul</Text>
@@ -141,11 +172,11 @@ export function RelevePDF({
                 <Text style={styles.rowLabel}>Commission</Text>
                 <Text style={styles.rowValue}>{fmt(period.commission_amount)}</Text>
               </View>
-              {period.adjustments_total !== 0 && (
+              {asNumber(period.adjustments_total) !== 0 && (
                 <View style={styles.row}>
                   <Text style={styles.rowLabel}>Ajustements</Text>
-                  <Text style={{ ...styles.rowValue, color: period.adjustments_total < 0 ? green : '#FF6B6B' }}>
-                    {period.adjustments_total > 0 ? '+' : ''}{fmt(period.adjustments_total)}
+                  <Text style={{ ...styles.rowValue, color: asNumber(period.adjustments_total) < 0 ? green : '#FF6B6B' }}>
+                    {asNumber(period.adjustments_total) > 0 ? '+' : ''}{fmt(period.adjustments_total)}
                   </Text>
                 </View>
               )}
@@ -153,7 +184,7 @@ export function RelevePDF({
                 <Text style={styles.totalLabel}>Total dû</Text>
                 <Text style={styles.totalValue}>{fmt(period.total_due)}</Text>
               </View>
-              {period.total_paid > 0 && (
+              {asNumber(period.total_paid) > 0 && (
                 <View style={styles.paidBadge}>
                   <Text style={styles.paidText}>✓ Payé : {fmt(period.total_paid)}</Text>
                 </View>

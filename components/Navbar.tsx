@@ -1,9 +1,10 @@
 'use client'
 import Link from 'next/link'
+import Image, { type ImageLoaderProps } from 'next/image'
 import { useCart } from '@/store/cart'
 import { usePathname } from 'next/navigation'
 import { useCatalogue } from '@/store/catalogue'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import Logo from '@/components/Logo'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -14,6 +15,10 @@ import {
   Tag, Percent, Gift, Award, Zap, Sparkles, ThumbsUp,
   type LucideIcon,
 } from 'lucide-react'
+
+const navbarImageLoader = ({ src }: ImageLoaderProps) => src
+
+type SettingRow = { key: string; value: string | null }
 
 const LUCIDE_NAVBAR_MAP: Record<string, LucideIcon> = {
   UtensilsCrossed, Utensils, ChefHat, Pizza, Sandwich, Coffee,
@@ -63,7 +68,17 @@ const renderIcon = (id: string, size = 16): React.ReactNode => {
 
 const renderMenuIcon = (icon_type: string, icon_value: string, size = 16): React.ReactNode => {
   if (icon_type === 'custom' && icon_value) {
-    return <img src={icon_value} width='100%' height='100%' style={{ objectFit: 'contain', padding: 2 }} alt="" />
+    return (
+      <Image
+        loader={navbarImageLoader}
+        src={icon_value}
+        alt=""
+        width={size}
+        height={size}
+        unoptimized
+        style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 2 }}
+      />
+    )
   }
   if (icon_type === 'builtin') {
     return renderIcon(icon_value, size)
@@ -87,38 +102,44 @@ export default function Navbar() {
   const isHome = pathname === '/'
   const [openDropdown, setOpenDropdown] = useState(false)
   const [groupes, setGroupes] = useState<GroupeItem[]>(GROUPES)
+  const supabase = useMemo(() => createClient(), [])
 
   // Sync depuis store quand menuGroupes disponibles (chargés par CatalogueClient)
   useEffect(() => {
-    if (storeGroupes && storeGroupes.length > 0) {
-      // Merger avec icônes déjà chargées si disponibles
-      setGroupes(prev => {
-        return storeGroupes.map(sg => {
-          const existing = prev.find(p => p.id === sg.id)
-          return {
-            id: sg.id,
-            label: sg.label,
-            emoji: existing?.emoji ?? sg.id,
-            icon_type: existing?.icon_type ?? 'builtin',
-            sous: sg.sous.map(ss => {
-              const exs = existing?.sous.find(p => p.id === ss.id)
-              return { id: ss.id, label: ss.label, emoji: exs?.emoji ?? ss.id, icon_type: exs?.icon_type ?? 'builtin' }
-            })
-          }
-        })
-      })
-    }
+    if (!storeGroupes || storeGroupes.length === 0) return
+
+    Promise.resolve().then(() => {
+      setGroupes(prev => storeGroupes.map(sg => {
+        const existing = prev.find(p => p.id === sg.id)
+        return {
+          id: sg.id,
+          label: sg.label,
+          emoji: existing?.emoji ?? sg.id,
+          icon_type: existing?.icon_type ?? 'builtin',
+          sous: sg.sous.map(ss => {
+            const exs = existing?.sous.find(p => p.id === ss.id)
+            return { id: ss.id, label: ss.label, emoji: exs?.emoji ?? ss.id, icon_type: exs?.icon_type ?? 'builtin' }
+          })
+        }
+      }))
+    })
   }, [storeGroupes])
   const dropRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    setMounted(true)
-    const supabase = createClient()
+    let cancelled = false
+
+    Promise.resolve().then(() => {
+      if (!cancelled) setMounted(true)
+    })
+
     supabase.from('settings').select('*').then(({ data }) => {
-      data?.forEach((s: any) => {
+      if (cancelled) return
+
+      data?.forEach((s: SettingRow) => {
         if (s.key === 'status') setIsOpen(s.value === 'open')
-        if (s.key === 'site_name') setSiteName(s.value)
-        if (s.key === 'site_baseline') setSiteBaseline(s.value)
+        if (s.key === 'site_name') setSiteName(s.value ?? 'Black Deew')
+        if (s.key === 'site_baseline') setSiteBaseline(s.value ?? 'AGADIR · LIVRAISON')
         if (s.key === 'site_logo') {
           if (s.value) {
             const base = s.value.split('?')[0]
@@ -127,24 +148,32 @@ export default function Navbar() {
             setSiteLogo('')
           }
         }
-        if (s.key === 'menu_placeholder') setMenuPlaceholder(s.value)
-        if (s.key === 'menu_placeholder_icon') setMenuPlaceholderIcon(s.value)
-        if (s.key === 'menu_placeholder_icon_type') setMenuPlaceholderIconType(s.value as 'builtin' | 'custom')
-        if (s.key === 'menu_placeholder_builtin_icon') setMenuPlaceholderBuiltinIcon(s.value)
+        if (s.key === 'menu_placeholder') setMenuPlaceholder(s.value ?? "Qu'est-ce qui te fait envie ?")
+        if (s.key === 'menu_placeholder_icon') setMenuPlaceholderIcon(s.value ?? '')
+        if (s.key === 'menu_placeholder_icon_type') setMenuPlaceholderIconType(s.value === 'custom' ? 'custom' : 'builtin')
+        if (s.key === 'menu_placeholder_builtin_icon') setMenuPlaceholderBuiltinIcon(s.value ?? 'Coffee')
       })
     })
+
     supabase.from('menu_categories').select('*').then(({ data }) => {
+      if (cancelled) return
       if (data && data.length > 0) {
         const built = buildGroupes(data as MenuCat[])
         if (built.length > 0) setGroupes(built)
       }
     })
+
     const handleClick = (e: MouseEvent) => {
       if (dropRef.current && !dropRef.current.contains(e.target as Node)) setOpenDropdown(false)
     }
+
     document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
+
+    return () => {
+      cancelled = true
+      document.removeEventListener('mousedown', handleClick)
+    }
+  }, [supabase])
 
   const handleSelect = (groupeId: string, sousId?: string) => {
     const g = groupes.find(g => g.id === groupeId)
@@ -167,7 +196,15 @@ export default function Navbar() {
         <Link href="/" style={{ textDecoration: 'none' }} onClick={() => { setHasSelected(false) }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {siteLogo === null ? <div style={{ width: 64, height: 64, flexShrink: 0 }} /> : siteLogo ? (
-                <img src={siteLogo} alt={siteName} style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 8, flexShrink: 0 }} />
+                <Image
+                  loader={navbarImageLoader}
+                  src={siteLogo}
+                  alt={siteName}
+                  width={64}
+                  height={64}
+                  unoptimized
+                  style={{ objectFit: 'contain', borderRadius: 8, flexShrink: 0 }}
+                />
               ) : (
                 <Logo size={52} />
               )}

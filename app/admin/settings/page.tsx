@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useMemo, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -7,6 +7,11 @@ const labelStyle = { fontSize: 11, fontWeight: 700, color: '#C8B99A', display: '
 const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(255,255,255,0.03)', color: '#F5EDD6', fontSize: 13, outline: 'none', fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' as const }
 
 type Feature = { icon: string; title: string; desc: string }
+
+type SettingsRow = {
+  key: string
+  value: string | null
+}
 
 const TABS = [
   { key: 'statut', label: 'Statut' },
@@ -67,40 +72,41 @@ function SettingsContent() {
   const [footerSubtitle, setFooterSubtitle] = useState('Directement chez toi.')
   const [footerDescription, setFooterDescription] = useState('Plats chauds, boissons fraîches et snacks livrés rapidement.')
   const [currency, setCurrency] = useState('DH')
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     supabase.from('settings').select('*').then(({ data }) => {
-      data?.forEach((s: any) => {
-        if (s.key === 'status') setStatus(s.value)
-        if (s.key === 'status_message') setStatusMessage(s.value)
-        if (s.key === 'hero_image') setHeroImage(s.value)
-        if (s.key === 'background_image') setBackgroundImage(s.value)
-        if (s.key === 'site_name') setSiteName(s.value)
-        if (s.key === 'site_baseline') setSiteBaseline(s.value)
-        if (s.key === 'site_description') setSiteDescription(s.value)
-        if (s.key === 'site_logo') setSiteLogo(s.value)
-        if (s.key === 'feature_1') { try { setFeature1(JSON.parse(s.value)) } catch {} }
-        if (s.key === 'feature_1_active') setFeature1Active(s.value !== 'false')
-        if (s.key === 'feature_2_active') setFeature2Active(s.value !== 'false')
-        if (s.key === 'feature_3_active') setFeature3Active(s.value !== 'false')
-        if (s.key === 'feature_2') { try { setFeature2(JSON.parse(s.value)) } catch {} }
-        if (s.key === 'feature_3') { try { setFeature3(JSON.parse(s.value)) } catch {} }
-        if (s.key === 'background_image_active') setBgImageActive(s.value)
-        if (s.key === 'background_type') setBgType(s.value)
-        if (s.key === 'background_color' && s.value) setBgColor(s.value)
-        if (s.key === 'background_gradient_start' && s.value) setBgGradStart(s.value)
-        if (s.key === 'background_gradient_end' && s.value) setBgGradEnd(s.value)
-        if (s.key === 'background_gradient_dir' && s.value) setBgGradDir(s.value)
-        if (s.key === 'notification_email') setNotificationEmail(s.value)
-        if (s.key === 'footer_line1') setFooterLine1(s.value)
-        if (s.key === 'footer_line2') setFooterLine2(s.value)
-        if (s.key === 'footer_subtitle') setFooterSubtitle(s.value)
-        if (s.key === 'footer_description') setFooterDescription(s.value)
-        if (s.key === 'currency') setCurrency(s.value)
+      ;((data || []) as SettingsRow[]).forEach((s) => {
+        const value = s.value ?? ''
+        if (s.key === 'status') setStatus(value)
+        if (s.key === 'status_message') setStatusMessage(value)
+        if (s.key === 'hero_image') setHeroImage(value)
+        if (s.key === 'background_image') setBackgroundImage(value)
+        if (s.key === 'site_name') setSiteName(value)
+        if (s.key === 'site_baseline') setSiteBaseline(value)
+        if (s.key === 'site_description') setSiteDescription(value)
+        if (s.key === 'site_logo') setSiteLogo(value)
+        if (s.key === 'feature_1') { try { setFeature1(JSON.parse(value)) } catch {} }
+        if (s.key === 'feature_1_active') setFeature1Active(value !== 'false')
+        if (s.key === 'feature_2_active') setFeature2Active(value !== 'false')
+        if (s.key === 'feature_3_active') setFeature3Active(value !== 'false')
+        if (s.key === 'feature_2') { try { setFeature2(JSON.parse(value)) } catch {} }
+        if (s.key === 'feature_3') { try { setFeature3(JSON.parse(value)) } catch {} }
+        if (s.key === 'background_image_active') setBgImageActive(value)
+        if (s.key === 'background_type') setBgType(value)
+        if (s.key === 'background_color' && value) setBgColor(value)
+        if (s.key === 'background_gradient_start' && value) setBgGradStart(value)
+        if (s.key === 'background_gradient_end' && value) setBgGradEnd(value)
+        if (s.key === 'background_gradient_dir' && value) setBgGradDir(value)
+        if (s.key === 'notification_email') setNotificationEmail(value)
+        if (s.key === 'footer_line1') setFooterLine1(value)
+        if (s.key === 'footer_line2') setFooterLine2(value)
+        if (s.key === 'footer_subtitle') setFooterSubtitle(value)
+        if (s.key === 'footer_description') setFooterDescription(value)
+        if (s.key === 'currency') setCurrency(value)
       })
     })
-  }, [])
+  }, [supabase])
 
   const uploadLogo = async (file: File) => {
     const previewUrl = URL.createObjectURL(file)
@@ -209,7 +215,7 @@ function SettingsContent() {
           <label style={labelStyle}>Logo</label>
           {siteLogo && (
             <div style={{ marginBottom: 12, borderRadius: 12, overflow: 'hidden', height: 350, background: '#0A0804', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-              <img src={siteLogo} alt="Logo" style={{ width: '320px', height: '320px', objectFit: 'contain' }} />
+              <span role="img" aria-label="Logo" style={{ width: '320px', height: '320px', display: 'inline-block', backgroundImage: `url(${siteLogo})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} />
               <button onClick={() => setSiteLogo('')} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: '#F5EDD6', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '4px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Supprimer</button>
             </div>
           )}
@@ -239,7 +245,7 @@ function SettingsContent() {
             <>
               {backgroundImage && (
                 <div style={{ marginBottom: 14, borderRadius: 12, overflow: 'hidden', height: 120, position: 'relative' }}>
-                  <img src={backgroundImage} alt="Background" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <span role="img" aria-label="Background" style={{ width: '100%', height: '100%', display: 'inline-block', backgroundImage: `url(${backgroundImage})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} />
                   <button onClick={() => setBackgroundImage('')} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: '#F5EDD6', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '4px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Supprimer</button>
                 </div>
               )}
@@ -305,10 +311,10 @@ function SettingsContent() {
 
       {activeTab === 'hero' && (
         <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: '22px 24px', marginBottom: 20 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 16 }}>Image Hero (page d'accueil)</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 16 }}>Image Hero (page d&apos;accueil)</div>
           {heroImage && (
             <div style={{ marginBottom: 14, borderRadius: 12, overflow: 'hidden', height: 180, position: 'relative' }}>
-              <img src={heroImage} alt="Hero" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <span role="img" aria-label="Hero" style={{ width: '100%', height: '100%', display: 'inline-block', backgroundImage: `url(${heroImage})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} />
               <button onClick={() => setHeroImage('')} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: '#F5EDD6', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '4px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Supprimer</button>
             </div>
           )}
@@ -380,7 +386,7 @@ function SettingsContent() {
             style={inputStyle}
           />
           <div style={{ fontSize: 11, color: '#7A6E58', marginTop: 8, fontFamily: 'DM Sans, sans-serif' }}>
-            Si vide, l'email par défaut du serveur sera utilisé.
+            Si vide, l&apos;email par défaut du serveur sera utilisé.
           </div>
         </div>
       )}

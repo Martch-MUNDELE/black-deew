@@ -1,7 +1,14 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
+import type { DocumentProps } from '@react-pdf/renderer'
 import { RelevePDF } from '@/lib/releve-pdf'
+import type { ReactElement } from 'react'
+
+type SettingRow = {
+  key: string
+  value: string | null
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL as string,
@@ -38,9 +45,10 @@ export async function GET(req: NextRequest) {
 
   // Charger settings (siteName, siteBaseline, currency)
   const { data: settings } = await supabase.from('settings').select('*')
-  const siteName = settings?.find((s: any) => s.key === 'site_name')?.value || 'Plateforme'
-  const siteBaseline = settings?.find((s: any) => s.key === 'site_baseline')?.value || 'Relevé de facturation'
-  const currency = settings?.find((s: any) => s.key === 'currency')?.value || 'DH'
+  const settingsRows = (settings || []) as SettingRow[]
+  const siteName = settingsRows.find((s) => s.key === 'site_name')?.value || 'Plateforme'
+  const siteBaseline = settingsRows.find((s) => s.key === 'site_baseline')?.value || 'Relevé de facturation'
+  const currency = settingsRows.find((s) => s.key === 'currency')?.value || 'DH'
 
   const pdfBuffer = await renderToBuffer(
     RelevePDF({
@@ -50,7 +58,7 @@ export async function GET(req: NextRequest) {
       siteBaseline,
       clientEmail: admin?.email || '',
       currency,
-    }) as any
+    }) as ReactElement<DocumentProps>
   )
 
   const start = period.period_start.replace(/-/g, '')

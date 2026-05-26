@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 type Slot = {
@@ -19,7 +19,12 @@ export default function SlotPicker({ onSelect }: { onSelect: (id: string) => voi
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedSlot, setSelectedSlot] = useState('')
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
+  const onSelectRef = useRef(onSelect)
+
+  useEffect(() => {
+    onSelectRef.current = onSelect
+  }, [onSelect])
 
   useEffect(() => {
     const load = async () => {
@@ -53,14 +58,14 @@ export default function SlotPicker({ onSelect }: { onSelect: (id: string) => voi
           setSelectedDate(result[0].date)
           if (result[0].slots.length > 0) {
             setSelectedSlot(result[0].slots[0].id)
-            onSelect(result[0].slots[0].id)
+            onSelectRef.current(result[0].slots[0].id)
           }
         }
       }
       setLoading(false)
     }
     load()
-  }, [])
+  }, [supabase])
 
   const daySlots = groups.find(g => g.date === selectedDate)?.slots ?? []
 

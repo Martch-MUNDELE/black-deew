@@ -1,11 +1,14 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
+import { useCallback, useEffect, useMemo, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Image, { type ImageLoaderProps } from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useCurrency } from '@/lib/currency'
 
 import type { Product } from '@/lib/types'
+
+const adminProductImageLoader = ({ src }: ImageLoaderProps) => src
 
 
 
@@ -25,24 +28,25 @@ const IconTrash = () => (
 
 function ProduitsAdminInner() {
   const [products, setProducts] = useState<Product[]>([])
-  const [subcats, setSubcats] = useState<{slug: string, name: string}[]>([])
+  const [subcats, setSubcats] = useState<{slug: string, name: string, parent_id: string | null}[]>([])
   const [parentCats, setParentCats] = useState<{id: string, slug: string, name: string}[]>([])
   const currency = useCurrency()
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState(() => searchParams.get('tab') || 'actifs')
+  const searchTab = searchParams.get('tab') || 'actifs'
+  const [tab, setTab] = useState(() => searchTab)
   const [search, setSearch] = useState('')
   const [filterCat, setFilterCat] = useState('')
   const [openCatDropdown, setOpenCatDropdown] = useState(false)
   const [stockEnabled, setStockEnabled] = useState(false)
   const [editingStock, setEditingStock] = useState<{id: string, value: string} | null>(null)
   useEffect(() => {
-    const t = searchParams.get('tab')
-    if (t && t !== tab) setTab(t)
-  }, [searchParams])
-  const supabase = createClient()
+    if (searchTab === tab) return
+    Promise.resolve().then(() => setTab(searchTab))
+  }, [searchTab, tab])
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
 
-  const loadCats = async () => {
+  const loadCats = useCallback(async () => {
     const { data: stockRows } = await supabase.from('settings').select('value').eq('key', 'stock_enabled')
     setStockEnabled(stockRows?.[0]?.value === 'true')
     const [{ data: parents }, { data: children }] = await Promise.all([
@@ -50,39 +54,59 @@ function ProduitsAdminInner() {
       supabase.from('menu_categories').select('slug,name,parent_id').eq('level', 1).eq('active', true).order('display_order'),
     ])
     setParentCats((parents as {id: string, slug: string, name: string}[]) || [])
-    setSubcats((children as {slug: string, name: string, parent_id: string}[]) || [])
-  }
+    setSubcats((children as {slug: string, name: string, parent_id: string | null}[]) || [])
+  }, [supabase])
 
-  const loadProducts = async (cat: string) => {
+  const loadProducts = useCallback(async (cat: string) => {
     if (!cat) { setProducts([]); return }
     const { data: prods } = await supabase.from('products').select('*').eq('subcategory', cat).order('name')
     setProducts((prods as Product[]) || [])
-  }
-  const loadAllProducts = async () => {
+  }, [supabase])
+  const loadAllProducts = useCallback(async () => {
     const { data: prods } = await supabase.from('products').select('*').order('name')
     setProducts((prods as Product[]) || [])
-  }
+  }, [supabase])
 
-  const searchProducts = async (q: string) => {
+  const searchProducts = useCallback(async (q: string) => {
     if (!q.trim()) { setProducts([]); return }
     const { data: prods } = await supabase.from('products').select('*').ilike('name', '%' + q + '%').order('name')
     setProducts((prods as Product[]) || [])
-  }
+  }, [supabase])
 
   useEffect(() => {
-    loadCats()
-    if (tab === 'vip') loadAllProducts()
-  }, [])
+    Promise.resolve().then(async () => {
+      await loadCats()
+      if (tab === 'vip') await loadAllProducts()
+    })
+  }, [loadCats, loadAllProducts, tab])
 
   useEffect(() => {
-    if (!search) { if (filterCat) loadProducts(filterCat); else setProducts([]); return }
-    const t = setTimeout(() => searchProducts(search), 300)
+    if (!search) {
+      Promise.resolve().then(() => {
+        if (filterCat) {
+          void loadProducts(filterCat)
+        } else {
+          setProducts([])
+        }
+      })
+      return
+    }
+
+    const t = setTimeout(() => {
+      void searchProducts(search)
+    }, 300)
+
     return () => clearTimeout(t)
-  }, [search])
+  }, [search, filterCat, loadProducts, searchProducts])
 
   useEffect(() => {
-    if (filterCat) { setSearch(''); loadProducts(filterCat) }
-  }, [filterCat])
+    if (!filterCat) return
+
+    Promise.resolve().then(() => {
+      setSearch('')
+      void loadProducts(filterCat)
+    })
+  }, [filterCat, loadProducts])
 
   const del = async (id: string) => {
     if (!window.confirm('Supprimer ce produit ?')) return
@@ -186,7 +210,7 @@ function ProduitsAdminInner() {
           onClick={() => setOpenCatDropdown(o => !o)}
           style={{ width: '100%', padding: '10px 16px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.2)', background: '#131009', color: filterCat ? '#F5C842' : '#7A6E58', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: 600, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', outline: 'none' }}
         >
-          <span>{filterCat ? (subcats as any[]).find((s: any) => s.slug === filterCat)?.name : 'Sélectionner une catégorie'}</span>
+          <span>{filterCat ? subcats.find(s => s.slug === filterCat)?.name : 'Sélectionner une catégorie'}</span>
           <span style={{ fontSize: 12, transition: 'transform 0.2s', display: 'inline-block', transform: openCatDropdown ? 'rotate(180deg)' : 'rotate(0deg)', color: '#E8A020' }}>⌄</span>
         </button>
         {openCatDropdown && (
@@ -200,7 +224,7 @@ function ProduitsAdminInner() {
               </button>
             )}
             {parentCats.map(parent => {
-              const children = (subcats as any[]).filter((s: any) => s.parent_id === parent.id)
+              const children = subcats.filter(s => s.parent_id === parent.id)
               const hasChildren = children.length > 0
               return (
                 <div key={parent.id}>
@@ -217,7 +241,7 @@ function ProduitsAdminInner() {
                       {filterCat === parent.slug && <span style={{ fontSize: 10, color: '#F5C842' }}>✓</span>}
                     </button>
                   )}
-                  {children.map((s: any) => (
+                  {children.map(s => (
                     <button
                       key={s.slug}
                       onClick={() => { setFilterCat(s.slug); setOpenCatDropdown(false) }}
@@ -266,7 +290,7 @@ function ProduitsAdminInner() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {items.map(p => (
               <div key={p.id} style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.1)', borderRadius: 14, padding: '14px 16px', display: 'flex', gap: 14, alignItems: 'center' }}>
-                {p.image_url && <img src={p.image_url} alt={p.name} style={{ width: 52, height: 52, borderRadius: 10, objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(232,160,32,0.1)' }} />}
+                {p.image_url && <Image loader={adminProductImageLoader} src={p.image_url} alt={p.name} width={64} height={64} unoptimized style={{ width: 52, height: 52, borderRadius: 10, objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(232,160,32,0.1)' }} />}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: '#F5EDD6' }}>{p.name}</div>
                   <div style={{ fontSize: 11, color: '#C8B99A', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -287,7 +311,7 @@ function ProduitsAdminInner() {
                             onChange={e => setEditingStock({ id: p.id, value: e.target.value })}
                             onBlur={() => saveStock(p.id, editingStock.value)}
                             onKeyDown={e => { if (e.key === 'Enter') saveStock(p.id, editingStock.value); if (e.key === 'Escape') setEditingStock(null) }}
-                            style={{ width: 80, padding: '2px 10px', borderRadius: 6, border: '1px solid rgba(245,200,66,0.3)', background: 'rgba(245,200,66,0.05)', color: '#F5EDD6', fontSize: 12, fontFamily: 'DM Sans, sans-serif', outline: 'none', MozAppearance: 'textfield' } as any}
+                            style={{ width: 80, padding: '2px 10px', borderRadius: 6, border: '1px solid rgba(245,200,66,0.3)', background: 'rgba(245,200,66,0.05)', color: '#F5EDD6', fontSize: 12, fontFamily: 'DM Sans, sans-serif', outline: 'none', MozAppearance: 'textfield' }}
                           />
 
                         </>

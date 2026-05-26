@@ -4,8 +4,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/lib/currency'
 import type { Order } from '@/lib/types'
 
-function timeAgo(dateStr: string): string {
-  const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000)
+function timeAgo(dateStr: string, nowMs: number): string {
+  const mins = Math.floor((nowMs - new Date(dateStr).getTime()) / 60000)
   if (mins < 1) return "a l'instant"
   if (mins < 60) return `il y a ${mins} min`
   const hrs = Math.floor(mins / 60)
@@ -23,28 +23,22 @@ const STATUS: Record<string, { label: string; color: string; bg: string }> = {
 }
 
 const PIPELINE = ['nouvelle', 'confirmée', 'en_preparation', 'en_livraison'] as const
+const DAY_MS = 86400000
+
+type OrderItemLite = {
+  is_vip?: boolean | null
+  unit_price?: number | null
+  quantity?: number | null
+}
 
 type OrderWithItems = Omit<Order, 'order_items'> & {
-  order_items?: any[]
+  order_items?: OrderItemLite[]
 }
 
 function isVipOrder(o: OrderWithItems): boolean {
   return !!(o.order_items?.some(i => i.is_vip === true))
 }
 
-function vipCATotal(o: OrderWithItems): number {
-  if (!o.order_items) return 0
-  return o.order_items
-    .filter(i => i.is_vip === true)
-    .reduce((s, i) => s + (i.unit_price || 0) * (i.quantity || 1), 0)
-}
-
-function classicCATotal(o: OrderWithItems): number {
-  if (!o.order_items) return 0
-  return o.order_items
-    .filter(i => !i.is_vip)
-    .reduce((s, i) => s + (i.unit_price || 0) * (i.quantity || 1), 0)
-}
 
 function KpiCardCA({ label, total, classic, vip, trend, currency }: {
   label: string; total: number; classic: number; vip: number; trend?: string; currency: string
@@ -125,6 +119,7 @@ export default function AdminDashboard() {
   const toastTimer = useRef<ReturnType<typeof setTimeout>|null>(null)
   const prevOrderIds = useRef<Set<string>>(new Set())
   const isFirstLoad = useRef(true)
+  const [dashboardNow] = useState(() => new Date())
 
   const fetchOrders = useCallback(async (supabase: ReturnType<typeof createClient>) => {
     const since = new Date(Date.now() - 30*86400000).toISOString()
@@ -135,7 +130,7 @@ export default function AdminDashboard() {
       .order('created_at', { ascending: false })
     const fetched: OrderWithItems[] = (data || []) as OrderWithItems[]
     if (!isFirstLoad.current) {
-      const newOnes = fetched.filter((o:any) => !prevOrderIds.current.has(o.id))
+      const newOnes = fetched.filter(o => !prevOrderIds.current.has(o.id))
       if (newOnes.length > 0) {
         const latest = newOnes[0]
         if (toastTimer.current) clearTimeout(toastTimer.current)
@@ -143,7 +138,7 @@ export default function AdminDashboard() {
         toastTimer.current = setTimeout(() => setToast(null), 8000)
       }
     }
-    prevOrderIds.current = new Set(fetched.map((o:any) => o.id))
+    prevOrderIds.current = new Set(fetched.map(o => o.id))
     isFirstLoad.current = false
     setOrders(fetched)
     setLoading(false)
@@ -164,8 +159,8 @@ export default function AdminDashboard() {
     }
   }, [fetchOrders])
 
-  const today     = new Date().toISOString().slice(0,10)
-  const yesterday = new Date(Date.now()-86400000).toISOString().slice(0,10)
+  const today     = dashboardNow.toISOString().slice(0,10)
+  const yesterday = new Date(dashboardNow.getTime() - DAY_MS).toISOString().slice(0,10)
 
   const todayO = orders.filter(o => o.created_at.slice(0,10) === today)
   const yestO  = orders.filter(o => o.created_at.slice(0,10) === yesterday)
@@ -186,7 +181,7 @@ export default function AdminDashboard() {
   const taux       = validTotal > 0 ? Math.round((livrees.length/validTotal)*100) : 0
 
   const chartData = Array.from({length:7}, (_,i) => {
-    const d   = new Date(Date.now()-(6-i)*86400000)
+    const d   = new Date(dashboardNow.getTime() - (6-i)*DAY_MS)
     const key = d.toISOString().slice(0,10)
     const dayOrders = orders.filter(o => o.created_at.slice(0,10) === key)
     const caC = dayOrders.filter(o => !isVipOrder(o)).reduce((s,o) => s+(o.total||0), 0)
@@ -196,11 +191,11 @@ export default function AdminDashboard() {
   const maxCA = Math.max(...chartData.map(d => d.classic+d.vip), 1)
 
   const weeklyData = Array.from({length:4}, (_,i) => {
-    const now = new Date()
+    const now = new Date(dashboardNow.getTime())
     const dow = now.getDay() || 7
-    const weekStart = new Date(Date.now() - (3-i)*7*86400000 - (dow-1)*86400000)
+    const weekStart = new Date(dashboardNow.getTime() - (3-i)*7*DAY_MS - (dow-1)*DAY_MS)
     weekStart.setHours(0,0,0,0)
-    const weekEnd = new Date(weekStart.getTime() + 7*86400000)
+    const weekEnd = new Date(weekStart.getTime() + 7*DAY_MS)
     const wo = orders.filter(o => { const d=new Date(o.created_at); return d>=weekStart && d<weekEnd })
     const caC = wo.filter(o => !isVipOrder(o)).reduce((s,o)=>s+(o.total||0),0)
     const caV = wo.filter(isVipOrder).reduce((s,o)=>s+(o.total||0),0)
@@ -209,7 +204,7 @@ export default function AdminDashboard() {
   })
   const maxWeekCA = Math.max(...weeklyData.map(d=>d.classic+d.vip),1)
   const dailyData30 = Array.from({length:30}, (_,i) => {
-    const d = new Date(Date.now()-(29-i)*86400000)
+    const d = new Date(dashboardNow.getTime() - (29-i)*DAY_MS)
     const key = d.toISOString().slice(0,10)
     const cnt = orders.filter(o=>o.created_at.slice(0,10)===key).length
     const dn = d.getDate()
@@ -249,7 +244,7 @@ export default function AdminDashboard() {
 
       <div style={{marginBottom:24}}>
         <h1 style={{fontFamily:'Playfair Display, serif',fontSize:28,fontWeight:800,color:'#F5EDD6',margin:'0 0 4px',letterSpacing:'-0.5px'}}>Dashboard</h1>
-        <p style={{color:'#8A7A60',fontSize:13,margin:0}}>{new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p>
+        <p style={{color:'#8A7A60',fontSize:13,margin:0}}>{dashboardNow.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</p>
       </div>
 
       {nouvelles.length > 0 && (
@@ -304,7 +299,7 @@ export default function AdminDashboard() {
                       </div>
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                         <span style={{fontSize:11,color:'#F5C842',fontWeight:600}}>{(o.total||0).toFixed(0)} {currency}</span>
-                        <span style={{fontSize:10,color:'#6A5A40'}}>{timeAgo(o.created_at)}</span>
+                        <span style={{fontSize:10,color:'#6A5A40'}}>{timeAgo(o.created_at, dashboardNow.getTime())}</span>
                       </div>
                     </a>
                   )
@@ -317,7 +312,7 @@ export default function AdminDashboard() {
 
       <div style={{background:'#131009',border:'1px solid rgba(232,160,32,0.08)',borderRadius:16,padding:'20px 20px 14px',marginBottom:24}}>
         <h2 style={{fontFamily:'Playfair Display, serif',fontSize:16,fontWeight:700,color:'#F5EDD6',margin:'0 0 8px',letterSpacing:'-0.3px'}}>
-          Chiffre d'affaires — 7 derniers jours
+          {'Chiffre d’affaires - 7 derniers jours'}
         </h2>
         <div style={{display:'flex',gap:16,marginBottom:14}}>
           <span style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'#F5C842'}}>

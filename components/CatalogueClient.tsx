@@ -1,5 +1,5 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import ProductCard from '@/components/ProductCard'
 import { useCatalogue } from '@/store/catalogue'
 import type { Product } from '@/lib/types'
@@ -14,14 +14,24 @@ const GROUPES_FALLBACK: GroupeFilter[] = [
 
 export default function CatalogueClient({ products, isOpen, groupes: groupesProp }: { products: Product[], isOpen: boolean, groupes?: GroupeFilter[] }) {
   const { activeGroupe, activeSous, hasSelected, setGroupe, reset, setMenuGroupes } = useCatalogue()
-  const groupes = (groupesProp && groupesProp.length > 0) ? groupesProp : GROUPES_FALLBACK
+  const groupes = useMemo(() => (
+    groupesProp && groupesProp.length > 0 ? groupesProp : GROUPES_FALLBACK
+  ), [groupesProp])
+
+  const menuGroupesForStore = useMemo(() => (
+    groupes.map(g => ({
+      id: g.id,
+      label: g.label ?? g.id,
+      sous: g.sous.map(s => ({ id: s.id, label: s.label ?? s.id }))
+    }))
+  ), [groupes])
 
   // Synchroniser menuGroupes dans le store pour la Navbar
   useEffect(() => {
-    if (groupes.length > 0) {
-      setMenuGroupes(groupes.map(g => ({ id: g.id, label: g.label ?? g.id, sous: g.sous.map(s => ({ id: s.id, label: s.label ?? s.id })) })))
+    if (menuGroupesForStore.length > 0) {
+      setMenuGroupes(menuGroupesForStore)
     }
-  }, [JSON.stringify(groupes)])
+  }, [menuGroupesForStore, setMenuGroupes])
 
   // Reset activeGroupe si le groupe mémorisé n'existe plus dans les groupes disponibles
   useEffect(() => {
@@ -35,7 +45,7 @@ export default function CatalogueClient({ products, isOpen, groupes: groupesProp
         reset()
       }
     }
-  }, [activeGroupe, groupes])
+  }, [activeGroupe, groupes, setGroupe, reset])
 
   const groupe = groupes.find(g => g.id === activeGroupe) ?? { id: activeGroupe, sous: [] as { id: string }[] }
 
@@ -51,7 +61,7 @@ export default function CatalogueClient({ products, isOpen, groupes: groupesProp
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '16px 16px clamp(120px, 30vh, 240px)', maxWidth: 600, margin: '0 auto' }}>
       {filtered.length === 0 ? (
         <div style={{ textAlign: 'center', color: '#C8B99A', padding: '40px 0', fontSize: 14 }}>Aucun produit disponible</div>
-      ) : filtered.map((p, i) => (
+      ) : filtered.map((p) => (
         <ProductCard key={p.id} product={p} featured={false} isOpen={isOpen} allProducts={products} />
       ))}
     </div>

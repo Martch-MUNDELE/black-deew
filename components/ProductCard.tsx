@@ -1,11 +1,14 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Image, { type ImageLoaderProps } from 'next/image'
 import ProductOverlay from '@/components/ProductOverlay'
 import ProductImagePlaceholder from '@/components/ProductImagePlaceholder'
 import { useCart } from '@/store/cart'
 import { useCurrency } from '@/lib/currency'
 import { createClient } from '@/lib/supabase/client'
 import type { Product } from '@/lib/types'
+
+const productCardImageLoader = ({ src }: ImageLoaderProps) => src
 
 export default function ProductCard({ product, featured = false, isOpen, allProducts = [] }: { product: Product, featured?: boolean, isOpen: boolean, allProducts?: Product[] }) {
   const [added, setAdded] = useState(false)
@@ -50,7 +53,20 @@ export default function ProductCard({ product, featured = false, isOpen, allProd
         <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 2, background: 'rgba(255,80,80,0.12)', border: '1px solid rgba(255,120,120,0.3)', color: '#FF8080', fontSize: 10, fontWeight: 800, borderRadius: 6, padding: '3px 7px', fontFamily: 'DM Sans, sans-serif' }}>-{product.discount}%</div>
       )}
       <div style={{ height: 'clamp(120px, 28vw, 160px)', overflow: 'hidden', position: 'relative' }}>
-        <img src={product.image_url + (product.image_url.includes('supabase.co') ? '?width=150&quality=75' : '')} alt={product.name} loading="eager" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        {product.image_url ? (
+          <Image
+            loader={productCardImageLoader}
+            src={product.image_url + (product.image_url.includes('supabase.co') ? '?width=150&quality=75' : '')}
+            alt={product.name}
+            fill
+            sizes="(max-width: 600px) 100vw, 600px"
+            priority
+            unoptimized
+            style={{ objectFit: 'cover' }}
+          />
+        ) : (
+          <ProductImagePlaceholder />
+        )}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top,rgba(19,16,9,0.95) 0%,rgba(19,16,9,0.2) 60%,transparent 100%)' }} />
         <div style={{ position: 'absolute', bottom: 12, left: 14, right: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: 17, color: '#F5EDD6' }}>{product.name}</div>
@@ -81,7 +97,17 @@ export default function ProductCard({ product, featured = false, isOpen, allProd
     >
       <div onClick={() => setShowOverlay(true)} style={{ width: 'clamp(56px, 16vw, 72px)', height: 'clamp(56px, 16vw, 72px)', borderRadius: 12, overflow: 'hidden', flexShrink: 0, background: '#1E1A10', cursor: 'pointer', position: 'relative' }}>
         {product.image_url
-          ? <img src={product.image_url} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ? (
+            <Image
+              loader={productCardImageLoader}
+              src={product.image_url}
+              alt={product.name}
+              fill
+              sizes="72px"
+              unoptimized
+              style={{ objectFit: 'cover' }}
+            />
+          )
           : <ProductImagePlaceholder />
         }
         {product.discount && product.discount > 0 && (

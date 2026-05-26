@@ -1,11 +1,21 @@
 'use client'
-import { useEffect, useState, Suspense } from 'react'
+import { useCallback, useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { recalculatePeriod } from '@/app/actions/billing'
-import { ADJUSTMENT_TYPE_LABELS, BILLING_STATUS_LABELS, type BillingAdjustment, type BillingAdjustmentType, type BillingPeriod } from '@/lib/types/billing'
+import { ADJUSTMENT_TYPE_LABELS, type BillingAdjustment, type BillingAdjustmentType, type BillingPeriod } from '@/lib/types/billing'
 
 const supabase = createClient()
+
+type AdminRow = {
+  id: string
+  email: string | null
+  auth_user_id: string | null
+}
+
+type CurrentUser = {
+  id: string
+} | null
 
 const TYPE_COLORS: Record<BillingAdjustmentType, { bg: string; color: string }> = {
   remise:     { bg: 'rgba(91,197,122,0.1)',  color: '#5BC57A' },
@@ -19,7 +29,7 @@ function AjustementsContent() {
   const preselectedId = searchParams.get('period')
 
   const [periods, setPeriods]       = useState<BillingPeriod[]>([])
-  const [admins, setAdmins]         = useState<any[]>([])
+  const [admins, setAdmins]         = useState<AdminRow[]>([])
   const [adjustments, setAdjustments] = useState<BillingAdjustment[]>([])
   const [selectedPeriod, setSelectedPeriod] = useState<string>(preselectedId || '')
   const [type, setType]             = useState<BillingAdjustmentType>('remise')
@@ -27,35 +37,40 @@ function AjustementsContent() {
   const [reason, setReason]         = useState('')
   const [saving, setSaving]         = useState(false)
   const [msg, setMsg]               = useState('')
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<CurrentUser>(null)
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setCurrentUser(data.user))
-    loadAll()
-  }, [])
-
-  useEffect(() => {
-    if (selectedPeriod) loadAdjustments(selectedPeriod)
-  }, [selectedPeriod])
-
-  const loadAll = async () => {
-    const [{ data: p }, { data: a }] = await Promise.all([
-      supabase.from('billing_periods').select('*').order('period_start', { ascending: false }),
-      supabase.from('admins').select('id, email, auth_user_id').eq('role', 'admin'),
-    ])
-    setPeriods(p || [])
-    setAdmins(a || [])
-    if (preselectedId && p) loadAdjustments(preselectedId)
-  }
-
-  const loadAdjustments = async (periodId: string) => {
+  const loadAdjustments = useCallback(async (periodId: string) => {
     const { data } = await supabase
       .from('billing_adjustments')
       .select('*')
       .eq('billing_period_id', periodId)
       .order('created_at', { ascending: false })
-    setAdjustments(data || [])
-  }
+    setAdjustments((data || []) as BillingAdjustment[])
+  }, [])
+
+  const loadAll = useCallback(async () => {
+    const [{ data: p }, { data: a }] = await Promise.all([
+      supabase.from('billing_periods').select('*').order('period_start', { ascending: false }),
+      supabase.from('admins').select('id, email, auth_user_id').eq('role', 'admin'),
+    ])
+    setPeriods((p || []) as BillingPeriod[])
+    setAdmins((a || []) as AdminRow[])
+    if (preselectedId && p) await loadAdjustments(preselectedId)
+  }, [loadAdjustments, preselectedId])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void supabase.auth.getUser().then(({ data }) => setCurrentUser(data.user ? { id: data.user.id } : null))
+      void loadAll()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [loadAll])
+
+  useEffect(() => {
+    if (!selectedPeriod) return
+    const timer = window.setTimeout(() => { void loadAdjustments(selectedPeriod) }, 0)
+    return () => window.clearTimeout(timer)
+  }, [selectedPeriod, loadAdjustments])
 
   const getAdminEmail = (clientId: string) =>
     admins.find(a => a.auth_user_id === clientId)?.email || clientId.slice(0, 8) + '...'
@@ -87,7 +102,7 @@ function AjustementsContent() {
       setAmount('')
       setReason('')
       setMsg('✅ Ajustement enregistré et période recalculée')
-    } catch (e) {
+    } catch {
       setMsg('❌ Erreur lors de l\'enregistrement')
     }
     setSaving(false)
@@ -141,7 +156,7 @@ function AjustementsContent() {
           </div>
 
           <div style={{ marginBottom: 14 }}>
-            <label style={lbl}>Type d'ajustement</label>
+            <label style={lbl}>Type d&apos;ajustement</label>
             <select value={type} onChange={e => setType(e.target.value as BillingAdjustmentType)} style={{ ...inp, appearance: 'none' }}>
               {(Object.entries(ADJUSTMENT_TYPE_LABELS) as [BillingAdjustmentType, string][]).map(([key, label]) => (
                 <option key={key} value={key} style={{ background: '#131009' }}>{label}</option>

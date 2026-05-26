@@ -1,13 +1,23 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
+type MarkLivreeRequestBody = {
+  orderId?: string
+  total?: number
+}
+
+type DeliveryCashRow = {
+  amount_collected: number | string | null
+  driver_fee_total: number | string | null
+}
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 export async function POST(req: NextRequest) {
-  const { orderId, total } = await req.json()
+  const { orderId, total } = (await req.json()) as MarkLivreeRequestBody
   if (!orderId || typeof total !== 'number') {
     return NextResponse.json({ error: 'invalid params' }, { status: 400 })
   }
@@ -49,8 +59,9 @@ export async function POST(req: NextRequest) {
     .eq('driver_id', driverId)
     .eq('status', 'delivered')
   const openingCash = Number(sess.opening_cash) || 0
-  const collected = (deliveries || []).reduce((s: number, d: any) => s + (Number(d.amount_collected) || 0), 0)
-  const feesTotal = (deliveries || []).reduce((s: number, d: any) => s + (Number(d.driver_fee_total) || 0), 0)
+  const deliveryRows = (deliveries || []) as DeliveryCashRow[]
+  const collected = deliveryRows.reduce((s, d) => s + (Number(d.amount_collected) || 0), 0)
+  const feesTotal = deliveryRows.reduce((s, d) => s + (Number(d.driver_fee_total) || 0), 0)
   const { error: sessErr } = await supabase.from('driver_sessions').update({
     collected_cash: collected,
     net_to_remit: openingCash + collected - feesTotal,

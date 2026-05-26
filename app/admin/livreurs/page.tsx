@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/lib/currency'
 import PhoneInput from '@/components/PhoneInput'
@@ -36,7 +36,7 @@ type OrderDelivery = {
   amount_collected: number
   delivery_fee: number
   driver_fee_total: number
-  orders?: { id: string; total_amount: number; customer_name?: string }
+  orders?: OrderSummary | OrderSummary[] | null
 }
 
 type ClosedSession = {
@@ -48,6 +48,41 @@ type ClosedSession = {
   opening_cash: number
   collected_cash: number
   net_to_remit: number
+}
+
+type DriverDbRow = {
+  id: string
+  full_name: string
+  phone: string
+  status: string | null
+  vehicle_type: string | null
+  zone: string | null
+}
+
+type DriverSessionRow = NonNullable<Driver['open_session']> & {
+  driver_id: string
+}
+
+type DeliveryMetricRow = {
+  amount_collected: number | null
+  driver_fee_total: number | null
+}
+
+type ContactPickerContact = {
+  name?: string[]
+  tel?: string[]
+}
+
+type ContactPickerNavigator = Navigator & {
+  contacts?: {
+    select: (fields: string[], options: { multiple: boolean }) => Promise<ContactPickerContact[]>
+  }
+}
+
+type OrderSummary = {
+  id: string
+  total_amount?: number | null
+  customer_name?: string | null
 }
 
 const STATUS_COLORS: Record<string, { bg: string; color: string; border: string }> = {
@@ -70,7 +105,7 @@ function formatDate(iso: string) {
 }
 
 export default function LivreursPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const currency = useCurrency()
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,7 +113,7 @@ export default function LivreursPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState({ full_name: '', phone: '', vehicle_type: 'scooter', zone: '', status: 'active' })
   const [addLoading, setAddLoading] = useState(false)
-  const [contactPickerAvailable, setContactPickerAvailable] = useState(false)
+  const [contactPickerAvailable] = useState(() => typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window)
   const [addError, setAddError] = useState('')
   const [sessionDriver, setSessionDriver] = useState<Driver | null>(null)
   const [openingCash, setOpeningCash] = useState('')
@@ -90,7 +125,6 @@ export default function LivreursPage() {
   const [editForm, setEditForm] = useState({ full_name: '', phone: '', vehicle_type: 'scooter', zone: '', status: 'active' })
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState('')
-  const [toggleLoading, setToggleLoading] = useState<string | null>(null)
   const [deleteDriver, setDeleteDriver] = useState<Driver | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [driverKPIs, setDriverKPIs] = useState<Record<string, DriverKPIs>>({})
@@ -107,7 +141,7 @@ async function updateDriverStatus(id: string, status: string) {
 }
 
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     const { data: driversRaw } = await supabase
       .from('delivery_drivers')
@@ -118,15 +152,17 @@ async function updateDriverStatus(id: string, status: string) {
       .from('driver_sessions')
       .select('id, driver_id, started_at, opening_cash, collected_cash, expected_cash, net_to_remit')
       .eq('session_status', 'open')
-    const sessionMap: Record<string, any> = {}
-    for (const s of sessions || []) { sessionMap[s.driver_id] = s }
-    const driversList = driversRaw.map((d: any) => {
+    const sessionMap: Record<string, DriverSessionRow> = {}
+    const sessionRows = (sessions || []) as DriverSessionRow[]
+    for (const s of sessionRows) { sessionMap[s.driver_id] = s }
+    const driverRows = (driversRaw || []) as DriverDbRow[]
+    const driversList: Driver[] = driverRows.map((d) => {
       const openSess = sessionMap[d.id] || null
       const dynamicStatus = d.status === 'suspended' ? 'suspended' : (openSess ? 'active' : 'inactive')
       return { ...d, status: dynamicStatus, open_session: openSess }
     })
     setDrivers(driversList)
-    const driverIds = driversRaw.map((d: any) => d.id)
+    const driverIds = driverRows.map((d) => d.id)
     const kpis: Record<string, DriverKPIs> = {}
     for (const id of driverIds) {
       const openSess = sessionMap[id] || null
@@ -140,10 +176,10 @@ async function updateDriverStatus(id: string, status: string) {
         .in('status', ['pending', 'delivered'])
         .eq('driver_id', id)
         .gte('created_at', openSess.started_at)
-      const dd = driverDels || []
+      const dd = (driverDels || []) as DeliveryMetricRow[]
       const openingCashCurrent = openSess.opening_cash || 0
-      const caCollected = dd.reduce((sum: number, d: any) => sum + (d.amount_collected || 0), 0)
-      const sumDriverFee = dd.reduce((sum: number, d: any) => sum + (d.driver_fee_total || 0), 0)
+      const caCollected = dd.reduce((sum: number, d: DeliveryMetricRow) => sum + (d.amount_collected || 0), 0)
+      const sumDriverFee = dd.reduce((sum: number, d: DeliveryMetricRow) => sum + (d.driver_fee_total || 0), 0)
       kpis[id] = {
         deliveries: dd.length,
         caCollected,
@@ -165,15 +201,16 @@ async function updateDriverStatus(id: string, status: string) {
         .eq('driver_id', id)
         .gte('created_at', startOfDay.toISOString())
         .lte('created_at', endOfDay.toISOString())
-      dailyCA[id] = (dayDels || []).reduce((sum: number, d: any) => sum + (d.amount_collected || 0), 0)
-      dailyWin[id] = (dayDels || []).reduce((sum: number, d: any) => sum + (d.driver_fee_total || 0), 0)
+      const dayRows = (dayDels || []) as DeliveryMetricRow[]
+      dailyCA[id] = dayRows.reduce((sum: number, d: DeliveryMetricRow) => sum + (d.amount_collected || 0), 0)
+      dailyWin[id] = dayRows.reduce((sum: number, d: DeliveryMetricRow) => sum + (d.driver_fee_total || 0), 0)
     }
     setDriverDailyCA(dailyCA)
     setDriverDailyWin(dailyWin)
     setLoading(false)
-  }
+  }, [supabase])
 
-  async function loadDriverDetails(driverId: string) {
+  const loadDriverDetails = useCallback(async (driverId: string) => {
     const { data: dels } = await supabase
       .from('order_deliveries')
       .select('id, order_id, status, amount_collected, delivery_fee, driver_fee_total, orders(id, total_amount, customer_name)')
@@ -189,13 +226,13 @@ async function updateDriverStatus(id: string, status: string) {
       .order('started_at', { ascending: false })
       .limit(10)
     setDriverClosedSessions(prev => ({ ...prev, [driverId]: (closed || []) as ClosedSession[] }))
-  }
+  }, [supabase])
 
   function toggleExpand(driverId: string) {
     setExpandedDrivers(prev => {
       const next = new Set(prev)
       if (next.has(driverId)) { next.delete(driverId) }
-      else { next.add(driverId); loadDriverDetails(driverId) }
+      else { next.add(driverId); void loadDriverDetails(driverId) }
       return next
     })
   }
@@ -214,32 +251,30 @@ async function updateDriverStatus(id: string, status: string) {
       .update({ session_status: 'settled', settled_at: new Date().toISOString() })
       .eq('id', sessionId)
     setSettleLoading(null)
-    load()
+    void load()
     const driver = drivers.find(d =>
       d.open_session?.id === sessionId ||
       (driverClosedSessions[d.id] || []).some(s => s.id === sessionId)
     )
-    if (driver) loadDriverDetails(driver.id)
+    if (driver) void loadDriverDetails(driver.id)
   }
 
-  useEffect(() => { load() }, [])
-
   useEffect(() => {
-    if (typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window) {
-      setContactPickerAvailable(true)
-    }
-  }, [])
+    const timer = window.setTimeout(() => { void load() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [load])
+
 
   async function handleContactPicker() {
     try {
-      const contacts = await (navigator as any).contacts.select(['name', 'tel'], { multiple: false })
+      const contacts = await ((navigator as ContactPickerNavigator).contacts?.select(['name', 'tel'], { multiple: false }) ?? Promise.resolve([]))
       if (contacts && contacts.length > 0) {
         const contact = contacts[0]
         const name = contact.name && contact.name.length > 0 ? contact.name[0] : ''
         const tel = contact.tel && contact.tel.length > 0 ? contact.tel[0] : ''
         setAddForm(f => ({ ...f, full_name: name || f.full_name, phone: tel || f.phone }))
       }
-    } catch (e) {
+    } catch {
       // user cancelled or API error
     }
   }
@@ -256,7 +291,7 @@ async function updateDriverStatus(id: string, status: string) {
     if (error) { setAddError(error.message); return }
     setShowAdd(false)
     setAddForm({ full_name: '', phone: '', vehicle_type: 'scooter', zone: '', status: 'active' })
-    load()
+    void load()
   }
 
   function openEdit(driver: Driver) {
@@ -276,15 +311,9 @@ async function updateDriverStatus(id: string, status: string) {
     }).eq('id', editDriver.id)
     setEditLoading(false)
     if (error) { setEditError(error.message); return }
-    setEditDriver(null); load()
+    setEditDriver(null); void load()
   }
 
-  async function handleToggleStatus(driver: Driver) {
-    const newStatus = driver.status === 'active' ? 'inactive' : 'active'
-    setToggleLoading(driver.id)
-    await supabase.from('delivery_drivers').update({ status: newStatus }).eq('id', driver.id)
-    setToggleLoading(null); load()
-  }
 
   async function handleDeleteDriver() {
     if (!deleteDriver) return
@@ -293,7 +322,7 @@ async function updateDriverStatus(id: string, status: string) {
     await supabase.from('order_deliveries').delete().eq('driver_id', deleteDriver.id)
     await supabase.from('driver_sessions').delete().eq('driver_id', deleteDriver.id)
     await supabase.from('delivery_drivers').delete().eq('id', deleteDriver.id)
-    setDeleteLoading(false); setDeleteDriver(null); load()
+    setDeleteLoading(false); setDeleteDriver(null); void load()
   }
 
   async function handleOpenSession() {
@@ -309,7 +338,7 @@ async function updateDriverStatus(id: string, status: string) {
     setSessionLoading(false)
     if (error) { setSessionError(error.message); return }
     await updateDriverStatus(sessionDriver.id, "active")
-    setSessionDriver(null); setOpeningCash(""); load()
+    setSessionDriver(null); setOpeningCash(""); void load()
   }
 
   async function handleCloseSession() {
@@ -321,7 +350,8 @@ async function updateDriverStatus(id: string, status: string) {
       .eq('driver_id', closeDriver.id)
       .in('status', ['pending', 'delivered'])
       .gte('created_at', closeDriver.open_session.started_at)
-    const collected_cash = (deliveries || []).reduce((sum: number, d: any) => sum + (d.amount_collected || 0), 0)
+    const closeDeliveryRows = (deliveries || []) as { amount_collected: number | null }[]
+    const collected_cash = closeDeliveryRows.reduce((sum: number, d) => sum + (d.amount_collected || 0), 0)
     const opening_cash = closeDriver.open_session.opening_cash || 0
     const driver_fee_total = closeDriver.open_session.driver_fee_total || 0
     const net_to_remit = opening_cash + collected_cash - driver_fee_total
@@ -329,7 +359,7 @@ async function updateDriverStatus(id: string, status: string) {
       .update({ session_status: 'closed', closed_at: new Date().toISOString(), collected_cash, net_to_remit })
       .eq('id', closeDriver.open_session.id)
     await updateDriverStatus(closeDriver.id, "inactive")
-    setCloseLoading(false); setCloseDriver(null); load()
+    setCloseLoading(false); setCloseDriver(null); void load()
   }
 
   const filtered = tab === 'tous' ? drivers : drivers.filter(d => d.status === tab)
@@ -407,7 +437,6 @@ async function updateDriverStatus(id: string, status: string) {
               {filtered.map(driver => {
                 const sc = STATUS_COLORS[driver.status] || STATUS_COLORS.inactive
                 const hasSession = !!driver.open_session
-                const isToggling = toggleLoading === driver.id
                 const isExpanded = expandedDrivers.has(driver.id)
                 const deliveries = driverDeliveries[driver.id] || []
                 const closedSessions = driverClosedSessions[driver.id] || []
@@ -491,7 +520,7 @@ async function updateDriverStatus(id: string, status: string) {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                               {deliveries.map(del => {
                                 const isDelExpanded = expandedDeliveries.has(del.id)
-                                const ord = del.orders as any
+                                const ord = Array.isArray(del.orders) ? del.orders[0] : del.orders
                                 return (
                                   <div key={del.id} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(232,160,32,0.08)', borderRadius: 8, overflow: 'hidden' }}>
                                     <div onClick={e => { e.stopPropagation(); toggleDelivery(del.id) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', cursor: 'pointer' }}>

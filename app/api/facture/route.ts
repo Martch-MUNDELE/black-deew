@@ -1,10 +1,46 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
+import type { DocumentProps } from '@react-pdf/renderer'
 import { FacturePDF } from '@/lib/pdf'
 import { Resend } from 'resend'
+import type { ReactElement } from 'react'
 
 export const dynamic = 'force-dynamic'
+
+type FactureRequestBody = {
+  order_id?: string
+  excludeVip?: boolean
+}
+
+type SettingRow = {
+  key: string
+  value: string | null
+}
+
+type OrderItemRow = {
+  quantity: number
+  unit_price: number
+  is_vip?: boolean | null
+  product_id?: string | null
+  product_name?: string | null
+  selected_variants?: unknown
+  variant_price_extra?: number | null
+  variant_name?: string | null
+  variant_price?: number | null
+}
+
+type OrderWithItems = {
+  id: string
+  customer_email: string | null
+  customer_name?: string | null
+  slot_id?: string | null
+  delivery_fee?: number | null
+  delivery_mode?: string | null
+  order_items?: OrderItemRow[] | null
+  [key: string]: unknown
+}
+
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,9 +49,10 @@ const supabase = createClient(
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function POST(req: NextRequest) {
-  const { order_id, excludeVip } = await req.json()
+  const { order_id, excludeVip } = (await req.json()) as FactureRequestBody
 
-  const { data: order } = await supabase.from('orders').select('*, order_items(*)').eq('id', order_id).single()
+  const { data: orderData } = await supabase.from('orders').select('*, order_items(*)').eq('id', order_id).single()
+  const order = orderData as OrderWithItems | null
   if (!order || !order.customer_email) return NextResponse.json({ error: "Pas d'email" }, { status: 400 })
 
   let slot = null
@@ -36,23 +73,26 @@ export async function POST(req: NextRequest) {
   const factureNum = `BD-${dateStr}-${seqNum}`
 
   const { data: settings } = await supabase.from('settings').select('*')
-  const logoUrl = settings?.find((s: any) => s.key === 'site_logo')?.value || ''
-  const siteName = settings?.find((s: any) => s.key === 'site_name')?.value || 'Black Deew'
-  const siteBaseline = settings?.find((s: any) => s.key === 'site_baseline')?.value || 'KINSHASA · LIVRAISON'
-  const currency = settings?.find((s: any) => s.key === 'currency')?.value || 'DH'
+  const settingsRows = (settings || []) as SettingRow[]
+  const logoUrl = settingsRows.find((s) => s.key === 'site_logo')?.value || ''
+  const siteName = settingsRows.find((s) => s.key === 'site_name')?.value || 'Black Deew'
+  const siteBaseline = settingsRows.find((s) => s.key === 'site_baseline')?.value || 'KINSHASA · LIVRAISON'
+  const currency = settingsRows.find((s) => s.key === 'currency')?.value || 'DH'
 
   // Stocker le numéro de facture en base
   await supabase.from('orders').update({ invoice_number: factureNum }).eq('id', order_id)
 
-  const standardItems = excludeVip ? (order.order_items || []).filter((i: any) => !i.is_vip) : (order.order_items || [])
-  const standardSubtotal = standardItems.reduce((s: number, i: any) => s + i.quantity * i.unit_price, 0)
-  const standardTotal = standardSubtotal + (order.delivery_fee ?? 0)
+  const orderItems = order.order_items || []
+  const standardItems = excludeVip ? orderItems.filter((i) => !i.is_vip) : orderItems
+  const standardSubtotal = standardItems.reduce((s, i) => s + i.quantity * i.unit_price, 0)
+  const deliveryFee = order.delivery_fee ?? 0
+  const standardTotal = standardSubtotal + deliveryFee
   const itemsForPdf = excludeVip
-    ? (order.order_items || []).filter((i: any) => !i.is_vip)
-    : (order.order_items || [])
+    ? orderItems.filter((i) => !i.is_vip)
+    : orderItems
 
   const pdfBuffer = await renderToBuffer(
-    FacturePDF({ order, items: itemsForPdf, slot, siteName, siteBaseline, factureNum, currency }) as any
+    FacturePDF({ order, items: itemsForPdf, slot, siteName, siteBaseline, factureNum, currency }) as ReactElement<DocumentProps>
   )
 
   await resend.emails.send({
@@ -81,7 +121,7 @@ export async function POST(req: NextRequest) {
       <div style="background:rgba(232,160,32,0.06);border:1px solid rgba(232,160,32,0.15);border-radius:12px;padding:20px;text-align:center;margin-bottom:24px">
         <div style="font-size:11px;color:#E8A020;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">Total de votre commande</div>
         <div style="font-family:Georgia,serif;font-size:36px;font-weight:900;color:#F5C842">${standardTotal.toFixed(2)} <span style="font-size:16px">${currency}</span></div>
-        ${order.delivery_mode === 'pickup' ? `<div style="font-size:12px;color:#5BC57A;margin-top:6px">Retrait sur place — Frais : Gratuit</div>` : order.delivery_fee > 0 ? `<div style="font-size:12px;color:#C8B99A;margin-top:6px">Sous-total : ${standardSubtotal.toFixed(2)} ${currency} &nbsp;|&nbsp; Frais de livraison : <span style="color:#F5C842;font-weight:700">${order.delivery_fee.toFixed(2)} ${currency}</span></div>` : `<div style="font-size:12px;color:#5BC57A;margin-top:6px">Livraison gratuite</div>`}
+        ${order.delivery_mode === 'pickup' ? `<div style="font-size:12px;color:#5BC57A;margin-top:6px">Retrait sur place — Frais : Gratuit</div>` : deliveryFee > 0 ? `<div style="font-size:12px;color:#C8B99A;margin-top:6px">Sous-total : ${standardSubtotal.toFixed(2)} ${currency} &nbsp;|&nbsp; Frais de livraison : <span style="color:#F5C842;font-weight:700">${deliveryFee.toFixed(2)} ${currency}</span></div>` : `<div style="font-size:12px;color:#5BC57A;margin-top:6px">Livraison gratuite</div>`}
         <div style="font-size:12px;color:#888;margin-top:4px">Paiement à la livraison en cash</div>
       </div>
       <p style="color:#7A6E58;font-size:12px;line-height:1.6;margin:0">

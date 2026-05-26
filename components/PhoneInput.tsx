@@ -53,7 +53,7 @@ const COUNTRIES = [
   { code: 'CN', dial: '+86', flag: '🇨🇳', name: 'Chine' },
 ]
 
-export default function PhoneInput({ value, onChange, initialValue }: { value: string, onChange: (v: string) => void, initialValue?: string }) {
+export default function PhoneInput({ onChange, initialValue }: { value: string, onChange: (v: string) => void, initialValue?: string }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
 

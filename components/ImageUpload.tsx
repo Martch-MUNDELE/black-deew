@@ -57,7 +57,20 @@ export default function ImageUpload({ imageUrl, onUpload }: Props) {
   return (
     <div>
       {imageUrl && (
-        <img src={imageUrl} alt="preview" style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 10, marginBottom: 10 }} />
+        <div
+          aria-label="Aperçu de l’image"
+          role="img"
+          style={{
+            width: '100%',
+            height: 160,
+            backgroundImage: `url(${imageUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            borderRadius: 10,
+            marginBottom: 10,
+          }}
+        />
       )}
       <label style={{ display: 'block', padding: '18px 14px', borderRadius: 10, border: '1.5px dashed #E8A020', background: 'rgba(232,160,32,0.04)', color: '#E8A020', cursor: uploading ? 'default' : 'pointer', textAlign: 'center', fontSize: 13, fontWeight: 600, fontFamily: 'DM Sans, sans-serif', opacity: uploading ? 0.7 : 1, transition: 'opacity 0.2s' }}>
         {uploading ? 'Upload...' : 'Choisir une image'}

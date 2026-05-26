@@ -1,9 +1,12 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
+import Image, { type ImageLoaderProps } from 'next/image'
 import { useCart } from '@/store/cart'
 import { useCurrency } from '@/lib/currency'
 import { createClient } from '@/lib/supabase/client'
 import type { Product } from '@/lib/types'
+
+const overlayImageLoader = ({ src }: ImageLoaderProps) => src
 
 export default function ProductOverlay({ product, allProducts, onClose }: { product: Product, allProducts: Product[], onClose: () => void }) {
   const { add, items, update } = useCart()
@@ -66,7 +69,18 @@ export default function ProductOverlay({ product, allProducts, onClose }: { prod
       `}</style>
       <div ref={sheetRef} onClick={e => e.stopPropagation()} style={{ background: '#0F0C07', borderRadius: '24px 24px 0 0', maxWidth: 600, width: '100%', margin: '0 auto', animation: isClosing ? 'slideDown 0.28s ease-in forwards' : 'slideUp 0.32s ease-out', height: '88vh', maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
         <div style={{ position: 'relative', flex: '0 0 clamp(180px, 40vh, 400px)', background: '#080603', borderRadius: '0 0 16px 16px', overflow: 'hidden', flexShrink: 0 }}>
-          {current.image_url && <img src={current.image_url} alt={current.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }} />}
+          {current.image_url && (
+            <Image
+              loader={overlayImageLoader}
+              src={current.image_url}
+              alt={current.name}
+              fill
+              sizes="(max-width: 600px) 100vw, 600px"
+              priority
+              unoptimized
+              style={{ objectFit: 'cover', objectPosition: 'center' }}
+            />
+          )}
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '20%', background: 'linear-gradient(to top, #0F0C07 0%, transparent 100%)' }} />
           <button onClick={e => { e.stopPropagation(); handleClose() }} style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', right: 12, zIndex: 400, width: 36, height: 36, borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.15)', color: '#FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 300, lineHeight: 1 }}>×</button>
         </div>
@@ -88,7 +102,17 @@ export default function ProductOverlay({ product, allProducts, onClose }: { prod
           {current.description && <div style={{ fontSize: 12, color: '#C8B99A', lineHeight: 1.6, marginBottom: 10 }}>{current.description}</div>}
           {current.ingredients && <div style={{ background: 'rgba(232,160,32,0.05)', border: '1px solid rgba(232,160,32,0.1)', borderRadius: 12, padding: '8px 14px', marginBottom: 12 }}><div style={{ fontSize: 9, color: '#E8A020', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700, fontFamily: 'DM Sans, sans-serif', marginBottom: 3 }}>Ingrédients</div><div style={{ fontSize: 12, color: '#C8B99A', lineHeight: 1.5 }}>{current.ingredients}</div></div>}
           {hasVariants && <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>{current.variants!.map((vt) => { const selected = selectedVariants[vt.type]; return (<div key={vt.type}><div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}><span style={{ fontSize: 11, color: '#E8A020', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700, fontFamily: 'DM Sans, sans-serif' }}>{vt.type}</span>{!selectedVariants[vt.type] && <span style={{ fontSize: 10, color: '#FF5533', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>Faites votre choix</span>}</div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{vt.options.map((opt) => { const isSelected = selected === opt; return (<button key={opt} onClick={() => selectVariant(vt.type, opt)} style={{ padding: '8px 16px', borderRadius: 10, border: isSelected ? '1.5px solid #F5C842' : '1px solid rgba(255,255,255,0.12)', background: isSelected ? 'rgba(245,200,66,0.12)' : 'rgba(255,255,255,0.04)', color: isSelected ? '#F5C842' : '#C8B99A', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: isSelected ? 700 : 500, cursor: 'pointer', transition: 'all 0.15s', animation: isSelected ? 'variantPop 0.2s ease' : (!selectedVariants[vt.type] ? 'variantPulse 3s ease-in-out infinite' : 'none'), boxShadow: isSelected ? '0 0 0 1px rgba(245,200,66,0.2)' : 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>{opt}{vt.prices && vt.prices[opt] !== undefined && vt.prices[opt] !== 0 && <span style={{ fontSize: 10, color: isSelected ? '#F5C842' : '#7A6E58', fontWeight: 600 }}>{vt.prices[opt] > 0 ? '+' : ''}{vt.prices[opt]} {currency}</span>}</button>) })}</div></div>) })}</div>}
-          {related.length > 0 && <div style={{ flex: 1 }}><div style={{ fontSize: 9, color: '#888', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700, fontFamily: 'DM Sans, sans-serif', marginBottom: 4 }}>Dans la même catégorie</div><div className="related-scroll" style={{ display: 'flex', gap: 10, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 8 }}>{related.map(p => (<div key={p.id} onClick={() => handleSetCurrent(p)} style={{ flexShrink: 0, width: 'clamp(64px, 14vw, 80px)', cursor: 'pointer', textAlign: 'center' }}><div style={{ width: 'clamp(64px, 14vw, 80px)', height: 'clamp(64px, 14vw, 80px)', borderRadius: 8, overflow: 'hidden', background: '#1A1510', marginBottom: 4, border: current.id === p.id ? '1.5px solid rgba(245,200,66,0.5)' : '1px solid rgba(232,160,32,0.08)' }}>{p.image_url && <img src={p.image_url + (p.image_url.includes('supabase.co') ? '?width=100&quality=70' : '')} alt={p.name} loading="eager" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div><div style={{ fontSize: 10, fontWeight: 600, color: '#C8B99A', fontFamily: 'DM Sans, sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div><div style={{ fontSize: 10, color: '#E8A020', fontWeight: 700, fontFamily: 'DM Sans, sans-serif' }}>{p.price} {currency}</div></div>))}</div></div>}
+          {related.length > 0 && <div style={{ flex: 1 }}><div style={{ fontSize: 9, color: '#888', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700, fontFamily: 'DM Sans, sans-serif', marginBottom: 4 }}>Dans la même catégorie</div><div className="related-scroll" style={{ display: 'flex', gap: 10, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 8 }}>{related.map(p => (<div key={p.id} onClick={() => handleSetCurrent(p)} style={{ flexShrink: 0, width: 'clamp(64px, 14vw, 80px)', cursor: 'pointer', textAlign: 'center' }}><div style={{ width: 'clamp(64px, 14vw, 80px)', height: 'clamp(64px, 14vw, 80px)', borderRadius: 8, overflow: 'hidden', background: '#1A1510', marginBottom: 4, border: current.id === p.id ? '1.5px solid rgba(245,200,66,0.5)' : '1px solid rgba(232,160,32,0.08)', position: 'relative' }}>{p.image_url && (
+                      <Image
+                        loader={overlayImageLoader}
+                        src={p.image_url + (p.image_url.includes('supabase.co') ? '?width=100&quality=70' : '')}
+                        alt={p.name}
+                        fill
+                        sizes="80px"
+                        unoptimized
+                        style={{ objectFit: 'cover' }}
+                      />
+                    )}</div><div style={{ fontSize: 10, fontWeight: 600, color: '#C8B99A', fontFamily: 'DM Sans, sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div><div style={{ fontSize: 10, color: '#E8A020', fontWeight: 700, fontFamily: 'DM Sans, sans-serif' }}>{p.price} {currency}</div></div>))}</div></div>}
         </div>
       </div>
     </div>
