@@ -90,7 +90,7 @@ function SettingsContent() {
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [siteName, setSiteName] = useState('Black Deew')
-  const [siteBaseline, setSiteBaseline] = useState('AGADIR · LIVRAISON')
+  const [siteBaseline, setSiteBaseline] = useState('')
   const [siteLogo, setSiteLogo] = useState('')
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [logoDimensions, setLogoDimensions] = useState<{w:number,h:number}|null>(null)

@@ -91,7 +91,7 @@ export default function Navbar() {
   const [mounted, setMounted] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [siteName, setSiteName] = useState('Black Deew')
-  const [siteBaseline, setSiteBaseline] = useState('AGADIR · LIVRAISON')
+  const [siteBaseline, setSiteBaseline] = useState('')
   const [siteLogo, setSiteLogo] = useState<string | null>(null)
   const [menuPlaceholder, setMenuPlaceholder] = useState("Qu'est-ce qui te fait envie ?")
   const [menuPlaceholderIcon, setMenuPlaceholderIcon] = useState('')
@@ -139,7 +139,7 @@ export default function Navbar() {
       data?.forEach((s: SettingRow) => {
         if (s.key === 'status') setIsOpen(s.value === 'open')
         if (s.key === 'site_name') setSiteName(s.value ?? 'Black Deew')
-        if (s.key === 'site_baseline') setSiteBaseline(s.value ?? 'AGADIR · LIVRAISON')
+        if (s.key === 'site_baseline') setSiteBaseline(s.value ?? '')
         if (s.key === 'site_logo') {
           if (s.value) {
             const base = s.value.split('?')[0]
