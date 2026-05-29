@@ -87,6 +87,7 @@ const NAV_GROUPS: AdminNavGroup[] = [
         { label: 'Devise', anchor: 'devise', url: '/admin/settings?tab=devise' },
         { label: 'Notifications', anchor: 'notifications', url: '/admin/settings?tab=notifications' },
         { label: 'Footer', anchor: 'footer', url: '/admin/settings?tab=footer' },
+        { label: 'Accès VIP', anchor: 'vip', url: '/admin/settings?tab=vip' },
       ]},
     ],
   },
