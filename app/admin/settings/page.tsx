@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import PhoneInput from '@/components/PhoneInput'
 
 const labelStyle = { fontSize: 11, fontWeight: 700, color: '#C8B99A', display: 'block', marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: '0.8px' }
 const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(255,255,255,0.03)', color: '#F5EDD6', fontSize: 13, outline: 'none', fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' as const }
@@ -22,7 +23,40 @@ const TABS = [
   { key: 'footer', label: 'Footer' },
   { key: 'notifications', label: 'Notifications' },
   { key: 'devise', label: 'Devise' },
+  { key: 'vip', label: 'Accès VIP' },
 ]
+
+
+function normalizeVipPhone(value: string) {
+  const raw = value.trim()
+  if (!raw) return ''
+  if (raw.startsWith('+')) return '+' + raw.replace(/[^\d]/g, '')
+  if (raw.startsWith('00')) return '+' + raw.slice(2).replace(/[^\d]/g, '')
+  return '+' + raw.replace(/[^\d]/g, '')
+}
+
+function parseVipAllowedPhones(value: string) {
+  if (!value.trim()) return []
+
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((item): item is string => typeof item === 'string')
+        .map(normalizeVipPhone)
+        .filter(Boolean)
+    }
+  } catch {}
+
+  return value
+    .split(/[\n,;|]+/)
+    .map(normalizeVipPhone)
+    .filter(Boolean)
+}
+
+function uniqueVipPhones(values: string[]) {
+  return Array.from(new Set(values.map(normalizeVipPhone).filter(Boolean)))
+}
 
 const ICON_OPTIONS = [
   { value: 'chef', label: 'Toque — Chef' },
@@ -54,6 +88,7 @@ function SettingsContent() {
   const [bgGradDir, setBgGradDir] = useState('to bottom')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [siteName, setSiteName] = useState('Black Deew')
   const [siteBaseline, setSiteBaseline] = useState('AGADIR · LIVRAISON')
   const [siteLogo, setSiteLogo] = useState('')
@@ -72,6 +107,12 @@ function SettingsContent() {
   const [footerSubtitle, setFooterSubtitle] = useState('Directement chez toi.')
   const [footerDescription, setFooterDescription] = useState('Plats chauds, boissons fraîches et snacks livrés rapidement.')
   const [currency, setCurrency] = useState('DH')
+  const [vipAccessEnabled, setVipAccessEnabled] = useState('false')
+  const [vipAccessPassword, setVipAccessPassword] = useState('')
+  const [vipAllowedPhones, setVipAllowedPhones] = useState('')
+  const [vipPhoneDraft, setVipPhoneDraft] = useState('')
+  const [vipPhoneInputKey, setVipPhoneInputKey] = useState(0)
+  const [vipPhoneError, setVipPhoneError] = useState('')
   const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
@@ -104,9 +145,31 @@ function SettingsContent() {
         if (s.key === 'footer_subtitle') setFooterSubtitle(value)
         if (s.key === 'footer_description') setFooterDescription(value)
         if (s.key === 'currency') setCurrency(value)
+        if (s.key === 'vip_access_enabled') setVipAccessEnabled((s.value ?? '') || 'false')
+        if (s.key === 'vip_access_password') setVipAccessPassword(s.value ?? '')
+        if (s.key === 'vip_allowed_phones') setVipAllowedPhones(s.value ?? '')
       })
     })
   }, [supabase])
+
+  const vipAllowedPhoneList = useMemo(() => parseVipAllowedPhones(vipAllowedPhones), [vipAllowedPhones])
+
+  const addVipPhone = () => {
+    const phone = normalizeVipPhone(vipPhoneDraft)
+    const digits = phone.replace(/[^\d]/g, '')
+    if (!phone || digits.length < 7) {
+      setVipPhoneError('Numéro invalide. Saisissez un numéro complet (au moins 6 chiffres après l’indicatif).')
+      return
+    }
+    setVipPhoneError('')
+    setVipAllowedPhones(JSON.stringify(uniqueVipPhones([...vipAllowedPhoneList, phone])))
+    setVipPhoneDraft('')
+    setVipPhoneInputKey(k => k + 1)
+  }
+
+  const removeVipPhone = (phone: string) => {
+    setVipAllowedPhones(JSON.stringify(vipAllowedPhoneList.filter(item => item !== phone)))
+  }
 
   const uploadLogo = async (file: File) => {
     const previewUrl = URL.createObjectURL(file)
@@ -153,7 +216,8 @@ function SettingsContent() {
 
   const save = async () => {
     setSaving(true)
-    await Promise.all([
+    setSaveError('')
+    const saveResults = await Promise.all([
       supabase.from('settings').upsert({ key: 'status', value: status }),
       supabase.from('settings').upsert({ key: 'status_message', value: statusMessage }),
       supabase.from('settings').upsert({ key: 'hero_image', value: heroImage }),
@@ -180,7 +244,20 @@ function SettingsContent() {
       supabase.from('settings').upsert({ key: 'footer_subtitle', value: footerSubtitle }),
       supabase.from('settings').upsert({ key: 'footer_description', value: footerDescription }),
       supabase.from('settings').upsert({ key: 'currency', value: currency }),
+      supabase.from('settings').upsert({ key: 'vip_access_enabled', value: vipAccessEnabled }),
+      supabase.from('settings').upsert({ key: 'vip_access_password', value: vipAccessPassword }),
+      supabase.from('settings').upsert({ key: 'vip_allowed_phones', value: JSON.stringify(vipAllowedPhoneList) }),
     ])
+    const saveErrors = saveResults
+      .map((result) => result.error?.message)
+      .filter(Boolean)
+
+    if (saveErrors.length > 0) {
+      setSaving(false)
+      setSaveError(saveErrors.join(' | '))
+      return
+    }
+
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -405,6 +482,82 @@ function SettingsContent() {
           <div style={{ fontSize: 11, color: '#7A6E58', marginTop: 10, fontFamily: 'DM Sans, sans-serif' }}>
             Devise actuellement sélectionnée : <strong style={{ color: '#E8A020' }}>{currency}</strong>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'vip' && (
+        <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: '22px 24px', marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 16 }}>Accès VIP</div>
+
+          <label style={labelStyle}>Activation de l’accès VIP</label>
+          <button
+            type="button"
+            onClick={() => setVipAccessEnabled(vipAccessEnabled === 'true' ? 'false' : 'true')}
+            style={{ width: '100%', padding: '12px 18px', borderRadius: 50, border: '1px solid', borderColor: vipAccessEnabled === 'true' ? 'rgba(91,197,122,0.5)' : 'rgba(255,255,255,0.1)', background: vipAccessEnabled === 'true' ? 'rgba(91,197,122,0.12)' : 'rgba(255,255,255,0.04)', color: vipAccessEnabled === 'true' ? '#5BC57A' : '#7A6E58', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 13, cursor: 'pointer', marginBottom: 18 }}
+          >
+            Accès VIP {vipAccessEnabled === 'true' ? 'ACTIF' : 'INACTIF'}
+          </button>
+
+          <label style={labelStyle}>Mot de passe commun VIP</label>
+          <input
+            type="text"
+            value={vipAccessPassword}
+            onChange={e => setVipAccessPassword(e.target.value)}
+            placeholder="Ex : VIP2026"
+            style={{ ...inputStyle, marginBottom: 18 }}
+          />
+
+          <label style={labelStyle}>Ajouter un numéro autorisé</label>
+          <div style={{ marginBottom: 10 }}>
+            <PhoneInput key={vipPhoneInputKey} value={vipPhoneDraft} onChange={(v) => { setVipPhoneError(''); setVipPhoneDraft(v) }} />
+          </div>
+
+          {vipPhoneError && (
+            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: 12, fontFamily: 'DM Sans, sans-serif', lineHeight: 1.45, marginBottom: 10 }}>
+              {vipPhoneError}
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={addVipPhone}
+            style={{ width: '100%', padding: '11px 14px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.25)', background: 'rgba(232,160,32,0.08)', color: '#E8A020', fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 16 }}
+          >
+            Ajouter ce numéro
+          </button>
+
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10 }}>Numéros autorisés ({vipAllowedPhoneList.length})</div>
+
+          {vipAllowedPhoneList.length === 0 ? (
+            <div style={{ padding: 14, borderRadius: 12, border: '1px dashed rgba(232,160,32,0.18)', color: '#7A6E58', fontSize: 12, fontFamily: 'DM Sans, sans-serif', marginBottom: 8 }}>
+              Aucun numéro autorisé pour le moment.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {vipAllowedPhoneList.map((phoneValue) => (
+                <div key={phoneValue} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.12)', background: 'rgba(255,255,255,0.025)' }}>
+                  <span style={{ color: '#F5EDD6', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>{phoneValue}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeVipPhone(phoneValue)}
+                    style={{ padding: '6px 10px', borderRadius: 50, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, color: '#7A6E58', lineHeight: 1.5, fontFamily: 'DM Sans, sans-serif', marginTop: 12 }}>
+            Ce champ reprend le même composant téléphone que la commande client. Les numéros sont enregistrés sous forme de liste propre.
+          </div>
+        </div>
+      )}
+
+      {saveError && (
+        <div style={{ marginTop: 16, padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: 12, fontFamily: 'DM Sans, sans-serif', lineHeight: 1.45 }}>
+          {saveError}
         </div>
       )}
 

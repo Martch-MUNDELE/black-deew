@@ -2,6 +2,7 @@
 
 import Image, { type ImageLoaderProps } from 'next/image'
 import PopularVipCard from '@/components/PopularVipCard'
+import VipAccessGate from '@/components/VipAccessGate'
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCart } from '@/store/cart'
@@ -74,7 +75,8 @@ export default function VipPage() {
   }, 0)
 
   return (
-    <div style={{
+    <VipAccessGate storageKey="black_deew_vip_access_granted_v4">
+      <div style={{
       minHeight: '100vh',
       background: '#080603',
       fontFamily: 'DM Sans, sans-serif',
@@ -269,5 +271,6 @@ export default function VipPage() {
         </div>
       )}
     </div>
+    </VipAccessGate>
   )
 }
