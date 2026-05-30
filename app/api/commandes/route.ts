@@ -36,6 +36,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+function getRequestBaseUrl(req: Request) {
+  const forwardedProto = req.headers.get('x-forwarded-proto')
+  const forwardedHost = req.headers.get('x-forwarded-host')
+  if (forwardedHost) return `${forwardedProto || 'https'}://${forwardedHost}`
+  return new URL(req.url).origin
+}
+
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as CommandeRequestBody
 
@@ -110,7 +117,7 @@ export async function POST(req: NextRequest) {
 
   if (wantFacture && email) {
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/facture`, {
+      await fetch(`${getRequestBaseUrl(req)}/api/facture`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_id: order.id, excludeVip: true })

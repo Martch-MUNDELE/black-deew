@@ -6,10 +6,14 @@ import { useCart } from '@/store/cart'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/lib/currency'
 import FeaturesBar from '@/components/FeaturesBar'
+import CartInvoiceSummary from '@/components/cart/CartInvoiceSummary'
 import SlotPicker from '@/components/SlotPicker'
 import PhoneInput from '@/components/PhoneInput'
 import LeafletMap from '@/components/LeafletMap'
 import type { Product } from '@/lib/types'
+import type { TaxSettings } from '@/lib/types/tax'
+import { calculateOrderTaxSummary } from '@/lib/tax'
+import { resolveTaxSettings } from '@/lib/tax-dev-override'
 
 const panierImageLoader = ({ src }: ImageLoaderProps) => src
 
@@ -131,6 +135,7 @@ export default function PanierPage() {
   })
   const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([])
   const [deliveryLoaded, setDeliveryLoaded] = useState(false)
+  const [taxSettings, setTaxSettings] = useState<TaxSettings>({ taxEnabled: false, taxRate: 0 })
   const [suggestedProducts, setSuggestedProducts] = useState<Product[]>([])
   const wasAutoSwitchedRef = useRef(false)
   const initialCalcDoneRef = useRef(false)
@@ -167,10 +172,12 @@ export default function PanierPage() {
 
   useEffect(() => {
     async function loadDelivery() {
-      const [{ data: settingsData }, { data: zonesData }] = await Promise.all([
+      const [{ data: settingsData }, { data: zonesData }, { data: taxData }] = await Promise.all([
         supabase.from('settings').select('key, value').like('key', 'delivery_%'),
         supabase.from('delivery_zones').select('*').eq('active', true).order('min_km', { ascending: true }),
+        supabase.from('settings').select('key, value').in('key', ['tax_enabled', 'tax_rate']),
       ])
+      setTaxSettings(resolveTaxSettings(taxData))
       if (settingsData) {
         const map: Record<string, string> = {}
         settingsData.forEach((s: DeliverySettingRow) => { map[s.key] = s.value ?? '' })
@@ -429,31 +436,78 @@ export default function PanierPage() {
 
   const isPickup = chosenMode === 'pickup'
 
-  const step1LiveFeeResult = (() => {
-    if (!deliveryLoaded || isPickup || !deliverySettings.shopLat || !form.lat || !form.lng) return null
-    if (deliverySettings.freeAbove > 0 && subTotal >= deliverySettings.freeAbove) return 0
-    const dist = haversine(deliverySettings.shopLat, deliverySettings.shopLng!, form.lat, form.lng)
-    const activeZones = deliveryZones.filter(z => z.active).sort((a, b) => a.min_km - b.min_km)
-    const matched = activeZones.find(z => dist >= z.min_km && dist < z.max_km + deliverySettings.tolerance)
-    return matched?.price ?? null
-  })()
+  const step1FeeText = isPickup ? 'Retrait gratuit' : "Calculés à l’étape suivante"
+  const step1FeeColor = isPickup ? '#7DD87A' : '#C8B99A'
 
-  const step1FeeText = !deliveryLoaded
-    ? '...'
-    : isPickup
-      ? 'Retrait'
-      : !deliverySettings.shopLat || !form.lat || !form.lng
-        ? "Calculé à l'étape suivante"
-        : step1LiveFeeResult === null
-          ? "Calculé à l'étape suivante"
-          : step1LiveFeeResult === 0
-            ? 'Gratuit'
-            : `${step1LiveFeeResult} ${currency}`
-
-  const step1FeeColor = step1FeeText === 'Gratuit' || step1FeeText === 'Retrait' ? '#7DD87A' : '#C8B99A'
-
-  const deliveryFee = isPickup ? 0 : step === 'cart' ? (step1LiveFeeResult ?? 0) : (deliveryResult?.fee ?? 0)
+  const deliveryFee = isPickup ? 0 : step === 'cart' ? 0 : (deliveryResult?.fee ?? 0)
   const grandTotal = total() + deliveryFee
+
+  // ── Récapitulatif TVA (prix front = TTC, TVA extraite ; VIP facturable mais non taxable) ────
+  const isVipCartItem = (item: (typeof items)[number]) => {
+    const product = item.product as typeof item.product & {
+      is_vip?: boolean | null
+      name?: string | null
+      category?: string | null
+      type?: string | null
+      tag?: string | null
+      subcategory?: string | null
+      slug?: string | null
+    }
+
+    const itemVip = Boolean((item as { isVip?: boolean | null }).isVip)
+    const productVip = Boolean(product.is_vip)
+    const searchText = [
+      product.name,
+      product.category,
+      product.type,
+      product.tag,
+      product.subcategory,
+      product.slug,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+
+    const isBlackBox = /\bblack\s*box\b/.test(searchText) || searchText.includes('blackbox')
+    const isVipText = searchText.includes('vip')
+
+    return itemVip || productVip || isBlackBox || isVipText
+  }
+
+  const getCartItemUnitPrice = (item: (typeof items)[number]) =>
+    (item.product.discount ?? 0) > 0
+      ? Math.ceil(item.product.price * (1 - (item.product.discount ?? 0) / 100))
+      : item.product.price
+
+  const taxLines = items.map(item => {
+    const isVip = isVipCartItem(item)
+    return {
+      quantity: item.quantity,
+      unit_price: getCartItemUnitPrice(item),
+      invoiceable: true,
+      taxable: !isVip,
+    }
+  })
+
+  const hasClassicTaxableItems = taxLines.some(line => line.taxable !== false && line.quantity > 0 && line.unit_price > 0)
+  const taxSummary = calculateOrderTaxSummary(taxLines, taxSettings, {
+    deliveryFee,
+    deliveryInvoiceable: hasClassicTaxableItems,
+    deliveryTaxable: hasClassicTaxableItems,
+  })
+  const invoiceableDeliveryFee = hasClassicTaxableItems ? deliveryFee : 0
+  const invoiceableProductsTtc = taxLines
+    .filter(line => line.taxable !== false)
+    .reduce((sum, line) => sum + line.unit_price * line.quantity, 0)
+  const nonInvoiceableProductsTotal = items
+    .filter(isVipCartItem)
+    .reduce((sum, item) => sum + getCartItemUnitPrice(item) * item.quantity, 0)
+  const showTaxBreakdown = taxSettings.taxEnabled && taxSettings.taxRate > 0 && taxSummary.tax > 0
+
+  const cartReferenceCount = items.length
+  const cartArticleCount = items.reduce((sum, item) => sum + item.quantity, 0)
+  const cartCountLabel = `${cartReferenceCount} référence${cartReferenceCount > 1 ? 's' : ''} · ${cartArticleCount} article${cartArticleCount > 1 ? 's' : ''}`
+  const showNonInvoiceableTotal = nonInvoiceableProductsTotal > 0.009
   const showModeSelector = deliverySettings.mode === 'all'
   const showAddressSection = !isPickup
   const canProceedFromInfo = !!(
@@ -553,7 +607,15 @@ export default function PanierPage() {
                     {(item.product.discount ?? 0) > 0 && (
                       <span style={{ fontSize: 11, color: '#7A6E58', textDecoration: 'line-through', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>{(item.product.price * item.quantity).toFixed(2)}</span>
                     )}
-                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 14, color: '#F5C842' }}>{((item.product.discount ?? 0) > 0 ? Math.ceil(item.product.price * (1 - (item.product.discount ?? 0) / 100)) * item.quantity : item.product.price * item.quantity).toFixed(2)} {currency}</span>
+                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 14, color: '#F5C842' }}>{(() => {
+                      const unitPrice = (item.product.discount ?? 0) > 0
+                        ? Math.ceil(item.product.price * (1 - (item.product.discount ?? 0) / 100))
+                        : item.product.price
+                      const lineTotal = unitPrice * item.quantity
+                      return item.quantity > 1
+                        ? `${item.quantity} × ${unitPrice.toFixed(2)} ${currency} = ${lineTotal.toFixed(2)} ${currency}`
+                        : `${lineTotal.toFixed(2)} ${currency}`
+                    })()}</span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 0, background: 'rgba(255,255,255,0.04)', borderRadius: 50, border: '1px solid rgba(232,160,32,0.15)', flexShrink: 0 }}>
@@ -576,21 +638,23 @@ export default function PanierPage() {
             ))}
           </div>
 
-          {/* Récapitulatif livraison dans le panier */}
-          <div style={{ marginTop: 4 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '11px 0', borderBottom: '1px solid rgba(232,160,32,0.06)', fontSize: 13, color: '#C8B99A' }}>
-              <span>Sous-total produits</span>
-              <span style={{ color: '#F5EDD6', fontWeight: 600 }}>{total().toFixed(2)} {currency}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '11px 0', borderBottom: '1px solid rgba(232,160,32,0.06)', fontSize: 13, color: '#C8B99A' }}>
-              <span>Frais de livraison</span>
-              <span style={{ color: step1FeeColor, fontWeight: 600 }}>{step1FeeText}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '13px 0', fontSize: 15, fontWeight: 800, fontFamily: 'DM Sans, sans-serif' }}>
-              <span style={{ color: '#C8B99A' }}>Total</span>
-              <span style={{ color: '#F5C842' }}>{grandTotal.toFixed(2)} {currency}</span>
-            </div>
-          </div>
+            <CartInvoiceSummary
+              mode="cart"
+              currency={currency}
+              totalProductsTtc={total()}
+              deliveryFee={0}
+              deliveryLabel={step1FeeText}
+              deliveryTextColor={step1FeeColor}
+              grandTotal={total()}
+              showTaxBreakdown={false}
+              taxRate={taxSettings.taxRate}
+              taxSummary={taxSummary}
+              invoiceableProductsTtc={invoiceableProductsTtc}
+              invoiceableDeliveryFee={0}
+              showNonInvoiceableTotal={showNonInvoiceableTotal}
+              nonInvoiceableProductsTotal={nonInvoiceableProductsTotal}
+              showVipBreakdown
+            />
 
           {/* Badge livraison gratuite */}
           {deliverySettings.freeAbove > 0 && deliverySettings.mode !== 'pickup_only' && subTotal < deliverySettings.minOrder && subTotal < deliverySettings.freeAbove && (
@@ -808,6 +872,25 @@ export default function PanierPage() {
             </div>
           )}
 
+          {(isPickup || (deliveryResult && deliveryResult.reason !== 'out_of_zone')) && (
+            <CartInvoiceSummary
+              mode="delivery"
+              currency={currency}
+              totalProductsTtc={total()}
+              deliveryFee={deliveryFee}
+              deliveryLabel={step1FeeText}
+              deliveryTextColor={step1FeeColor}
+              grandTotal={grandTotal}
+              showTaxBreakdown={showTaxBreakdown}
+              taxRate={taxSettings.taxRate}
+              taxSummary={taxSummary}
+              invoiceableProductsTtc={invoiceableProductsTtc}
+              invoiceableDeliveryFee={invoiceableDeliveryFee}
+              showNonInvoiceableTotal={showNonInvoiceableTotal}
+              nonInvoiceableProductsTotal={nonInvoiceableProductsTotal}
+              showVipBreakdown
+            />
+          )}
           {/* Note */}
           <div>
             <label style={labelStyle}>Note (optionnel)</label>
@@ -815,6 +898,9 @@ export default function PanierPage() {
           </div>
 
           {/* Facturette */}
+
+
+          {hasClassicTaxableItems && (
           <div style={{ background: 'rgba(232,160,32,0.04)', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 12, padding: '14px 16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => updateForm(f => ({ ...f, wantFacture: !f.wantFacture }))}>
               <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${form.wantFacture ? '#F5C842' : 'rgba(232,160,32,0.3)'}`, background: form.wantFacture ? 'linear-gradient(135deg,#F5C842,#FF6B20)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
@@ -829,6 +915,7 @@ export default function PanierPage() {
               <input type="email" placeholder="votre@email.com" value={form.email} onChange={e => updateForm(f => ({ ...f, email: e.target.value }))} style={{ width: '100%', marginTop: 12, padding: '11px 14px', borderRadius: 10, border: '1.5px solid rgba(232,160,32,0.2)', background: 'rgba(255,255,255,0.03)', color: '#F5EDD6', fontFamily: 'DM Sans, sans-serif', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
             )}
           </div>
+          )}
         </div>
       )}
 
@@ -867,7 +954,7 @@ export default function PanierPage() {
         <div style={{ maxWidth: 600, margin: '0 auto' }}>
           {step === 'cart' && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ fontSize: 13, color: '#C8B99A', fontWeight: 500 }}>{items.reduce((acc, i) => acc + i.quantity, 0)} article{items.reduce((acc, i) => acc + i.quantity, 0) > 1 ? 's' : ''}</span>
+              <span style={{ fontSize: 13, color: '#C8B99A', fontWeight: 500 }}>{cartCountLabel}</span>
               <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 22, color: '#F5C842', letterSpacing: '-0.5px' }}>{grandTotal.toFixed(2)} {currency}</span>
             </div>
           )}

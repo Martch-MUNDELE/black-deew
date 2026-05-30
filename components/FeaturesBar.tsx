@@ -120,7 +120,7 @@ export default function FeaturesBar({ alwaysShow = false }: { alwaysShow?: boole
   if (!alwaysShow && hasSelected) return null
 
   return (
-    <div style={{ display: 'flex', gap: 8, padding: '0 16px', marginBottom: 24 }}>
+    <div style={{ display: 'flex', gap: 14, padding: '0 16px', marginBottom: 24 }}>
       {features.map((f, i) => (
         <div key={i} style={{
           background: 'rgba(19,16,9,0.45)',
