@@ -4,6 +4,63 @@ import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/lib/currency'
 
+type VipAwareOrderItem = {
+  is_vip?: boolean | null
+  name?: string | null
+  product_name?: string | null
+  product_title?: string | null
+  title?: string | null
+  slug?: string | null
+  category?: string | null
+  type?: string | null
+  tag?: string | null
+  subcategory?: string | null
+  product?: {
+    is_vip?: boolean | null
+    name?: string | null
+    product_name?: string | null
+    product_title?: string | null
+    title?: string | null
+    slug?: string | null
+    category?: string | null
+    type?: string | null
+    tag?: string | null
+    subcategory?: string | null
+  } | null
+}
+
+function isVipOrderItem(item: VipAwareOrderItem) {
+  const searchText = [
+    item.name,
+    item.product_name,
+    item.product_title,
+    item.title,
+    item.slug,
+    item.category,
+    item.type,
+    item.tag,
+    item.subcategory,
+    item.product?.name,
+    item.product?.product_name,
+    item.product?.product_title,
+    item.product?.title,
+    item.product?.slug,
+    item.product?.category,
+    item.product?.type,
+    item.product?.tag,
+    item.product?.subcategory,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  const isBlackBox = /\bblack\s*box\b/.test(searchText) || searchText.includes('blackbox')
+  const isVipText = searchText.includes('vip')
+
+  return Boolean(item.is_vip ?? item.product?.is_vip) || isBlackBox || isVipText
+}
+
+
 const PAGE_SIZE = 20
 const STATUSES = ['nouvelle', 'confirmée', 'en_preparation', 'en_livraison', 'livrée', 'annulée']
 const STATUS_LABELS: Record<string, string> = {
@@ -46,6 +103,7 @@ type OrderItemRow = {
   product_name: string
   variant_name?: string | null
   unit_price: number
+  is_vip?: boolean | null
 }
 
 type DeliverySlotRow = {
@@ -128,7 +186,8 @@ function buildWhatsAppUrl(order: OrderRow, slot: DeliverySlotRow | null, targetS
     msg = `Bonjour ${name}, votre commande Black Deew est en route ! Notre livreur arrive bientot chez vous.${driverLine}`
   } else if (targetStatus === 'livrée') {
     const isPickup = order.delivery_mode === 'pickup'
-    const factureLine = factureUrl ? `\n\n🧾 Votre facture (72h) : ${factureUrl}` : ''
+    const hasClassicTaxableItems = (order.order_items || []).some((i: OrderItemRow) => !isVipOrderItem(i))
+    const factureLine = factureUrl && hasClassicTaxableItems ? `\n\n🧾 Votre facture (72h) : ${factureUrl}` : ''
     if (isPickup) {
       msg = `Merci ${name} ! Votre commande Black Deew a bien été retirée. Bon appétit et à très bientôt !${factureLine}`
     } else {

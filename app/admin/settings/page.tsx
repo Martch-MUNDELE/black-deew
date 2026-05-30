@@ -22,7 +22,7 @@ const TABS = [
   { key: 'arguments', label: 'Arguments' },
   { key: 'footer', label: 'Footer' },
   { key: 'notifications', label: 'Notifications' },
-  { key: 'devise', label: 'Devise' },
+  { key: 'devise', label: 'Devise et TVA' },
   { key: 'vip', label: 'Accès VIP' },
 ]
 
@@ -107,6 +107,8 @@ function SettingsContent() {
   const [footerSubtitle, setFooterSubtitle] = useState('Directement chez toi.')
   const [footerDescription, setFooterDescription] = useState('Plats chauds, boissons fraîches et snacks livrés rapidement.')
   const [currency, setCurrency] = useState('DH')
+  const [taxEnabled, setTaxEnabled] = useState('false')
+  const [taxRate, setTaxRate] = useState('')
   const [vipAccessEnabled, setVipAccessEnabled] = useState('false')
   const [vipAccessPassword, setVipAccessPassword] = useState('')
   const [vipAllowedPhones, setVipAllowedPhones] = useState('')
@@ -145,6 +147,8 @@ function SettingsContent() {
         if (s.key === 'footer_subtitle') setFooterSubtitle(value)
         if (s.key === 'footer_description') setFooterDescription(value)
         if (s.key === 'currency') setCurrency(value)
+        if (s.key === 'tax_enabled') setTaxEnabled((s.value ?? '') || 'false')
+        if (s.key === 'tax_rate') setTaxRate(s.value ?? '')
         if (s.key === 'vip_access_enabled') setVipAccessEnabled((s.value ?? '') || 'false')
         if (s.key === 'vip_access_password') setVipAccessPassword(s.value ?? '')
         if (s.key === 'vip_allowed_phones') setVipAllowedPhones(s.value ?? '')
@@ -244,6 +248,8 @@ function SettingsContent() {
       supabase.from('settings').upsert({ key: 'footer_subtitle', value: footerSubtitle }),
       supabase.from('settings').upsert({ key: 'footer_description', value: footerDescription }),
       supabase.from('settings').upsert({ key: 'currency', value: currency }),
+      supabase.from('settings').upsert({ key: 'tax_enabled', value: taxEnabled }),
+      supabase.from('settings').upsert({ key: 'tax_rate', value: taxRate }),
       supabase.from('settings').upsert({ key: 'vip_access_enabled', value: vipAccessEnabled }),
       supabase.from('settings').upsert({ key: 'vip_access_password', value: vipAccessPassword }),
       supabase.from('settings').upsert({ key: 'vip_allowed_phones', value: JSON.stringify(vipAllowedPhoneList) }),
@@ -481,6 +487,35 @@ function SettingsContent() {
           </div>
           <div style={{ fontSize: 11, color: '#7A6E58', marginTop: 10, fontFamily: 'DM Sans, sans-serif' }}>
             Devise actuellement sélectionnée : <strong style={{ color: '#E8A020' }}>{currency}</strong>
+          </div>
+
+          {/* Bloc TVA */}
+          <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid rgba(232,160,32,0.12)' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 16 }}>TVA</div>
+
+            <label style={labelStyle}>Appliquer la TVA</label>
+            <button
+              type="button"
+              onClick={() => setTaxEnabled(taxEnabled === 'true' ? 'false' : 'true')}
+              style={{ width: '100%', padding: '12px 18px', borderRadius: 50, border: '1px solid', borderColor: taxEnabled === 'true' ? 'rgba(91,197,122,0.5)' : 'rgba(255,255,255,0.1)', background: taxEnabled === 'true' ? 'rgba(91,197,122,0.12)' : 'rgba(255,255,255,0.04)', color: taxEnabled === 'true' ? '#5BC57A' : '#7A6E58', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 13, cursor: 'pointer', marginBottom: 18 }}
+            >
+              TVA {taxEnabled === 'true' ? 'ACTIVE' : 'INACTIVE'}
+            </button>
+
+            <label style={labelStyle}>Taux de TVA global (%)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step="0.1"
+              value={taxRate}
+              onChange={e => setTaxRate(e.target.value)}
+              placeholder="Ex : 16"
+              style={inputStyle}
+            />
+            <div style={{ fontSize: 11, color: '#7A6E58', marginTop: 8, lineHeight: 1.5, fontFamily: 'DM Sans, sans-serif' }}>
+              Les prix affichés restent des prix TTC. La TVA est extraite du TTC et n&apos;est détaillée que dans les récapitulatifs (panier, facture). Les produits VIP ne sont ni facturables ni taxables.
+            </div>
           </div>
         </div>
       )}

@@ -19,8 +19,27 @@ type FactureOrder = {
 type FactureItem = {
   quantity?: number | null
   product_name?: string | null
+  name?: string | null
+  title?: string | null
+  slug?: string | null
+  category?: string | null
+  type?: string | null
+  tag?: string | null
+  subcategory?: string | null
+  is_vip?: boolean | null
   unit_price?: number | null
   selected_variants?: unknown
+  product?: {
+    is_vip?: boolean | null
+    name?: string | null
+    product_name?: string | null
+    title?: string | null
+    slug?: string | null
+    category?: string | null
+    type?: string | null
+    tag?: string | null
+    subcategory?: string | null
+  } | null
 }
 
 type FactureSlot = {
@@ -28,6 +47,15 @@ type FactureSlot = {
   time_start?: string | null
   time_end?: string | null
 } | null
+
+type FactureTax = {
+  enabled: boolean
+  rate: number
+  ht: number
+  tax: number
+  ttc: number
+  taxableTtc?: number
+}
 
 type FacturePDFProps = {
   order: FactureOrder
@@ -37,11 +65,41 @@ type FacturePDFProps = {
   siteBaseline?: string
   factureNum?: string
   currency?: string
+  tax?: FactureTax
 }
 
 const getItemQuantity = (item: FactureItem) => item.quantity ?? 0
 const getItemUnitPrice = (item: FactureItem) => item.unit_price ?? 0
 const getItemName = (item: FactureItem) => item.product_name ?? ''
+const isVipPdfItem = (item: FactureItem) => {
+  const searchText = [
+    item.product_name,
+    item.name,
+    item.title,
+    item.slug,
+    item.category,
+    item.type,
+    item.tag,
+    item.subcategory,
+    item.product?.product_name,
+    item.product?.name,
+    item.product?.title,
+    item.product?.slug,
+    item.product?.category,
+    item.product?.type,
+    item.product?.tag,
+    item.product?.subcategory,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  const isBlackBox = /\bblack\s*box\b/.test(searchText) || searchText.includes('blackbox')
+  const isVipText = searchText.includes('vip')
+
+  return Boolean(item.is_vip ?? item.product?.is_vip) || isBlackBox || isVipText
+}
+
 
 const getItemVariantsLabel = (item: FactureItem) => {
   const variants = item.selected_variants
@@ -100,7 +158,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: border, marginHorizontal: 32, marginBottom: 20 },
 })
 
-export function FacturePDF({ order, items, slot, siteName, siteBaseline, factureNum, currency = 'DH' }: FacturePDFProps) {
+export function FacturePDF({ order, items, slot, siteName, siteBaseline, factureNum, currency = 'DH', tax }: FacturePDFProps) {
   const date = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
   const slotDate = slot?.date
     ? new Date(slot.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -108,6 +166,25 @@ export function FacturePDF({ order, items, slot, siteName, siteBaseline, facture
   const orderId = factureNum ?? order.id?.slice(0, 8).toUpperCase() ?? 'FACTURE'
   const deliveryFee = order.delivery_fee ?? 0
   const subtotal = items.reduce((sum, item) => sum + getItemQuantity(item) * getItemUnitPrice(item), 0)
+
+  const taxableProductsTtc = items
+    .filter(item => !isVipPdfItem(item))
+    .reduce((sum, item) => sum + getItemQuantity(item) * getItemUnitPrice(item), 0)
+
+  const hasTaxableProducts = taxableProductsTtc > 0.009
+  const fallbackTaxRate = tax?.rate && tax.rate > 0 ? tax.rate : 16
+  const fallbackTaxableTtc = taxableProductsTtc + (hasTaxableProducts ? deliveryFee : 0)
+
+  const displayTaxableTtc = tax?.taxableTtc && tax.taxableTtc > 0
+    ? tax.taxableTtc
+    : tax?.ttc && tax.ttc > 0
+      ? tax.ttc
+      : fallbackTaxableTtc
+
+  const displayTaxHt = displayTaxableTtc / (1 + fallbackTaxRate / 100)
+  const displayTaxAmount = displayTaxableTtc - displayTaxHt
+
+  const showTax = hasTaxableProducts && displayTaxAmount > 0.009
 
   return (
     <Document>
@@ -205,9 +282,26 @@ export function FacturePDF({ order, items, slot, siteName, siteBaseline, facture
               <Text style={{ fontSize: 10, color: '#5BC57A', fontFamily: 'Helvetica-Bold' }}>Gratuit</Text>
             </View>
           )}
+          {/* DÉTAIL TVA — produits classiques + livraison taxable ; VIP non taxable */}
+          {showTax && (
+            <View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+                <Text style={{ fontSize: 10, color: '#C8B99A', fontFamily: 'Helvetica' }}>Total taxable TTC</Text>
+                <Text style={{ fontSize: 10, color: '#F5EDD6', fontFamily: 'Helvetica' }}>{displayTaxableTtc.toFixed(2)} {currency}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+                <Text style={{ fontSize: 10, color: '#C8B99A', fontFamily: 'Helvetica' }}>Dont HT</Text>
+                <Text style={{ fontSize: 10, color: '#F5EDD6', fontFamily: 'Helvetica' }}>{displayTaxHt.toFixed(2)} {currency}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 }}>
+                <Text style={{ fontSize: 10, color: '#C8B99A', fontFamily: 'Helvetica' }}>TVA ({fallbackTaxRate}%)</Text>
+                <Text style={{ fontSize: 10, color: '#F5EDD6', fontFamily: 'Helvetica' }}>{displayTaxAmount.toFixed(2)} {currency}</Text>
+              </View>
+            </View>
+          )}
           <View style={styles.totalCard}>
-            <Text style={styles.totalLabel}>Total à payer</Text>
-            <Text style={styles.totalValue}>{(subtotal + deliveryFee).toFixed(2)} {currency}</Text>
+            <Text style={styles.totalLabel}>{showTax ? 'Total TTC facturé' : 'Total à payer'}</Text>
+            <Text style={styles.totalValue}>{(showTax ? displayTaxableTtc : subtotal + deliveryFee).toFixed(2)} {currency}</Text>
           </View>
 
         </View>

@@ -3,8 +3,72 @@ import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import type { DocumentProps } from '@react-pdf/renderer'
 import { FacturePDF } from '@/lib/pdf'
+import { calculateOrderTaxSummary } from '@/lib/tax'
+import { resolveTaxSettings } from '@/lib/tax-dev-override'
 import { Resend } from 'resend'
 import type { ReactElement } from 'react'
+
+type VipAwareOrderItem = {
+  is_vip?: boolean | null
+  name?: string | null
+  product_name?: string | null
+  product_title?: string | null
+  title?: string | null
+  slug?: string | null
+  category?: string | null
+  type?: string | null
+  tag?: string | null
+  subcategory?: string | null
+  product?: {
+    is_vip?: boolean | null
+    name?: string | null
+    product_name?: string | null
+    product_title?: string | null
+    title?: string | null
+    slug?: string | null
+    category?: string | null
+    type?: string | null
+    tag?: string | null
+    subcategory?: string | null
+  } | null
+}
+
+function isVipOrderItem(item: VipAwareOrderItem) {
+  const searchText = [
+    item.name,
+    item.product_name,
+    item.product_title,
+    item.title,
+    item.slug,
+    item.category,
+    item.type,
+    item.tag,
+    item.subcategory,
+    item.product?.name,
+    item.product?.product_name,
+    item.product?.product_title,
+    item.product?.title,
+    item.product?.slug,
+    item.product?.category,
+    item.product?.type,
+    item.product?.tag,
+    item.product?.subcategory,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  const isBlackBox = /\bblack\s*box\b/.test(searchText) || searchText.includes('blackbox')
+  const isVipText = searchText.includes('vip')
+
+  return Boolean(item.is_vip ?? item.product?.is_vip) || isBlackBox || isVipText
+}
+
+
+function forceBlackDeewTaxSettings(settings: { taxEnabled: boolean; taxRate: number }) {
+  if (settings.taxEnabled && settings.taxRate > 0) return settings
+  return { taxEnabled: true, taxRate: 16 }
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -49,11 +113,16 @@ const supabase = createClient(
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function POST(req: NextRequest) {
-  const { order_id, excludeVip } = (await req.json()) as FactureRequestBody
+  const { order_id } = (await req.json()) as FactureRequestBody
 
   const { data: orderData } = await supabase.from('orders').select('*, order_items(*)').eq('id', order_id).single()
   const order = orderData as OrderWithItems | null
   if (!order || !order.customer_email) return NextResponse.json({ error: "Pas d'email" }, { status: 400 })
+
+  // Garde-fou : commande 100 % VIP => pas de facturette PDF Black Deew.
+  if (!(order.order_items || []).some((i) => !isVipOrderItem(i))) {
+    return NextResponse.json({ error: 'Aucune ligne facturable (commande VIP uniquement)' }, { status: 400 })
+  }
 
   let slot = null
   if (order.slot_id) {
@@ -83,16 +152,31 @@ export async function POST(req: NextRequest) {
   await supabase.from('orders').update({ invoice_number: factureNum }).eq('id', order_id)
 
   const orderItems = order.order_items || []
-  const standardItems = excludeVip ? orderItems.filter((i) => !i.is_vip) : orderItems
+  const standardItems = orderItems.filter((i) => !isVipOrderItem(i))
   const standardSubtotal = standardItems.reduce((s, i) => s + i.quantity * i.unit_price, 0)
   const deliveryFee = order.delivery_fee ?? 0
   const standardTotal = standardSubtotal + deliveryFee
-  const itemsForPdf = excludeVip
-    ? orderItems.filter((i) => !i.is_vip)
-    : orderItems
+  const itemsForPdf = standardItems
+
+  // Récapitulatif TVA — VIP facturable mais non taxable ; TVA extraite du TTC.
+  const taxSettings = forceBlackDeewTaxSettings(resolveTaxSettings(settings))
+  const taxLines = orderItems.map((i) => ({
+    quantity: i.quantity ?? 0,
+    unit_price: i.unit_price ?? 0,
+    invoiceable: !isVipOrderItem(i),
+    taxable: !isVipOrderItem(i),
+  }))
+  const hasClassicTaxableItems = taxLines.some((line) => line.taxable !== false && line.quantity > 0 && line.unit_price > 0)
+  const summary = calculateOrderTaxSummary(taxLines, taxSettings, {
+    deliveryFee,
+    deliveryInvoiceable: hasClassicTaxableItems,
+    deliveryTaxable: hasClassicTaxableItems,
+  })
+  const tax = { enabled: summary.taxEnabled, rate: summary.taxRate, ht: summary.ht, tax: summary.tax, ttc: summary.ttc, taxableTtc: summary.taxableTtc }
+  const showTax = summary.taxEnabled && summary.tax > 0
 
   const pdfBuffer = await renderToBuffer(
-    FacturePDF({ order, items: itemsForPdf, slot, siteName, siteBaseline, factureNum, currency }) as ReactElement<DocumentProps>
+    FacturePDF({ order, items: itemsForPdf, slot, siteName, siteBaseline, factureNum, currency, tax }) as ReactElement<DocumentProps>
   )
 
   await resend.emails.send({
@@ -122,6 +206,7 @@ export async function POST(req: NextRequest) {
         <div style="font-size:11px;color:#E8A020;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">Total de votre commande</div>
         <div style="font-family:Georgia,serif;font-size:36px;font-weight:900;color:#F5C842">${standardTotal.toFixed(2)} <span style="font-size:16px">${currency}</span></div>
         ${order.delivery_mode === 'pickup' ? `<div style="font-size:12px;color:#5BC57A;margin-top:6px">Retrait sur place — Frais : Gratuit</div>` : deliveryFee > 0 ? `<div style="font-size:12px;color:#C8B99A;margin-top:6px">Sous-total : ${standardSubtotal.toFixed(2)} ${currency} &nbsp;|&nbsp; Frais de livraison : <span style="color:#F5C842;font-weight:700">${deliveryFee.toFixed(2)} ${currency}</span></div>` : `<div style="font-size:12px;color:#5BC57A;margin-top:6px">Livraison gratuite</div>`}
+        ${showTax ? `<div style="font-size:12px;color:#C8B99A;margin-top:6px">HT : ${tax.ht.toFixed(2)} ${currency} &nbsp;|&nbsp; TVA (${tax.rate}%) : ${tax.tax.toFixed(2)} ${currency}</div>` : ''}
         <div style="font-size:12px;color:#888;margin-top:4px">Paiement à la livraison en cash</div>
       </div>
       <p style="color:#7A6E58;font-size:12px;line-height:1.6;margin:0">
