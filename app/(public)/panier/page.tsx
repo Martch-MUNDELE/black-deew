@@ -107,6 +107,63 @@ function calcDelivery(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+
+type ProductVisibilityCandidate = Product & Record<string, unknown>
+
+function isProductSellableForSuggestion(product: ProductVisibilityCandidate): boolean {
+  const falseMeansUnavailable = [
+    'active',
+    'is_active',
+    'enabled',
+    'visible',
+    'available',
+    'is_available',
+    'sellable',
+    'is_sellable',
+    'published',
+  ]
+
+  for (const field of falseMeansUnavailable) {
+    if (Object.prototype.hasOwnProperty.call(product, field) && product[field] === false) {
+      return false
+    }
+  }
+
+  const trueMeansUnavailable = [
+    'hidden',
+    'disabled',
+    'archived',
+    'unavailable',
+    'is_hidden',
+    'is_disabled',
+    'is_archived',
+  ]
+
+  for (const field of trueMeansUnavailable) {
+    if (Object.prototype.hasOwnProperty.call(product, field) && product[field] === true) {
+      return false
+    }
+  }
+
+  const rawStatus = product.status
+  if (typeof rawStatus === 'string') {
+    const status = rawStatus.trim().toLowerCase()
+    if (['inactive', 'disabled', 'hidden', 'archived', 'unavailable', 'draft', 'deleted'].includes(status)) {
+      return false
+    }
+  }
+
+  const stockFields = ['stock', 'quantity', 'qty']
+  for (const field of stockFields) {
+    const value = product[field]
+    if (typeof value === 'number' && Number.isFinite(value) && value <= 0) {
+      return false
+    }
+  }
+
+  return true
+}
+
 export default function PanierPage() {
   const { items, update, total, add } = useCart()
   const router = useRouter()
@@ -274,7 +331,7 @@ function getVipPrefillPhone() {
     const cartIds = items.map(i => i.product.id)
     supabase.from('products').select('*').eq('active', true).eq('is_vip', false).then(({ data }) => {
       if (!data) return
-      const pool = data.filter((p: Product) => !cartIds.includes(p.id))
+      const pool = (data ?? []).filter((p: Product) => !cartIds.includes(p.id) && isProductSellableForSuggestion(p as ProductVisibilityCandidate))
       const result: Product[] = []
       // 1. Un produit en promo
       const promo = pool.filter((p: Product) => (p.discount ?? 0) > 0)
