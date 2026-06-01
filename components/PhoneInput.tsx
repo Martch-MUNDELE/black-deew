@@ -2,89 +2,131 @@
 import { useState, useRef, useEffect } from 'react'
 
 const COUNTRIES = [
+  { code: 'MA', dial: '+212', flag: '🇲🇦', name: 'Maroc' },
   { code: 'CD', dial: '+243', flag: '🇨🇩', name: 'RD Congo' },
-  { code: 'CG', dial: '+242', flag: '🇨🇬', name: 'Congo' },
+  { code: 'LU', dial: '+352', flag: '🇱🇺', name: 'Luxembourg' },
   { code: 'FR', dial: '+33', flag: '🇫🇷', name: 'France' },
   { code: 'BE', dial: '+32', flag: '🇧🇪', name: 'Belgique' },
   { code: 'CH', dial: '+41', flag: '🇨🇭', name: 'Suisse' },
-  { code: 'LU', dial: '+352', flag: '🇱🇺', name: 'Luxembourg' },
   { code: 'ES', dial: '+34', flag: '🇪🇸', name: 'Espagne' },
   { code: 'IT', dial: '+39', flag: '🇮🇹', name: 'Italie' },
   { code: 'DE', dial: '+49', flag: '🇩🇪', name: 'Allemagne' },
   { code: 'NL', dial: '+31', flag: '🇳🇱', name: 'Pays-Bas' },
   { code: 'PT', dial: '+351', flag: '🇵🇹', name: 'Portugal' },
   { code: 'GB', dial: '+44', flag: '🇬🇧', name: 'Royaume-Uni' },
-  { code: 'SE', dial: '+46', flag: '🇸🇪', name: 'Suède' },
-  { code: 'NO', dial: '+47', flag: '🇳🇴', name: 'Norvège' },
-  { code: 'DK', dial: '+45', flag: '🇩🇰', name: 'Danemark' },
-  { code: 'AT', dial: '+43', flag: '🇦🇹', name: 'Autriche' },
-  { code: 'IE', dial: '+353', flag: '🇮🇪', name: 'Irlande' },
-  { code: 'PL', dial: '+48', flag: '🇵🇱', name: 'Pologne' },
-  { code: 'US', dial: '+1', flag: '🇺🇸', name: 'États-Unis' },
-  { code: 'CA', dial: '+1', flag: '🇨🇦', name: 'Canada' },
-  { code: 'MA', dial: '+212', flag: '🇲🇦', name: 'Maroc' },
   { code: 'DZ', dial: '+213', flag: '🇩🇿', name: 'Algérie' },
   { code: 'TN', dial: '+216', flag: '🇹🇳', name: 'Tunisie' },
-  { code: 'EG', dial: '+20', flag: '🇪🇬', name: 'Égypte' },
-  { code: 'LY', dial: '+218', flag: '🇱🇾', name: 'Libye' },
-  { code: 'MR', dial: '+222', flag: '🇲🇷', name: 'Mauritanie' },
   { code: 'SN', dial: '+221', flag: '🇸🇳', name: 'Sénégal' },
-  { code: 'ML', dial: '+223', flag: '🇲🇱', name: 'Mali' },
-  { code: 'GN', dial: '+224', flag: '🇬🇳', name: 'Guinée' },
   { code: 'CI', dial: '+225', flag: '🇨🇮', name: "Côte d'Ivoire" },
-  { code: 'BF', dial: '+226', flag: '🇧🇫', name: 'Burkina Faso' },
-  { code: 'NE', dial: '+227', flag: '🇳🇪', name: 'Niger' },
-  { code: 'TG', dial: '+228', flag: '🇹🇬', name: 'Togo' },
-  { code: 'BJ', dial: '+229', flag: '🇧🇯', name: 'Bénin' },
   { code: 'CM', dial: '+237', flag: '🇨🇲', name: 'Cameroun' },
-  { code: 'GA', dial: '+241', flag: '🇬🇦', name: 'Gabon' },
-  { code: 'GQ', dial: '+240', flag: '🇬🇶', name: 'Guinée Équatoriale' },
-  { code: 'AO', dial: '+244', flag: '🇦🇴', name: 'Angola' },
-  { code: 'BI', dial: '+257', flag: '🇧🇮', name: 'Burundi' },
-  { code: 'RW', dial: '+250', flag: '🇷🇼', name: 'Rwanda' },
-  { code: 'KE', dial: '+254', flag: '🇰🇪', name: 'Kenya' },
-  { code: 'ET', dial: '+251', flag: '🇪🇹', name: 'Éthiopie' },
-  { code: 'MG', dial: '+261', flag: '🇲🇬', name: 'Madagascar' },
   { code: 'SA', dial: '+966', flag: '🇸🇦', name: 'Arabie Saoudite' },
   { code: 'AE', dial: '+971', flag: '🇦🇪', name: 'Émirats' },
-  { code: 'QA', dial: '+974', flag: '🇶🇦', name: 'Qatar' },
-  { code: 'KW', dial: '+965', flag: '🇰🇼', name: 'Koweït' },
-  { code: 'TR', dial: '+90', flag: '🇹🇷', name: 'Turquie' },
-  { code: 'CN', dial: '+86', flag: '🇨🇳', name: 'Chine' },
+  { code: 'US', dial: '+1', flag: '🇺🇸', name: 'États-Unis' },
+  { code: 'CA', dial: '+1', flag: '🇨🇦', name: 'Canada' },
 ]
 
-export default function PhoneInput({ onChange, initialValue }: { value: string, onChange: (v: string) => void, initialValue?: string }) {
+type Country = (typeof COUNTRIES)[number]
+
+function digitsOnly(value: string) {
+  return value.replace(/[^\d]/g, '')
+}
+
+function cleanLocalNumber(country: Country, rawValue: string) {
+  const dial = digitsOnly(country.dial)
+  let digits = rawValue.trim().replace(/[^\d+]/g, '')
+
+  if (digits.startsWith('+')) digits = digitsOnly(digits)
+  else digits = digitsOnly(digits)
+
+  if (digits.startsWith('00')) digits = digits.slice(2)
+
+  if (dial && digits.startsWith(dial)) {
+    digits = digits.slice(dial.length)
+  }
+
+  let hint = ''
+
+  if (digits.startsWith('0') && digits.length > 1) {
+    digits = digits.slice(1)
+    hint = 'Le 0 initial a été retiré automatiquement.'
+  }
+
+  if (digits && digits.length < 7) {
+    hint = 'Vérifiez votre numéro, il semble incomplet.'
+  }
+
+  return {
+    localNumber: digits,
+    fullNumber: digits ? `${country.dial}${digits}` : '',
+    hint,
+  }
+}
+
+function parseInitialValue(defaultCountry: Country, initialValue?: string) {
+  if (!initialValue) return { country: defaultCountry, localNumber: '' }
+
+  const cleaned = initialValue.trim()
+  const digits = cleaned.startsWith('00') ? digitsOnly(cleaned).slice(2) : digitsOnly(cleaned)
+  const sortedCountries = [...COUNTRIES].sort((a, b) => digitsOnly(b.dial).length - digitsOnly(a.dial).length)
+  const detectedCountry = sortedCountries.find((country) => digits.startsWith(digitsOnly(country.dial)))
+
+  if (cleaned.startsWith('+') || cleaned.startsWith('00')) {
+    const country = detectedCountry || defaultCountry
+    const dial = digitsOnly(country.dial)
+    const localNumber = digits.startsWith(dial) ? digits.slice(dial.length).replace(/^0+/, '') : digits.replace(/^0+/, '')
+    return { country, localNumber }
+  }
+
+  const normalized = cleanLocalNumber(defaultCountry, cleaned)
+  return { country: defaultCountry, localNumber: normalized.localNumber }
+}
+
+export default function PhoneInput({
+  onChange,
+  initialValue,
+  defaultCountryCode = 'MA',
+}: {
+  value?: string
+  onChange: (v: string) => void
+  initialValue?: string
+  defaultCountryCode?: string
+}) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const defaultCountry = COUNTRIES.find((country) => country.code === defaultCountryCode) || COUNTRIES[0]
+  const parsedInitial = parseInitialValue(defaultCountry, initialValue)
 
-  // Parse initialValue pour extraire pays + numéro
-  const parseInitial = () => {
-    if (!initialValue) return { country: COUNTRIES[0], number: '' }
-    const found = COUNTRIES.find(c => initialValue.startsWith(c.dial))
-    if (found) return { country: found, number: initialValue.slice(found.dial.length) }
-    return { country: COUNTRIES[0], number: initialValue }
-  }
-  const { country: initCountry, number: initNumber } = parseInitial()
-  const [country, setCountry] = useState(initCountry)
-  const [number, setNumber] = useState(initNumber)
+  const [country, setCountry] = useState(parsedInitial.country)
+  const [number, setNumber] = useState(parsedInitial.localNumber)
+  const [hint, setHint] = useState('')
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const handleNumber = (v: string) => {
-    setNumber(v)
-    onChange(`${country.dial}${v}`)
+  const emit = (nextCountry: Country, rawNumber: string) => {
+    const cleaned = cleanLocalNumber(nextCountry, rawNumber)
+
+    setCountry(nextCountry)
+    setNumber(cleaned.localNumber)
+    setHint(cleaned.hint)
+    onChange(cleaned.fullNumber)
   }
 
-  const handleCountry = (c: typeof COUNTRIES[0]) => {
-    setCountry(c)
+  const handleNumber = (value: string) => {
+    emit(country, value)
+  }
+
+  const handleCountry = (nextCountry: Country) => {
     setOpen(false)
     setSearch('')
-    onChange(`${c.dial}${number}`)
+    emit(nextCountry, number)
   }
 
   const filtered = COUNTRIES.filter(c =>
@@ -92,8 +134,7 @@ export default function PhoneInput({ onChange, initialValue }: { value: string, 
   )
 
   return (
-    <div ref={ref} style={{ position: 'relative', display: 'flex', gap: 8 }}>
-      {/* Sélecteur pays */}
+    <div ref={ref} style={{ position: 'relative', display: 'flex', gap: 8, marginBottom: hint ? 18 : 0 }}>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
@@ -106,16 +147,20 @@ export default function PhoneInput({ onChange, initialValue }: { value: string, 
         </svg>
       </button>
 
-      {/* Numéro */}
       <input
         type="tel"
-        placeholder="06 12 34 56 78"
+        placeholder="691434011"
         value={number}
         onChange={e => handleNumber(e.target.value)}
         style={{ flex: 1, padding: '13px 16px', borderRadius: 12, border: '1.5px solid rgba(232,160,32,0.15)', background: 'rgba(255,255,255,0.03)', color: '#F5EDD6', fontFamily: 'DM Sans, sans-serif', fontSize: 14, outline: 'none', boxSizing: 'border-box' as const }}
       />
 
-      {/* Dropdown pays */}
+      {hint && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, color: '#C8B99A', fontSize: 11, fontFamily: 'DM Sans, sans-serif', lineHeight: 1.35 }}>
+          {hint}
+        </div>
+      )}
+
       {open && (
         <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: 260, background: '#1A1510', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 14, zIndex: 500, boxShadow: '0 16px 48px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
           <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(232,160,32,0.08)' }}>

@@ -612,7 +612,7 @@ async function updateDriverStatus(id: string, status: string) {
                 </div>
                 <input value={addForm.full_name} onChange={e => setAddForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Ex: James Brown" style={INP} />
               </div>
-              <div><label style={LBL}>Telephone *</label><PhoneInput value={addForm.phone} initialValue={addForm.phone} onChange={v => setAddForm(f => ({ ...f, phone: v }))} /></div>
+              <div><label style={LBL}>Telephone *</label><PhoneInput defaultCountryCode="CD" value={addForm.phone} initialValue={addForm.phone} onChange={v => setAddForm(f => ({ ...f, phone: v }))} /></div>
               <div><label style={LBL}>Statut</label>
                 <select value={addForm.status} onChange={e => setAddForm(f => ({ ...f, status: e.target.value }))} style={SEL}>
                   <option value="active">Actif</option><option value="inactive">Inactif</option><option value="suspended">Suspendu</option>
@@ -633,7 +633,7 @@ async function updateDriverStatus(id: string, status: string) {
             <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, fontWeight: 700, color: '#F5EDD6', margin: '0 0 20px' }}>Modifier livreur</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div><label style={LBL}>Nom complet *</label><input value={editForm.full_name} onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))} style={INP} /></div>
-              <div><label style={LBL}>Telephone *</label><PhoneInput value={editForm.phone} initialValue={editForm.phone} onChange={v => setEditForm(f => ({ ...f, phone: v }))} /></div>
+              <div><label style={LBL}>Telephone *</label><PhoneInput defaultCountryCode="CD" value={editForm.phone} initialValue={editForm.phone} onChange={v => setEditForm(f => ({ ...f, phone: v }))} /></div>
               <div><label style={LBL}>Statut</label>
                 <select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))} style={SEL}>
                   <option value="active">Actif</option><option value="inactive">Inactif</option><option value="suspended">Suspendu</option>

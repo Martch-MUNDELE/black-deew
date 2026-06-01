@@ -19,6 +19,7 @@ const DEFAULT_SITE_NAME = 'VIP'
 const DEFAULT_PASSWORD_SETTING = 'vip_access_password'
 const DEFAULT_PHONES_SETTING = 'vip_allowed_phones'
 const DEFAULT_ENABLED_SETTING = 'vip_access_enabled'
+const VIP_PHONE_PREFILL_KEY = 'base_food_vip_prefill_phone'
 
 function normalizePhone(value: string) {
   const raw = value.trim()
@@ -209,6 +210,7 @@ export default function VipAccessGate({
 
     if (!enabled) {
       window.sessionStorage.removeItem(storageKey)
+      window.sessionStorage.removeItem(VIP_PHONE_PREFILL_KEY)
       setGranted(false)
       setError('L’accès VIP est momentanément désactivé.')
       setLoading(false)
@@ -238,6 +240,7 @@ export default function VipAccessGate({
     }
 
     window.sessionStorage.removeItem(storageKey)
+    window.sessionStorage.setItem(VIP_PHONE_PREFILL_KEY, cleanPhone)
     setGranted(true)
     setLoading(false)
   }
@@ -297,7 +300,7 @@ export default function VipAccessGate({
             <label style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
               Téléphone
             </label>
-            <PhoneInput value={phone} onChange={setPhone} />
+            <PhoneInput defaultCountryCode="CD" value={phone} onChange={setPhone} />
           </div>
 
           <div style={{ marginBottom: 24 }}>

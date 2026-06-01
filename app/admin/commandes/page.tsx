@@ -150,13 +150,57 @@ type ZoneRow = {
   price: number | string | null
 }
 
-function cleanPhone(phone: string) {
-  const p = phone.replace(/[\s\-]/g, '')
-  if (p.startsWith('+')) return p
-  if (p.startsWith('00')) return '+' + p.slice(2)
-  if (p.startsWith('0')) return '+243' + p.slice(1)
-  return p
+const KNOWN_WHATSAPP_COUNTRY_CODES = [
+  '1', '212', '213', '216', '221', '225', '237', '243',
+  '31', '32', '33', '34', '39', '41', '44', '49',
+  '351', '352', '966', '971'
+]
+
+function cleanPhoneForWhatsApp(phone: string, defaultCountryCode = '243') {
+  const countryCode = defaultCountryCode.replace(/[^\d]/g, '') || '243'
+  let digits = phone.trim().replace(/[^\d+]/g, '')
+
+  if (!digits) return ''
+
+  const hadExplicitInternationalPrefix = digits.startsWith('+') || digits.startsWith('00')
+
+  if (digits.startsWith('+')) {
+    digits = digits.replace(/[^\d]/g, '')
+  } else {
+    digits = digits.replace(/[^\d]/g, '')
+  }
+
+  if (digits.startsWith('00')) {
+    digits = digits.slice(2)
+  }
+
+  if (digits.startsWith(`${countryCode}0`)) {
+    return `${countryCode}${digits.slice(countryCode.length + 1)}`
+  }
+
+  if (digits.startsWith(countryCode)) {
+    return digits
+  }
+
+  const knownCountryCode = [...KNOWN_WHATSAPP_COUNTRY_CODES]
+    .sort((a, b) => b.length - a.length)
+    .find((code) => digits.startsWith(code) && digits.length > code.length + 6)
+
+  if (knownCountryCode) {
+    return digits
+  }
+
+  if (hadExplicitInternationalPrefix) {
+    return digits
+  }
+
+  if (digits.startsWith('0')) {
+    return `${countryCode}${digits.slice(1)}`
+  }
+
+  return `${countryCode}${digits}`
 }
+
 
 function buildWhatsAppUrl(order: OrderRow, slot: DeliverySlotRow | null, targetStatus: string, formatDate: (d: string) => string, shopAddress?: string, factureUrl?: string, currency = 'DH', driverInfo?: { full_name: string; phone: string } | null): string | null {
   const name = order.customer_name
@@ -198,7 +242,7 @@ function buildWhatsAppUrl(order: OrderRow, slot: DeliverySlotRow | null, targetS
   }
 
   if (!msg) return null
-  return `https://wa.me/${cleanPhone(order.customer_phone)}?text=${encodeURIComponent(msg)}`
+  return `https://wa.me/${cleanPhoneForWhatsApp(order.customer_phone)}?text=${encodeURIComponent(msg)}`
 }
 
 // Envoie la mise à jour statut via sendBeacon — survit au passage en arrière-plan Safari iOS
@@ -634,7 +678,7 @@ function CommandesAdminInner() {
                 <a href={`tel:${order.customer_phone}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.06)', color: '#E8A020', textDecoration: 'none', fontSize: 11, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
                   <IconPhone /> Appeler
                 </a>
-                <a href={`https://wa.me/${cleanPhone(order.customer_phone)}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.2)', background: 'rgba(91,197,122,0.06)', color: '#5BC57A', textDecoration: 'none', fontSize: 11, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
+                <a href={`https://wa.me/${cleanPhoneForWhatsApp(order.customer_phone)}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.2)', background: 'rgba(91,197,122,0.06)', color: '#5BC57A', textDecoration: 'none', fontSize: 11, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
                   <IconChat /> WhatsApp
                 </a>
                 {order.lat !== null && order.lat !== undefined && order.lng !== null && order.lng !== undefined && (
@@ -657,7 +701,7 @@ function CommandesAdminInner() {
                         🛵 {driverInfos[order.driver_id]?.full_name || 'Livreur assigné'}
                       </span>
                       {driverInfos[order.driver_id]?.phone && (
-                        <a href={`https://wa.me/${cleanPhone(driverInfos[order.driver_id].phone)}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 50, border: '1px solid rgba(37,211,102,0.35)', background: 'rgba(37,211,102,0.08)', color: '#25D366', textDecoration: 'none', fontSize: 11, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
+                        <a href={`https://wa.me/${cleanPhoneForWhatsApp(driverInfos[order.driver_id].phone)}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 50, border: '1px solid rgba(37,211,102,0.35)', background: 'rgba(37,211,102,0.08)', color: '#25D366', textDecoration: 'none', fontSize: 11, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
                           <IconChat /> WA Livreur
                         </a>
                       )}

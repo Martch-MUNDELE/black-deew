@@ -544,7 +544,7 @@ function SettingsContent() {
 
           <label style={labelStyle}>Ajouter un numéro autorisé</label>
           <div style={{ marginBottom: 10 }}>
-            <PhoneInput key={vipPhoneInputKey} value={vipPhoneDraft} onChange={(v) => { setVipPhoneError(''); setVipPhoneDraft(v) }} />
+            <PhoneInput defaultCountryCode="CD" key={vipPhoneInputKey} value={vipPhoneDraft} onChange={(v) => { setVipPhoneError(''); setVipPhoneDraft(v) }} />
           </div>
 
           {vipPhoneError && (

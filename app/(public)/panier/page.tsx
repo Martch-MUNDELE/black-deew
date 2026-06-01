@@ -154,16 +154,30 @@ export default function PanierPage() {
     window.setTimeout(() => setSuggestedProducts(products), 0)
   }, [])
 
+function getVipPrefillPhone() {
+  if (typeof window === 'undefined') return ''
+
+  try {
+    return window.sessionStorage.getItem('base_food_vip_prefill_phone') || ''
+  } catch {
+    return ''
+  }
+}
+
   const [form, setForm] = useState(() => {
     if (typeof window === 'undefined') return { name: '', phone: '', address: '', note: '', email: '', wantFacture: false, lat: null as number | null, lng: null as number | null, geo_address: '' }
+
+    const vipPhone = getVipPrefillPhone()
+
     try {
       const saved = localStorage.getItem('aj_customer')
       if (saved) {
         const parsed = JSON.parse(saved)
-        return { ...parsed, lat: parsed.lat || null, lng: parsed.lng || null, geo_address: parsed.geo_address || '' }
+        return { ...parsed, phone: vipPhone || parsed.phone || '', lat: parsed.lat || null, lng: parsed.lng || null, geo_address: parsed.geo_address || '' }
       }
     } catch {}
-    return { name: '', phone: '', address: '', note: '', email: '', wantFacture: false, lat: null as number | null, lng: null as number | null, geo_address: '' }
+
+    return { name: '', phone: vipPhone, address: '', note: '', email: '', wantFacture: false, lat: null as number | null, lng: null as number | null, geo_address: '' }
   })
   const [geoLoading, setGeoLoading] = useState(false)
   const [geoError, setGeoError] = useState('')
@@ -751,7 +765,7 @@ export default function PanierPage() {
           <div>
             <label style={labelStyle}>Téléphone <span style={{ color: '#FF6B20' }}>*</span></label>
             <div style={{ position: 'relative', zIndex: 500 }}>
-              <PhoneInput value={form.phone} initialValue={form.phone} onChange={v => updateForm(f => ({ ...f, phone: v }))} />
+              <PhoneInput defaultCountryCode="CD" value={form.phone} initialValue={form.phone} onChange={v => updateForm(f => ({ ...f, phone: v }))} />
             </div>
           </div>
 
