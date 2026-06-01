@@ -28,6 +28,45 @@ function normalizePhone(value: string) {
   return '+' + raw.replace(/[^\d]/g, '')
 }
 
+function phoneVariants(value: string) {
+  const normalized = normalizePhone(value)
+  const digits = normalized.replace(/[^\d]/g, '')
+  const variants = new Set<string>()
+
+  if (normalized) variants.add(normalized)
+  if (digits.length >= 8) variants.add(digits)
+
+  if (digits.startsWith('0') && digits.length > 8) {
+    variants.add(digits.slice(1))
+  }
+
+  if (digits.length > 9) {
+    variants.add(digits.slice(-9))
+  }
+
+  if (digits.length > 10) {
+    variants.add(digits.slice(-10))
+  }
+
+  return variants
+}
+
+function phonesMatch(inputPhone: string, allowedPhoneList: string[]) {
+  const inputVariants = phoneVariants(inputPhone)
+
+  if (inputVariants.size === 0) return false
+
+  return allowedPhoneList.some((allowedPhone) => {
+    const allowedVariants = phoneVariants(allowedPhone)
+
+    for (const variant of inputVariants) {
+      if (variant.length >= 8 && allowedVariants.has(variant)) return true
+    }
+
+    return false
+  })
+}
+
 function parseAllowedPhones(value: string | null | undefined) {
   if (!value) return []
 
@@ -137,8 +176,9 @@ export default function VipAccessGate({
         if (!nextEnabled) {
           window.sessionStorage.removeItem(storageKey)
           setGranted(false)
-        } else if (window.sessionStorage.getItem(storageKey) === 'true') {
-          setGranted(true)
+        } else {
+          window.sessionStorage.removeItem(storageKey)
+          setGranted(false)
         }
       } catch {
         if (active) {
@@ -182,8 +222,7 @@ export default function VipAccessGate({
     }
 
     const cleanPhone = normalizePhone(phone)
-    const cleanAllowedPhones = allowedPhones.map(normalizePhone)
-    const phoneOk = cleanAllowedPhones.includes(cleanPhone)
+    const phoneOk = phonesMatch(phone, allowedPhones)
     const passwordOk = commonPassword.length > 0 && password === commonPassword
 
     if (!cleanPhone || !password) {
@@ -198,7 +237,7 @@ export default function VipAccessGate({
       return
     }
 
-    window.sessionStorage.setItem(storageKey, 'true')
+    window.sessionStorage.removeItem(storageKey)
     setGranted(true)
     setLoading(false)
   }
