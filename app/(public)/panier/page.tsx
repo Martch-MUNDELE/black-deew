@@ -757,8 +757,8 @@ function getVipPrefillPhone() {
 
           {/* Nom */}
           <div>
-            <label style={labelStyle}>Nom complet <span style={{ color: '#FF6B20' }}>*</span></label>
-            <input type="text" placeholder="Mohamed Amine..." value={form.name} onChange={e => updateForm(f => ({ ...f, name: e.target.value }))} style={{ ...inputStyle, border: `1.5px solid ${form.name ? 'rgba(232,160,32,0.4)' : 'rgba(232,160,32,0.15)'}` }} />
+            <label style={labelStyle}>Ton pseudo <span style={{ color: '#FF6B20' }}>*</span></label>
+            <input type="text" placeholder="Edingwe Moto na Ngenge" value={form.name} onChange={e => updateForm(f => ({ ...f, name: e.target.value }))} style={{ ...inputStyle, border: `1.5px solid ${form.name ? 'rgba(232,160,32,0.4)' : 'rgba(232,160,32,0.15)'}` }} />
           </div>
 
           {/* Téléphone */}
