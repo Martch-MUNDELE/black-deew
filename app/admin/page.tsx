@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { isBusinessActiveOrder } from '@/lib/order-status'
 import { useCurrency } from '@/lib/currency'
 import type { Order } from '@/lib/types'
 
@@ -162,8 +163,10 @@ export default function AdminDashboard() {
   const today     = dashboardNow.toISOString().slice(0,10)
   const yesterday = new Date(dashboardNow.getTime() - DAY_MS).toISOString().slice(0,10)
 
-  const todayO = orders.filter(o => o.created_at.slice(0,10) === today)
-  const yestO  = orders.filter(o => o.created_at.slice(0,10) === yesterday)
+  const businessOrders = orders.filter(isBusinessActiveOrder)
+  const deliveredBusinessOrders = businessOrders.filter(o => o.status === 'livrée')
+  const todayO = deliveredBusinessOrders.filter(o => o.created_at.slice(0,10) === today)
+  const yestO  = deliveredBusinessOrders.filter(o => o.created_at.slice(0,10) === yesterday)
 
   const caToday = todayO.reduce((s,o) => s+(o.total||0), 0)
   const caYest  = yestO.reduce((s,o) => s+(o.total||0), 0)
@@ -183,7 +186,7 @@ export default function AdminDashboard() {
   const chartData = Array.from({length:7}, (_,i) => {
     const d   = new Date(dashboardNow.getTime() - (6-i)*DAY_MS)
     const key = d.toISOString().slice(0,10)
-    const dayOrders = orders.filter(o => o.created_at.slice(0,10) === key)
+    const dayOrders = deliveredBusinessOrders.filter(o => o.created_at.slice(0,10) === key)
     const caC = dayOrders.filter(o => !isVipOrder(o)).reduce((s,o) => s+(o.total||0), 0)
     const caV = dayOrders.filter(isVipOrder).reduce((s,o) => s+(o.total||0), 0)
     return { label: d.toLocaleDateString('fr-FR',{weekday:'short'}), classic: caC, vip: caV }
@@ -196,7 +199,7 @@ export default function AdminDashboard() {
     const weekStart = new Date(dashboardNow.getTime() - (3-i)*7*DAY_MS - (dow-1)*DAY_MS)
     weekStart.setHours(0,0,0,0)
     const weekEnd = new Date(weekStart.getTime() + 7*DAY_MS)
-    const wo = orders.filter(o => { const d=new Date(o.created_at); return d>=weekStart && d<weekEnd })
+    const wo = deliveredBusinessOrders.filter(o => { const d=new Date(o.created_at); return d>=weekStart && d<weekEnd })
     const caC = wo.filter(o => !isVipOrder(o)).reduce((s,o)=>s+(o.total||0),0)
     const caV = wo.filter(isVipOrder).reduce((s,o)=>s+(o.total||0),0)
     const label = i===3 ? 'S act.' : 'S-'+(3-i)
@@ -280,7 +283,8 @@ export default function AdminDashboard() {
         <div style={{display:'flex',gap:10,overflowX:'auto',paddingBottom:8}}>
           {PIPELINE.map(status => {
             const cfg = STATUS[status]
-            const col = orders.filter(o => o.status === status)
+            const col = businessOrders.filter(o => o.status === status)
+            if (col.length === 0) return null
             return (
               <div key={status} style={{minWidth:188,flex:'0 0 188px',background:'rgba(255,255,255,0.02)',border:'1px solid rgba(232,160,32,0.07)',borderRadius:12,padding:12}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>

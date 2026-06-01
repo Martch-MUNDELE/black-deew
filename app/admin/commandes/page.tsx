@@ -126,6 +126,9 @@ type OrderRow = {
   lng?: number | null
   slot_id?: string | null
   status?: string | null
+  previous_status_before_cancel?: string | null
+  cancelled_at?: string | null
+  purge_after?: string | null
   driver_id?: string | null
   order_items?: OrderItemRow[] | null
   created_at?: string | null
@@ -491,7 +494,10 @@ function CommandesAdminInner() {
     if (append) setLoadingMore(false)
   }, [filter, supabase])
 
-  const reload = useCallback(() => Promise.all([loadCounts(), fetchOrders(0, false)]), [loadCounts, fetchOrders])
+  const reload = useCallback(async () => {
+    await fetch('/api/purge-cancelled-orders', { method: 'POST' }).catch(() => {})
+    await Promise.all([loadCounts(), fetchOrders(0, false)])
+  }, [loadCounts, fetchOrders])
 
   useEffect(() => {
     supabase.from('settings').select('value').eq('key', 'delivery_shop_address').single()
@@ -567,6 +573,36 @@ function CommandesAdminInner() {
     setOrders(prev => prev.filter(o => o.id !== orderId))
     setPendingStatuses(prev => { const n = { ...prev }; delete n[orderId]; return n })
     setTimeout(() => reload(), 2000)
+  }
+
+  const restoreCancelledOrder = async (orderId: string) => {
+    setPendingStatuses(prev => ({ ...prev, [orderId]: 'restauration' }))
+    try {
+      const res = await fetch('/api/update-order-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, action: 'restore_cancel' }),
+      })
+      const payload = await res.json().catch(() => null)
+
+      if (!res.ok) {
+        alert(payload?.error || 'Restauration impossible.')
+        return
+      }
+
+      if (payload?.slotNeedsReprogramming) {
+        alert('Commande restaurée, mais le créneau initial n’est plus disponible. Il faut reprogrammer un créneau.')
+      }
+
+      setOrders(prev => prev.filter(o => o.id !== orderId))
+      setTimeout(() => reload(), 1000)
+    } finally {
+      setPendingStatuses(prev => {
+        const n = { ...prev }
+        delete n[orderId]
+        return n
+      })
+    }
   }
 
   const handleDispatched = (info: DispatchedPayload) => {
@@ -734,7 +770,18 @@ function CommandesAdminInner() {
                       <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 50, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}>{STATUS_LABELS[status]}</span>
                     )}
                   </div>
-                  {pending && pending !== status && (() => {
+                  {status === 'annulée' && (
+                    <button
+                      type="button"
+                      disabled={pending === 'restauration'}
+                      onClick={() => restoreCancelledOrder(order.id)}
+                      style={{ marginTop: 10, display: 'inline-block', float: 'right' as const, background: 'rgba(245,200,66,0.14)', color: '#F5C842', borderRadius: 50, padding: '6px 16px', fontSize: 11, fontWeight: 800, cursor: pending === 'restauration' ? 'wait' : 'pointer', fontFamily: 'DM Sans, sans-serif', border: '1px solid rgba(245,200,66,0.35)' }}
+                    >
+                      {pending === 'restauration' ? 'Restauration...' : 'Restaurer la commande'}
+                    </button>
+                  )}
+
+                  {pending && pending !== status && pending !== 'restauration' && (() => {
                     const btnStyle = { marginTop: 10, display: 'inline-block', float: 'right' as const, background: '#25D366', color: '#0A0804', borderRadius: 50, padding: '6px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'none', border: 'none' }
                     if (pending === 'en_livraison' && !order.driver_id) return null
                     const waUrl = buildWhatsAppUrl(

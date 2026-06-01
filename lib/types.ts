@@ -46,6 +46,9 @@ export interface Order {
   id: string
   created_at: string
   status: OrderStatus
+  previous_status_before_cancel?: OrderStatus | string | null
+  cancelled_at?: string | null
+  purge_after?: string | null
   customer_name: string
   customer_phone: string
   customer_address: string

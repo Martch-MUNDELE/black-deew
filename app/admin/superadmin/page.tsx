@@ -185,20 +185,31 @@ export default function SuperAdminPage() {
 
   const purgeCommandes = async () => {
     if (!confirm('⚠️ Supprimer TOUTES les commandes ? Cette action est irréversible.')) return
-    if (!confirm('Dernière confirmation — vraiment tout effacer ?')) return
+
     setPurging(true)
     try {
       const res = await fetch('/api/superadmin/purge-commandes', { method: 'POST' })
-      if (!res.ok) throw new Error('Erreur API')
-      await logAction('PURGE_COMMANDES', undefined, 'Toutes les commandes et order_items supprimés, slots remis à zéro')
-      setMsg('✅ Toutes les commandes ont été supprimées et les créneaux remis à zéro.')
-    } catch {
-      setMsg('❌ Erreur lors de la purge')
+      const payload = await res.json().catch(() => null)
+
+      if (!res.ok || !payload?.ok) {
+        throw new Error(payload?.error || 'Erreur inconnue pendant la purge.')
+      }
+
+      await logAction(
+        'PURGE_COMMANDES',
+        undefined,
+        `Purge terminée : ${payload.ordersDeleted ?? 0} commandes supprimées, order_items/order_deliveries supprimés, slots remis à zéro`
+      )
+
+      setMsg(`✅ Purge terminée : ${payload.ordersDeleted ?? 0} commandes supprimées. Recharge le dashboard pour contrôle.`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur lors de la purge'
+      setMsg(`❌ ${message}`)
     }
     setPurging(false)
   }
 
-  const createAdmin = async () => {
+const createAdmin = async () => {
     if (!newEmail) return
     const pwd = autoGen ? generatePassword() : newPassword
     if (!pwd || pwd.length < 8) { setMsg('Mot de passe trop court (min 8 caractères)'); return }
