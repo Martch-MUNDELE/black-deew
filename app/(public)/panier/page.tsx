@@ -110,7 +110,7 @@ function calcDelivery(
 
 type ProductVisibilityCandidate = Product & Record<string, unknown>
 
-function isProductSellableForSuggestion(product: ProductVisibilityCandidate): boolean {
+function isProductSellableForSuggestion(product: ProductVisibilityCandidate, options: { stockEnabled?: boolean } = {}): boolean {
   const falseMeansUnavailable = [
     'active',
     'is_active',
@@ -153,11 +153,13 @@ function isProductSellableForSuggestion(product: ProductVisibilityCandidate): bo
     }
   }
 
-  const stockFields = ['stock', 'quantity', 'qty']
-  for (const field of stockFields) {
-    const value = product[field]
-    if (typeof value === 'number' && Number.isFinite(value) && value <= 0) {
-      return false
+  if (options.stockEnabled === true) {
+    const stockFields = ['stock', 'quantity', 'qty']
+    for (const field of stockFields) {
+      const value = product[field]
+      if (typeof value === 'number' && Number.isFinite(value) && value <= 0) {
+        return false
+      }
     }
   }
 
@@ -329,9 +331,42 @@ function getVipPrefillPhone() {
     const hasChaud = cartSubcategories.includes('chaudes')
     const hasFroid = cartSubcategories.includes('froides')
     const cartIds = items.map(i => i.product.id)
-    supabase.from('products').select('*').eq('active', true).eq('is_vip', false).then(({ data }) => {
+    Promise.all([
+      supabase.from('products').select('*').eq('active', true).eq('is_vip', false),
+      supabase.from('menu_categories').select('id, slug, parent_id, level, active, is_visible').eq('active', true),
+      supabase.from('settings').select('value').eq('key', 'stock_enabled').maybeSingle(),
+    ]).then(([{ data }, { data: menuCategories }, { data: stockSetting }]) => {
       if (!data) return
-      const pool = (data ?? []).filter((p: Product) => !cartIds.includes(p.id) && isProductSellableForSuggestion(p as ProductVisibilityCandidate))
+      const stockEnabled = String(stockSetting?.value ?? '').toLowerCase() === 'true'
+      const visibleMenuCategories = (menuCategories ?? []).filter((category: {
+        id?: string | null
+        active?: boolean | null
+        is_visible?: boolean | null
+        level?: number | null
+      }) => category.active === true && category.is_visible !== false)
+
+      const visibleParentCategoryIds = new Set(
+        visibleMenuCategories
+          .filter((category: { id?: string | null; level?: number | null }) => category.level === 0 && Boolean(category.id))
+          .map((category: { id?: string | null }) => category.id as string)
+      )
+
+      const activeMenuSubcategorySlugs = new Set(
+        visibleMenuCategories
+          .filter((category: { slug?: string | null; parent_id?: string | null; level?: number | null }) => {
+            if (!category.slug) return false
+            if (category.level === 0) return true
+            if (category.level === 1) return Boolean(category.parent_id && visibleParentCategoryIds.has(category.parent_id))
+            return false
+          })
+          .map((category: { slug?: string | null }) => category.slug)
+          .filter((slug): slug is string => Boolean(slug))
+      )
+      const pool = (data ?? []).filter((p: Product) => {
+        const product = p as ProductVisibilityCandidate
+        const subcategory = typeof product.subcategory === 'string' ? product.subcategory : ''
+        return !cartIds.includes(p.id) && isProductSellableForSuggestion(product, { stockEnabled }) && activeMenuSubcategorySlugs.has(subcategory)
+      })
       const result: Product[] = []
       // 1. Un produit en promo
       const promo = pool.filter((p: Product) => (p.discount ?? 0) > 0)
@@ -351,7 +386,25 @@ function getVipPrefillPhone() {
         const reste = pool.filter((p: Product) => !result.find(r => r.id === p.id)).sort((a: Product, b: Product) => (b.popular ? 1 : 0) - (a.popular ? 1 : 0))
         result.push(...reste.slice(0, 3 - result.length))
       }
-      scheduleSuggestedProducts(result.slice(0, 3))
+      const selectedSuggestionIds = new Set<string>()
+      const normalizedSuggestions: Product[] = []
+
+      for (const product of result) {
+        if (!selectedSuggestionIds.has(product.id)) {
+          normalizedSuggestions.push(product)
+          selectedSuggestionIds.add(product.id)
+        }
+      }
+
+      for (const product of pool) {
+        if (normalizedSuggestions.length >= 3) break
+        if (!selectedSuggestionIds.has(product.id)) {
+          normalizedSuggestions.push(product)
+          selectedSuggestionIds.add(product.id)
+        }
+      }
+
+      scheduleSuggestedProducts(normalizedSuggestions.slice(0, 3))
     })
   }, [showSuggestions, items, scheduleSuggestedProducts, supabase])
 

@@ -14,10 +14,69 @@ type ProductWithStock = Product & {
   image_url?: string | null
 }
 
+type ProductVisibilityCandidate = ProductWithStock & Record<string, unknown>
+
+function isClassicProductSellableForVipSuggestion(product: ProductVisibilityCandidate, options: { stockEnabled?: boolean } = {}): boolean {
+  const falseMeansUnavailable = [
+    'active',
+    'is_active',
+    'enabled',
+    'visible',
+    'available',
+    'is_available',
+    'sellable',
+    'is_sellable',
+    'published',
+  ]
+
+  for (const field of falseMeansUnavailable) {
+    if (Object.prototype.hasOwnProperty.call(product, field) && product[field] === false) {
+      return false
+    }
+  }
+
+  const trueMeansUnavailable = [
+    'hidden',
+    'disabled',
+    'archived',
+    'unavailable',
+    'is_hidden',
+    'is_disabled',
+    'is_archived',
+  ]
+
+  for (const field of trueMeansUnavailable) {
+    if (Object.prototype.hasOwnProperty.call(product, field) && product[field] === true) {
+      return false
+    }
+  }
+
+  const rawStatus = product.status
+  if (typeof rawStatus === 'string') {
+    const status = rawStatus.trim().toLowerCase()
+    if (['inactive', 'disabled', 'hidden', 'archived', 'unavailable', 'draft', 'deleted'].includes(status)) {
+      return false
+    }
+  }
+
+  if (options.stockEnabled === true) {
+    const stockFields = ['stock', 'quantity', 'qty']
+    for (const field of stockFields) {
+      const value = product[field]
+      if (typeof value === 'number' && Number.isFinite(value) && value <= 0) {
+        return false
+      }
+    }
+  }
+
+  return true
+}
+
 const productImageLoader = ({ src }: ImageLoaderProps) => src
 
 export default function VipPage() {
   const [products, setProducts] = useState<ProductWithStock[]>([])
+  const [classicSuggestions, setClassicSuggestions] = useState<ProductWithStock[]>([])
   const [loading, setLoading] = useState(true)
   const { add, update, items } = useCart()
   const currency = useCurrency()
@@ -27,9 +86,12 @@ export default function VipPage() {
     let cancelled = false
 
     async function load() {
-      const [{ data }, { data: stockRow }] = await Promise.all([
+      const cartIds = items.map(i => i.product.id)
+      const [{ data }, { data: stockRow }, { data: classicData }, { data: menuCategories }] = await Promise.all([
         supabase.from('products').select('*').eq('is_vip', true).eq('active', true).order('name'),
         supabase.from('settings').select('value').eq('key', 'stock_enabled').single(),
+        supabase.from('products').select('*').eq('is_vip', false).eq('active', true).order('name'),
+        supabase.from('menu_categories').select('id, slug, parent_id, level, active, is_visible').eq('active', true),
       ])
 
       if (cancelled) return
@@ -40,7 +102,48 @@ export default function VipPage() {
         ? rawProducts.filter((p) => p.stock === null || p.stock === undefined || p.stock > 0)
         : rawProducts
 
+      const visibleMenuCategories = (menuCategories ?? []).filter((category: {
+        id?: string | null
+        active?: boolean | null
+        is_visible?: boolean | null
+        level?: number | null
+      }) => category.active === true && category.is_visible !== false)
+
+      const visibleParentCategoryIds = new Set(
+        visibleMenuCategories
+          .filter((category: { id?: string | null; level?: number | null }) => category.level === 0 && Boolean(category.id))
+          .map((category: { id?: string | null }) => category.id as string)
+      )
+
+      const activeMenuSubcategorySlugs = new Set(
+        visibleMenuCategories
+          .filter((category: { slug?: string | null; parent_id?: string | null; level?: number | null }) => {
+            if (!category.slug) return false
+            if (category.level === 0) return true
+            if (category.level === 1) return Boolean(category.parent_id && visibleParentCategoryIds.has(category.parent_id))
+            return false
+          })
+          .map((category: { slug?: string | null }) => category.slug)
+          .filter((slug): slug is string => Boolean(slug))
+      )
+
+      const classicPool = ((classicData ?? []) as ProductWithStock[]).filter((product) => {
+        const subcategory = typeof product.subcategory === 'string' ? product.subcategory : ''
+        return !cartIds.includes(product.id)
+          && isClassicProductSellableForVipSuggestion(product as ProductVisibilityCandidate, { stockEnabled })
+          && activeMenuSubcategorySlugs.has(subcategory)
+      })
+
+      const orderedClassicSuggestions = classicPool
+        .sort((a, b) => {
+          const popularScore = Number(Boolean(b.popular)) - Number(Boolean(a.popular))
+          if (popularScore !== 0) return popularScore
+          return (b.discount ?? 0) - (a.discount ?? 0)
+        })
+        .slice(0, 3)
+
       setProducts(filtered)
+      setClassicSuggestions(orderedClassicSuggestions)
       setLoading(false)
     }
 
@@ -49,7 +152,7 @@ export default function VipPage() {
     return () => {
       cancelled = true
     }
-  }, [supabase])
+  }, [items, supabase])
 
   const quantities = useMemo(() => {
     const q: Record<string, number> = {}
@@ -212,25 +315,83 @@ export default function VipPage() {
           </div>
         )}
 
-        {!loading && (
-          <div style={{ marginTop: 40, textAlign: 'center' }}>
-            <div style={{ fontSize: 12, color: '#7A6E58', marginBottom: 12 }}>Une petite soif ?</div>
-            <button
-              onClick={() => { window.location.href = '/#froides' }}
-              style={{
-                padding: '14px 28px',
-                borderRadius: 50,
-                border: '1px solid rgba(245,200,66,0.25)',
-                background: 'rgba(245,200,66,0.06)',
-                color: '#F5C842',
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: 'DM Sans, sans-serif',
-              }}
-            >
-              Une petite gourmandise en plus ?
-            </button>
+        {!loading && classicSuggestions.length > 0 && (
+          <div style={{ marginTop: 40 }}>
+            <div style={{ textAlign: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: '#7A6E58', textTransform: 'uppercase', letterSpacing: '1.4px', fontWeight: 800 }}>
+                Suggestions classiques
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+              {classicSuggestions.map(product => {
+                const discount = product.discount ?? 0
+                const finalPrice = discount > 0 ? product.price * (1 - discount / 100) : product.price
+
+                return (
+                  <div key={product.id} style={{
+                    background: 'rgba(15,12,7,0.75)',
+                    border: '1px solid rgba(232,160,32,0.16)',
+                    borderRadius: 16,
+                    padding: 10,
+                    minWidth: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}>
+                    {product.image_url && (
+                      <div style={{ position: 'relative', width: '100%', aspectRatio: '1 / 1', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(232,160,32,0.12)' }}>
+                        <Image
+                          loader={productImageLoader}
+                          src={product.image_url}
+                          alt={product.name}
+                          fill
+                          sizes="33vw"
+                          unoptimized
+                          style={{ objectFit: 'cover' }}
+                        />
+                      </div>
+                    )}
+
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 800, fontSize: 12, color: '#F5EDD6', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, minHeight: 18 }}>
+                        {discount > 0 && (
+                          <span style={{ fontSize: 10, color: '#7A6E58', textDecoration: 'line-through', fontWeight: 600 }}>{product.price.toFixed(2)}</span>
+                        )}
+                        <span style={{ fontSize: 12, fontWeight: 800, color: '#F5C842' }}>{finalPrice.toFixed(2)} {currency}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => add(product)}
+                      style={{ width: '100%', height: 34, borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#F5C842,#FF6B20)', color: '#0A0804', fontSize: 18, fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 'auto' }}
+                    >
+                      +
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={{ marginTop: 22, textAlign: 'center' }}>
+              <button
+                onClick={() => { window.location.href = '/' }}
+                style={{
+                  padding: '14px 28px',
+                  borderRadius: 50,
+                  border: '1px solid rgba(245,200,66,0.25)',
+                  background: 'rgba(245,200,66,0.06)',
+                  color: '#F5C842',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'DM Sans, sans-serif',
+                }}
+              >
+                Une petite gourmandise en plus ?
+              </button>
+            </div>
           </div>
         )}
       </div>
