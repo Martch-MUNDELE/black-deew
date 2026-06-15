@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export async function generateMetadata(): Promise<Metadata> {
-  const ogImage = 'https://black-deew.vercel.app/og-vip.png'
+  const ogImage = 'https://black-deew.vercel.app/og-vip.jpg'
   const title = 'Accès VIP — Black Deew'
   const description = 'Sélection privée réservée à nos meilleurs clients. Accès exclusif Black Deew.'
 
