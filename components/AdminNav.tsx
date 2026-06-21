@@ -39,6 +39,10 @@ type OrderRealtimeRow = {
   total?: number | null
 }
 
+type VipRequestCountRow = {
+  id: string
+}
+
 const NAV_GROUPS: AdminNavGroup[] = [
   {
     label: 'BOUTIQUE',
@@ -103,6 +107,7 @@ export default function AdminNav() {
   const [siteLogo, setSiteLogo] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [toast, setToast] = useState<{ name: string; total: number } | null>(null)
+  const [pendingVipCount, setPendingVipCount] = useState(0)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevOrderIds = useRef<Set<string>>(new Set())
   const isFirstLoad = useRef(true)
@@ -188,6 +193,35 @@ export default function AdminNav() {
     return () => {
       sb.removeChannel(channel)
       if (toastTimer.current) clearTimeout(toastTimer.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    const sb = createClient()
+
+    sb.from('vip_access_requests')
+      .select('id')
+      .eq('status', 'pending')
+      .then(({ data }) => {
+        const rows = (data || []) as VipRequestCountRow[]
+        setPendingVipCount(rows.length)
+      })
+
+    const vipChannel = sb
+      .channel('adminnav-vip-requests')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vip_access_requests' }, () => {
+        sb.from('vip_access_requests')
+          .select('id')
+          .eq('status', 'pending')
+          .then(({ data }) => {
+            const rows = (data || []) as VipRequestCountRow[]
+            setPendingVipCount(rows.length)
+          })
+      })
+      .subscribe()
+
+    return () => {
+      sb.removeChannel(vipChannel)
     }
   }, [])
 
@@ -286,7 +320,7 @@ export default function AdminNav() {
         padding: '0 16px',
         borderBottom: '1px solid rgba(232,160,32,0.1)',
       }}>
-        <Link href="/admin" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Link href="/admin" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8, outline: 'none' }}>
           {renderLogo(28)}
           <div style={{
             fontFamily: 'Playfair Display, serif',
@@ -300,25 +334,98 @@ export default function AdminNav() {
           </div>
         </Link>
 
-        <button
-          onClick={() => setMenuOpen(o => !o)}
-          style={{
-            width: 40,
-            height: 40,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            color: '#F5C842',
-            fontSize: 22,
-            lineHeight: 1,
-          }}
-          aria-label={menuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
-        >
-          {menuOpen ? '✕' : '≡'}
-        </button>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
+          {pendingVipCount > 0 && (
+            <button
+              type="button"
+              onClick={() => { setMenuOpen(false); router.push('/admin/settings?tab=vip') }}
+              aria-label={`${pendingVipCount} demande(s) VIP en attente`}
+              style={{
+                position: 'relative',
+                zIndex: 101,
+                pointerEvents: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '5px 12px 5px 14px',
+                borderRadius: 50,
+                background: 'linear-gradient(135deg, #B8860B, #8B6508)',
+                border: '1px solid rgba(245,200,66,0.5)',
+                cursor: 'pointer',
+                overflow: 'hidden',
+              }}
+            >
+              <style>{`
+                @keyframes shimmer-vip-badge {
+                  0%   { transform: translateX(-120%) skewX(-20deg); }
+                  100% { transform: translateX(220%) skewX(-20deg); }
+                }
+              `}</style>
+              <span style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '40%',
+                height: '100%',
+                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)',
+                animation: 'shimmer-vip-badge 2.6s ease-in-out infinite',
+                pointerEvents: 'none',
+              }} />
+              <span style={{
+                position: 'relative',
+                color: '#FFF4D6',
+                fontSize: 12,
+                fontWeight: 800,
+                fontFamily: 'DM Sans, sans-serif',
+                whiteSpace: 'nowrap',
+                textShadow: '0 1px 2px rgba(0,0,0,0.4)',
+              }}>
+                Demande VIP
+              </span>
+              <span style={{
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 22,
+                height: 22,
+                flexShrink: 0,
+              }}>
+                <span style={{ position: 'absolute', inset: 0, fontSize: 22, lineHeight: 1, color: '#FFD75E', filter: 'drop-shadow(0 0 3px rgba(255,215,94,0.7))' }}>★</span>
+                <span style={{
+                  position: 'relative',
+                  color: '#3A2600',
+                  fontSize: 10,
+                  fontWeight: 800,
+                  fontFamily: 'DM Sans, sans-serif',
+                  marginTop: 1,
+                }}>
+                  {pendingVipCount}
+                </span>
+              </span>
+            </button>
+          )}
+
+          <button
+            onClick={() => setMenuOpen(o => !o)}
+            style={{
+              width: 40,
+              height: 40,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: '#F5C842',
+              fontSize: 22,
+              lineHeight: 1,
+            }}
+            aria-label={menuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+          >
+            {menuOpen ? '✕' : '≡'}
+          </button>
+        </div>
       </header>
       {/* Sous-navigation supprimée — chaque page a ses propres onglets */}
 

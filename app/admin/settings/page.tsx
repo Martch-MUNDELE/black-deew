@@ -1,8 +1,9 @@
 'use client'
-import { useEffect, useMemo, useState, Suspense } from 'react'
+import { useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PhoneInput from '@/components/PhoneInput'
+import { buildWhatsAppHref } from '@/lib/phone-links'
 
 const labelStyle = { fontSize: 11, fontWeight: 700, color: '#C8B99A', display: 'block', marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: '0.8px' }
 const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(255,255,255,0.03)', color: '#F5EDD6', fontSize: 13, outline: 'none', fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' as const }
@@ -115,7 +116,50 @@ function SettingsContent() {
   const [vipPhoneDraft, setVipPhoneDraft] = useState('')
   const [vipPhoneInputKey, setVipPhoneInputKey] = useState(0)
   const [vipPhoneError, setVipPhoneError] = useState('')
+
+  type VipAccessRequest = {
+    id: string
+    phone: string
+    pseudo: string
+    status: 'pending' | 'approved' | 'rejected'
+    created_at: string
+    requested_password: string | null
+  }
+
+  const [vipRequests, setVipRequests] = useState<VipAccessRequest[]>([])
+  const [vipRequestsLoading, setVipRequestsLoading] = useState(false)
+  const [vipRequestActionError, setVipRequestActionError] = useState('')
+  const [approvedRequestIds, setApprovedRequestIds] = useState<Set<string>>(new Set())
+  const [migratedPhones, setMigratedPhones] = useState<Set<string>>(new Set())
+  const approvedRequestIdsRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    approvedRequestIdsRef.current = approvedRequestIds
+  }, [approvedRequestIds])
   const supabase = useMemo(() => createClient(), [])
+
+  useEffect(() => {
+    const loadMigratedPhones = async () => {
+      const { data } = await supabase.from('vip_individual_passwords').select('phone')
+      const phones = ((data || []) as { phone: string }[]).map((row) =>
+        row.phone.replace(/[^\d]/g, '').slice(-9)
+      )
+      setMigratedPhones(new Set(phones))
+    }
+
+    loadMigratedPhones()
+
+    const migratedChannel = supabase
+      .channel('settings-migrated-phones')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vip_individual_passwords' }, () => {
+        loadMigratedPhones()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(migratedChannel)
+    }
+  }, [supabase])
 
   useEffect(() => {
     supabase.from('settings').select('*').then(({ data }) => {
@@ -171,8 +215,111 @@ function SettingsContent() {
     setVipPhoneInputKey(k => k + 1)
   }
 
-  const removeVipPhone = (phone: string) => {
-    setVipAllowedPhones(JSON.stringify(vipAllowedPhoneList.filter(item => item !== phone)))
+  const removeVipPhone = async (phone: string) => {
+    const nextList = vipAllowedPhoneList.filter(item => item !== phone)
+    setVipAllowedPhones(JSON.stringify(nextList))
+
+    await supabase.from('settings').upsert({ key: 'vip_allowed_phones', value: JSON.stringify(nextList) })
+  }
+
+  const loadVipRequests = async () => {
+    setVipRequestsLoading(true)
+    const { data } = await supabase
+      .from('vip_access_requests')
+      .select('id,phone,pseudo,status,created_at,requested_password')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+    const freshRequests = (data || []) as VipAccessRequest[]
+    setVipRequests((prev) => {
+      const freshIds = new Set(freshRequests.map((r) => r.id))
+      const stillVisibleApproved = prev.filter(
+        (r) => approvedRequestIdsRef.current.has(r.id) && !freshIds.has(r.id)
+      )
+      return [...freshRequests, ...stillVisibleApproved]
+    })
+    setVipRequestsLoading(false)
+  }
+
+  useEffect(() => {
+    if (activeTab !== 'vip') return
+
+    loadVipRequests()
+
+    const vipRequestsChannel = supabase
+      .channel('settings-vip-requests')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vip_access_requests' }, () => {
+        loadVipRequests()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(vipRequestsChannel)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
+  const approveVipRequest = async (request: VipAccessRequest) => {
+    setVipRequestActionError('')
+    const phone = normalizeVipPhone(request.phone)
+    const digits = phone.replace(/[^\d]/g, '')
+
+    if (!phone || digits.length < 7) {
+      setVipRequestActionError('Numéro de la demande invalide, impossible de valider automatiquement.')
+      return
+    }
+
+    const { error: updateError } = await supabase
+      .from('vip_access_requests')
+      .update({ status: 'approved', reviewed_at: new Date().toISOString() })
+      .eq('id', request.id)
+
+    if (updateError) {
+      setVipRequestActionError('Impossible de valider cette demande. Réessayez.')
+      return
+    }
+
+    if (request.requested_password) {
+      const { error: passwordError } = await supabase
+        .from('vip_individual_passwords')
+        .upsert(
+          { phone, password: request.requested_password, updated_at: new Date().toISOString() },
+          { onConflict: 'phone' }
+        )
+
+      if (passwordError) {
+        setVipRequestActionError('Numéro autorisé, mais le mot de passe individuel n’a pas pu être enregistré.')
+      }
+    }
+
+    const nextAllowedPhones = uniqueVipPhones([...vipAllowedPhoneList, phone])
+    setVipAllowedPhones(JSON.stringify(nextAllowedPhones))
+
+    const { error: allowedPhonesError } = await supabase
+      .from('settings')
+      .upsert({ key: 'vip_allowed_phones', value: JSON.stringify(nextAllowedPhones) })
+
+    if (allowedPhonesError) {
+      setVipRequestActionError('Mot de passe enregistré, mais le numéro n’a pas pu être activé. Réessayez.')
+      return
+    }
+
+    setApprovedRequestIds((prev) => new Set(prev).add(request.id))
+  }
+
+  const rejectVipRequest = async (request: VipAccessRequest) => {
+    setVipRequestActionError('')
+
+    const { error: updateError } = await supabase
+      .from('vip_access_requests')
+      .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
+      .eq('id', request.id)
+
+    if (updateError) {
+      setVipRequestActionError('Impossible de refuser cette demande. Réessayez.')
+      return
+    }
+
+    setVipRequests((prev) => prev.filter((r) => r.id !== request.id))
   }
 
   const uploadLogo = async (file: File) => {
@@ -524,6 +671,71 @@ function SettingsContent() {
         <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: '22px 24px', marginBottom: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 16 }}>Accès VIP</div>
 
+
+          {vipRequestActionError && (
+            <div style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: 12, fontFamily: 'DM Sans, sans-serif', lineHeight: 1.45, marginBottom: 16 }}>
+              {vipRequestActionError}
+            </div>
+          )}
+
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10 }}>
+            Demandes en attente ({vipRequests.length})
+          </div>
+
+          {vipRequestsLoading ? (
+            <div style={{ padding: 14, borderRadius: 12, border: '1px dashed rgba(232,160,32,0.18)', color: '#7A6E58', fontSize: 12, fontFamily: 'DM Sans, sans-serif', marginBottom: 20 }}>
+              Chargement des demandes...
+            </div>
+          ) : vipRequests.length === 0 ? (
+            <div style={{ padding: 14, borderRadius: 12, border: '1px dashed rgba(232,160,32,0.18)', color: '#7A6E58', fontSize: 12, fontFamily: 'DM Sans, sans-serif', marginBottom: 20 }}>
+              Aucune demande en attente.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+              {vipRequests.map((request) => (
+                <div key={request.id} style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.15)', background: 'rgba(255,255,255,0.025)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div>
+                      <div style={{ color: '#F5EDD6', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>{request.pseudo}</div>
+                      <div style={{ color: '#C8B99A', fontSize: 12, fontFamily: 'DM Sans, sans-serif' }}>{request.phone}</div>
+                    </div>
+                    {approvedRequestIds.has(request.id) && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#5BC57A', background: 'rgba(91,197,122,0.12)', padding: '4px 10px', borderRadius: 50 }}>
+                        Validé
+                      </span>
+                    )}
+                  </div>
+
+                  {!approvedRequestIds.has(request.id) ? (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <a href={buildWhatsAppHref(request.phone, `Bonjour ${request.pseudo}, votre accès VIP a été validé. Mot de passe : ${request.requested_password || vipAccessPassword}`, { defaultCountryCode: 'CD' }) || '#'}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => approveVipRequest(request)}
+                        style={{ flex: 1, textAlign: 'center', textDecoration: 'none', padding: '8px 10px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.4)', background: 'rgba(91,197,122,0.1)', color: '#5BC57A', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                      >
+                        Valider par WhatsApp
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => rejectVipRequest(request)}
+                        style={{ flex: 1, padding: '8px 10px', borderRadius: 50, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                      >
+                        Refuser
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {vipRequests.length > 0 && (
+            <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(232,160,32,0.06)', color: '#C8B99A', fontSize: 11, fontFamily: 'DM Sans, sans-serif', lineHeight: 1.5, marginBottom: 22 }}>
+              Le numéro est activé automatiquement après validation.
+              Pensez à cliquer sur « Enregistrer » pour appliquer les autres modifications en attente sur cette page.
+            </div>
+          )}
           <label style={labelStyle}>Activation de l’accès VIP</label>
           <button
             type="button"
@@ -569,18 +781,26 @@ function SettingsContent() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {vipAllowedPhoneList.map((phoneValue) => (
-                <div key={phoneValue} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.12)', background: 'rgba(255,255,255,0.025)' }}>
-                  <span style={{ color: '#F5EDD6', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>{phoneValue}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeVipPhone(phoneValue)}
-                    style={{ padding: '6px 10px', borderRadius: 50, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
-                  >
-                    Supprimer
-                  </button>
-                </div>
-              ))}
+              {vipAllowedPhoneList.map((phoneValue) => {
+                const hasMigrated = migratedPhones.has(phoneValue.replace(/[^\d]/g, '').slice(-9))
+                return (
+                  <div key={phoneValue} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.12)', background: 'rgba(255,255,255,0.025)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#F5EDD6', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>
+                      {hasMigrated && (
+                        <span title="Mot de passe personnel défini" style={{ color: '#5BC57A', fontSize: 13 }}>✓</span>
+                      )}
+                      {phoneValue}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeVipPhone(phoneValue)}
+                      style={{ padding: '6px 10px', borderRadius: 50, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           )}
 
@@ -597,7 +817,7 @@ function SettingsContent() {
       )}
 
       <div style={{ marginTop: 20 }}>
-        <button onClick={save} disabled={saving} style={{ width: '100%', padding: '14px', background: saved ? 'rgba(91,197,122,0.15)' : 'linear-gradient(135deg,#F5C842,#FF6B20)', color: saved ? '#5BC57A' : '#0A0804', border: saved ? '1px solid rgba(91,197,122,0.3)' : 'none', borderRadius: 50, fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 14, cursor: saving ? 'wait' : 'pointer' }}>
+        <button id="vip-save-button" onClick={save} disabled={saving} style={{ width: '100%', padding: '14px', background: saved ? 'rgba(91,197,122,0.15)' : 'linear-gradient(135deg,#F5C842,#FF6B20)', color: saved ? '#5BC57A' : '#0A0804', border: saved ? '1px solid rgba(91,197,122,0.3)' : 'none', borderRadius: 50, fontFamily: 'DM Sans, sans-serif', fontWeight: 800, fontSize: 14, cursor: saving ? 'wait' : 'pointer', transition: 'box-shadow 0.3s ease' }}>
           {saved ? 'Enregistré ✓' : saving ? 'Enregistrement...' : 'Enregistrer'}
         </button>
       </div>
