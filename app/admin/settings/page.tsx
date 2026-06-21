@@ -131,6 +131,18 @@ function SettingsContent() {
   const [vipRequestActionError, setVipRequestActionError] = useState('')
   const [approvedRequestIds, setApprovedRequestIds] = useState<Set<string>>(new Set())
   const [migratedPhones, setMigratedPhones] = useState<Set<string>>(new Set())
+
+  type VipPasswordResetRequest = {
+    id: string
+    phone: string
+    status: 'pending' | 'sent'
+    created_at: string
+  }
+
+  const [vipResetRequests, setVipResetRequests] = useState<VipPasswordResetRequest[]>([])
+  const [vipResetRequestsLoading, setVipResetRequestsLoading] = useState(false)
+  const [vipResetActionError, setVipResetActionError] = useState('')
+  const [generatedResetLinks, setGeneratedResetLinks] = useState<Record<string, string>>({})
   const approvedRequestIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
@@ -258,6 +270,24 @@ function SettingsContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
+  useEffect(() => {
+    if (activeTab !== 'vip') return
+
+    loadVipResetRequests()
+
+    const vipResetRequestsChannel = supabase
+      .channel('settings-vip-reset-requests')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vip_password_reset_requests' }, () => {
+        loadVipResetRequests()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(vipResetRequestsChannel)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
   const approveVipRequest = async (request: VipAccessRequest) => {
     setVipRequestActionError('')
     const phone = normalizeVipPhone(request.phone)
@@ -320,6 +350,51 @@ function SettingsContent() {
     }
 
     setVipRequests((prev) => prev.filter((r) => r.id !== request.id))
+  }
+
+  const loadVipResetRequests = async () => {
+    setVipResetRequestsLoading(true)
+    const { data } = await supabase
+      .from('vip_password_reset_requests')
+      .select('id,phone,status,created_at')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+    setVipResetRequests((data || []) as VipPasswordResetRequest[])
+    setVipResetRequestsLoading(false)
+  }
+
+  const generateResetLink = async (request: VipPasswordResetRequest) => {
+    setVipResetActionError('')
+
+    const { data: tokenRow, error: insertError } = await supabase
+      .from('vip_password_reset_tokens')
+      .insert({ phone: request.phone })
+      .select('token')
+      .single()
+
+    if (insertError || !tokenRow) {
+      setVipResetActionError('Impossible de générer le lien. Réessayez.')
+      return
+    }
+
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+    const resetUrl = `${baseUrl}/vip/reset?token=${tokenRow.token}`
+
+    setGeneratedResetLinks((prev) => ({ ...prev, [request.id]: resetUrl }))
+
+    await supabase
+      .from('vip_password_reset_requests')
+      .update({ status: 'sent', sent_at: new Date().toISOString() })
+      .eq('id', request.id)
+  }
+
+  const dismissVipResetRequest = (requestId: string) => {
+    setVipResetRequests((prev) => prev.filter((r) => r.id !== requestId))
+    setGeneratedResetLinks((prev) => {
+      const next = { ...prev }
+      delete next[requestId]
+      return next
+    })
   }
 
   const uploadLogo = async (file: File) => {
@@ -736,6 +811,60 @@ function SettingsContent() {
               Pensez à cliquer sur « Enregistrer » pour appliquer les autres modifications en attente sur cette page.
             </div>
           )}
+
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10, marginTop: 28 }}>
+            Mots de passe perdus ({vipResetRequests.length})
+          </div>
+
+          {vipResetActionError && (
+            <div style={{ background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.25)', color: '#FF6B6B', padding: '10px 14px', borderRadius: 10, marginBottom: 16, fontSize: 12, fontFamily: 'DM Sans, sans-serif' }}>
+              {vipResetActionError}
+            </div>
+          )}
+
+          {vipResetRequestsLoading ? (
+            <div style={{ padding: 14, color: '#7A6E58', fontSize: 12, fontFamily: 'DM Sans, sans-serif', marginBottom: 20 }}>
+              Chargement...
+            </div>
+          ) : vipResetRequests.length === 0 ? (
+            <div style={{ padding: 14, borderRadius: 12, border: '1px dashed rgba(232,160,32,0.18)', color: '#7A6E58', fontSize: 12, fontFamily: 'DM Sans, sans-serif', marginBottom: 20 }}>
+              Aucune demande en attente.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+              {vipResetRequests.map((request) => {
+                const link = generatedResetLinks[request.id]
+                return (
+                  <div key={request.id} style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.15)', background: 'rgba(255,255,255,0.025)' }}>
+                    <div style={{ color: '#F5EDD6', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: 700, marginBottom: 10 }}>
+                      {request.phone}
+                    </div>
+
+                    {!link ? (
+                      <button
+                        type="button"
+                        onClick={() => generateResetLink(request)}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.25)', background: 'rgba(232,160,32,0.08)', color: '#E8A020', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                      >
+                        Générer mot de passe
+                      </button>
+                    ) : (
+                      <a
+                        href={buildWhatsAppHref(request.phone, `Bonjour, voici votre lien pour redéfinir votre mot de passe VIP (valable 1 heure) : ${link}`, { defaultCountryCode: 'CD' }) || '#'}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => dismissVipResetRequest(request.id)}
+                        style={{ display: 'block', textAlign: 'center', width: '100%', padding: '8px 10px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.4)', background: 'rgba(91,197,122,0.12)', color: '#5BC57A', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'none', boxSizing: 'border-box' }}
+                      >
+                        Envoyer le lien par WhatsApp
+                      </a>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
           <label style={labelStyle}>Activation de l’accès VIP</label>
           <button
             type="button"

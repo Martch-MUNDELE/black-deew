@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Logo from '@/components/Logo'
 import PhoneInput from '@/components/PhoneInput'
 import VipAccessRequestForm from '@/components/VipAccessRequestForm'
+import VipPasswordResetRequestForm from '@/components/VipPasswordResetRequestForm'
 import { createClient } from '@/lib/supabase/client'
 
 type SettingRow = {
@@ -122,6 +123,8 @@ export default function VipAccessGate({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showRequestForm, setShowRequestForm] = useState(false)
+  const [showResetForm, setShowResetForm] = useState(false)
+  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false)
   const [needsPasswordChange, setNeedsPasswordChange] = useState(false)
   const [pendingPhoneForPasswordChange, setPendingPhoneForPasswordChange] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -289,6 +292,42 @@ export default function VipAccessGate({
     setGranted(true)
     setLoading(false)
   }
+
+  useEffect(() => {
+    if (autoLoginAttempted || !settingsLoaded) return
+
+    let raw: string | null = null
+    try {
+      raw = window.sessionStorage.getItem('base_food_vip_autologin')
+    } catch {
+      raw = null
+    }
+
+    if (!raw) {
+      setAutoLoginAttempted(true)
+      return
+    }
+
+    setAutoLoginAttempted(true)
+    window.sessionStorage.removeItem('base_food_vip_autologin')
+
+    try {
+      const parsed = JSON.parse(raw) as { phone?: string; password?: string }
+      if (parsed.phone && parsed.password) {
+        setPhone(parsed.phone)
+        setPassword(parsed.password)
+      }
+    } catch {}
+  }, [settingsLoaded, autoLoginAttempted])
+
+  useEffect(() => {
+    if (!autoLoginAttempted) return
+    if (!phone || !password) return
+    if (granted) return
+
+    login()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoLoginAttempted])
 
   const submitPasswordChange = async () => {
     setPasswordChangeError('')
@@ -691,12 +730,32 @@ export default function VipAccessGate({
               {loading ? 'Vérification...' : 'Accéder à la sélection VIP'}
             </button>
 
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 18, marginTop: 14, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setShowRequestForm(true)}
+                style={{ padding: '10px 0', borderRadius: 50, border: 'none', background: 'transparent', color: '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 600, fontSize: 12, textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                Demander votre accès VIP
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowResetForm(true)}
+                style={{ padding: '10px 0', borderRadius: 50, border: 'none', background: 'transparent', color: '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 600, fontSize: 12, textDecoration: 'underline', cursor: 'pointer' }}
+              >
+                Mot de passe perdu ?
+              </button>
+            </div>
+          </div>
+        ) : showResetForm ? (
+          <div key="reset" style={{ animation: 'vip-panel-fade-in 0.25s ease' }}>
+            <VipPasswordResetRequestForm defaultCountryCode="CD" />
             <button
               type="button"
-              onClick={() => setShowRequestForm(true)}
+              onClick={() => setShowResetForm(false)}
               style={{ width: '100%', padding: '10px', marginTop: 14, borderRadius: 50, border: 'none', background: 'transparent', color: '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 600, fontSize: 12, textDecoration: 'underline', cursor: 'pointer' }}
             >
-              Demander votre accès VIP
+              Retour à la connexion
             </button>
           </div>
         ) : (
