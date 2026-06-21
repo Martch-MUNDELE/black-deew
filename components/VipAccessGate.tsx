@@ -693,7 +693,7 @@ export default function VipAccessGate({
           }
         `}</style>
 
-        {!showRequestForm ? (
+        {!showRequestForm && !showResetForm ? (
           <div key="login" style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 20, padding: '32px 28px', animation: 'vip-panel-fade-in 0.25s ease' }}>
             {(error || settingsError) && (
               <div style={{ background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.25)', color: '#FF6B6B', padding: '10px 14px', borderRadius: 10, marginBottom: 20, fontSize: 13, fontFamily: 'DM Sans, sans-serif', lineHeight: 1.45 }}>

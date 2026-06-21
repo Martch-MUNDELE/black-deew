@@ -140,8 +140,6 @@ function SettingsContent() {
   }
 
   const [vipResetRequests, setVipResetRequests] = useState<VipPasswordResetRequest[]>([])
-  const [vipResetRequestsLoading, setVipResetRequestsLoading] = useState(false)
-  const [vipResetActionError, setVipResetActionError] = useState('')
   const [generatedResetLinks, setGeneratedResetLinks] = useState<Record<string, string>>({})
   const approvedRequestIdsRef = useRef<Set<string>>(new Set())
 
@@ -353,19 +351,15 @@ function SettingsContent() {
   }
 
   const loadVipResetRequests = async () => {
-    setVipResetRequestsLoading(true)
     const { data } = await supabase
       .from('vip_password_reset_requests')
       .select('id,phone,status,created_at')
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
     setVipResetRequests((data || []) as VipPasswordResetRequest[])
-    setVipResetRequestsLoading(false)
   }
 
   const generateResetLink = async (request: VipPasswordResetRequest) => {
-    setVipResetActionError('')
-
     const { data: tokenRow, error: insertError } = await supabase
       .from('vip_password_reset_tokens')
       .insert({ phone: request.phone })
@@ -373,7 +367,6 @@ function SettingsContent() {
       .single()
 
     if (insertError || !tokenRow) {
-      setVipResetActionError('Impossible de générer le lien. Réessayez.')
       return
     }
 
@@ -812,59 +805,6 @@ function SettingsContent() {
             </div>
           )}
 
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10, marginTop: 28 }}>
-            Mots de passe perdus ({vipResetRequests.length})
-          </div>
-
-          {vipResetActionError && (
-            <div style={{ background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.25)', color: '#FF6B6B', padding: '10px 14px', borderRadius: 10, marginBottom: 16, fontSize: 12, fontFamily: 'DM Sans, sans-serif' }}>
-              {vipResetActionError}
-            </div>
-          )}
-
-          {vipResetRequestsLoading ? (
-            <div style={{ padding: 14, color: '#7A6E58', fontSize: 12, fontFamily: 'DM Sans, sans-serif', marginBottom: 20 }}>
-              Chargement...
-            </div>
-          ) : vipResetRequests.length === 0 ? (
-            <div style={{ padding: 14, borderRadius: 12, border: '1px dashed rgba(232,160,32,0.18)', color: '#7A6E58', fontSize: 12, fontFamily: 'DM Sans, sans-serif', marginBottom: 20 }}>
-              Aucune demande en attente.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-              {vipResetRequests.map((request) => {
-                const link = generatedResetLinks[request.id]
-                return (
-                  <div key={request.id} style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.15)', background: 'rgba(255,255,255,0.025)' }}>
-                    <div style={{ color: '#F5EDD6', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: 700, marginBottom: 10 }}>
-                      {request.phone}
-                    </div>
-
-                    {!link ? (
-                      <button
-                        type="button"
-                        onClick={() => generateResetLink(request)}
-                        style={{ width: '100%', padding: '8px 10px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.25)', background: 'rgba(232,160,32,0.08)', color: '#E8A020', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
-                      >
-                        Générer mot de passe
-                      </button>
-                    ) : (
-                      <a
-                        href={buildWhatsAppHref(request.phone, `Bonjour, voici votre lien pour redéfinir votre mot de passe VIP (valable 1 heure) : ${link}`, { defaultCountryCode: 'CD' }) || '#'}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={() => dismissVipResetRequest(request.id)}
-                        style={{ display: 'block', textAlign: 'center', width: '100%', padding: '8px 10px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.4)', background: 'rgba(91,197,122,0.12)', color: '#5BC57A', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'none', boxSizing: 'border-box' }}
-                      >
-                        Envoyer le lien par WhatsApp
-                      </a>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
           <label style={labelStyle}>Activation de l’accès VIP</label>
           <button
             type="button"
@@ -912,21 +852,47 @@ function SettingsContent() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {vipAllowedPhoneList.map((phoneValue) => {
                 const hasMigrated = migratedPhones.has(phoneValue.replace(/[^\d]/g, '').slice(-9))
+                const resetRequest = vipResetRequests.find((r) => r.phone.replace(/[^\d]/g, '').slice(-9) === phoneValue.replace(/[^\d]/g, '').slice(-9))
+                const link = resetRequest ? generatedResetLinks[resetRequest.id] : undefined
                 return (
-                  <div key={phoneValue} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.12)', background: 'rgba(255,255,255,0.025)' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#F5EDD6', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>
-                      {hasMigrated && (
-                        <span title="Mot de passe personnel défini" style={{ color: '#5BC57A', fontSize: 13 }}>✓</span>
-                      )}
-                      {phoneValue}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeVipPhone(phoneValue)}
-                      style={{ padding: '6px 10px', borderRadius: 50, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
-                    >
-                      Supprimer
-                    </button>
+                  <div key={phoneValue} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.12)', background: 'rgba(255,255,255,0.025)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#F5EDD6', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>
+                        {hasMigrated && (
+                          <span title="Mot de passe personnel défini" style={{ color: '#5BC57A', fontSize: 13 }}>✓</span>
+                        )}
+                        {phoneValue}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeVipPhone(phoneValue)}
+                        style={{ padding: '6px 10px', borderRadius: 50, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                      >
+                        Supprimer
+                      </button>
+                    </div>
+
+                    {resetRequest && (
+                      !link ? (
+                        <button
+                          type="button"
+                          onClick={() => generateResetLink(resetRequest)}
+                          style={{ padding: '7px 10px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.25)', background: 'rgba(232,160,32,0.08)', color: '#E8A020', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                        >
+                          Mot de passe oublié — Générer mot de passe
+                        </button>
+                      ) : (
+                        <a
+                          href={buildWhatsAppHref(resetRequest.phone, `Bonjour, voici votre lien pour redéfinir votre mot de passe VIP (valable 1 heure) : ${link}`, { defaultCountryCode: 'CD' }) || '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => dismissVipResetRequest(resetRequest.id)}
+                          style={{ display: 'block', textAlign: 'center', padding: '7px 10px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.4)', background: 'rgba(91,197,122,0.12)', color: '#5BC57A', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'none', boxSizing: 'border-box' }}
+                        >
+                          Envoyer le lien par WhatsApp
+                        </a>
+                      )
+                    )}
                   </div>
                 )
               })}
