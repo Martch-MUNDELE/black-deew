@@ -54,11 +54,13 @@ function NavIcon({ name, className }: { name: string; className?: string }) {
 export default function AdminNavClient({
   groups,
   siteName,
+  siteLogo,
   isSuperAdmin,
   children,
 }: {
   groups: NavGroup[];
   siteName: string;
+  siteLogo?: string;
   isSuperAdmin: boolean;
   children?: React.ReactNode;
 }) {
@@ -66,6 +68,15 @@ export default function AdminNavClient({
   const [menuOpen, setMenuOpen] = useState(false);
   const [expandedHref, setExpandedHref] = useState<string | null>(null);
   const [newOrderCount, setNewOrderCount] = useState(0);
+  const [logoUrl, setLogoUrl] = useState(siteLogo || "");
+
+  useEffect(() => {
+    if (logoUrl) return;
+    const sb = createClient();
+    sb.from("settings").select("value").eq("key", "site_logo").maybeSingle().then(({ data }) => {
+      if (data?.value) setLogoUrl(data.value);
+    });
+  }, []);
   const [pendingVipCount, setPendingVipCount] = useState(0);
   const prevOrderIds = useRef<Set<string>>(new Set());
   const isFirstLoad = useRef(true);
@@ -201,17 +212,12 @@ export default function AdminNavClient({
       {/* ── HEADER MOBILE ── */}
       <header className="bd-mobile-header" aria-label="En-tête administration">
         <Link href="/admin" className="bd-mobile-logo-link">
-          <span className="bd-mobile-logo-mark">{logoMark}</span>
-          <span className="bd-mobile-logo-name">{siteName}</span>
+          {logoUrl
+            ? <img src={logoUrl} alt={siteName} style={{ width: 32, height: 32, objectFit: "contain", borderRadius: 8, flexShrink: 0 }} />
+            : <span className="bd-mobile-logo-mark">{logoMark}</span>
+          }
+          <span className="bd-mobile-logo-name">{siteName} Admin</span>
         </Link>
-        <button
-          onClick={() => setMenuOpen(o => !o)}
-          className="bd-mobile-menu-btn"
-          aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
-          aria-expanded={menuOpen}
-        >
-          {menuOpen ? <X size={22} /> : <Menu size={22} />}
-        </button>
       </header>
 
       {/* Overlay */}
@@ -221,10 +227,10 @@ export default function AdminNavClient({
 
       {/* Dropdown mobile */}
       {menuOpen && (
-        <div className="bd-mobile-dropdown" role="navigation" aria-label="Menu administration">
+        <div className="bd-mobile-drawer" role="navigation" aria-label="Menu administration">
           {visibleGroups.map(group => (
             <div key={group.label}>
-              <div className="bd-dropdown-group-label">{group.label}</div>
+              <div className="bd-drawer-group-label">{group.label}</div>
               {group.links.map(link => {
                 const active = isActive(link.href, link.href === "/admin");
                 const expanded = expandedHref === link.href;
@@ -233,7 +239,7 @@ export default function AdminNavClient({
                     {link.sub ? (
                       <button
                         onClick={() => toggleExpand(link.href)}
-                        className={`bd-dropdown-link bd-dropdown-link-btn${active ? " is-active" : ""}`}
+                        className={`bd-drawer-link bd-drawer-link-btn${active ? " is-active" : ""}`}
                       >
                         <NavIcon name={link.icon} />
                         <span>{link.label}</span>
@@ -242,7 +248,7 @@ export default function AdminNavClient({
                     ) : (
                       <Link
                         href={link.href}
-                        className={`bd-dropdown-link${active ? " is-active" : ""}`}
+                        className={`bd-drawer-link${active ? " is-active" : ""}`}
                         onClick={close}
                         aria-current={active ? "page" : undefined}
                       >
@@ -251,12 +257,12 @@ export default function AdminNavClient({
                       </Link>
                     )}
                     {link.sub && expanded && (
-                      <div className="bd-dropdown-sub">
+                      <div className="bd-drawer-sub">
                         {link.sub.map(sub => (
                           <Link
                             key={sub.url}
                             href={sub.url}
-                            className="bd-dropdown-sub-link"
+                            className="bd-drawer-sub-link"
                             onClick={close}
                           >
                             {sub.label}
@@ -269,11 +275,12 @@ export default function AdminNavClient({
               })}
             </div>
           ))}
-          <div className="bd-dropdown-footer">{children}</div>
+          <div className="bd-drawer-footer">{children}</div>
         </div>
       )}
 
       {/* ── BOTTOM BAR MOBILE ── */}
+      <div style={{ position: "fixed", top: 8, right: 8, zIndex: 200, background: "#F5C842", color: "#000", borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 900 }}>5</div>
       <nav className="bd-bottom-bar" aria-label="Navigation principale">
         {bottomLinks.map(link => {
           const isVip = link.href === "/admin/settings";
@@ -301,6 +308,16 @@ export default function AdminNavClient({
             </Link>
           );
         })}
+        <button
+          onClick={() => setMenuOpen(o => !o)}
+          className={`bd-bottom-tab${menuOpen ? " is-active" : ""}`}
+          aria-label="Menu"
+        >
+          <span className="bd-bottom-tab-icon">
+            {menuOpen ? <X size={18} /> : <Menu size={18} />}
+          </span>
+          <span className="bd-bottom-tab-label">Menu</span>
+        </button>
       </nav>
     </>
   );

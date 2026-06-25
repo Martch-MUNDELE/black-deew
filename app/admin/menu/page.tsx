@@ -194,48 +194,55 @@ function CatRow({
         borderRadius: 14,
         padding: '12px 16px',
         display: 'flex',
-        gap: 14,
-        alignItems: 'center',
+        flexDirection: 'column' as const,
+        gap: 0,
+        alignItems: 'stretch',
         marginLeft: indent ? 28 : 0,
         opacity: isDragging ? 0.4 : 1,
         transition: 'opacity 0.15s',
         ...(indent ? { borderLeft: isDragOver ? '2px dashed #F5C842' : '2px solid rgba(232,160,32,0.25)' } : {}),
       }}
     >
-      <div style={{ color: '#4A4030', flexShrink: 0, cursor: 'grab', display: 'flex', alignItems: 'center', padding: '0 2px' }}>
-        <IconGrip />
+      {/* Ligne 1 : grip + icône + infos + badge */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+        <div style={{ color: '#4A4030', flexShrink: 0, cursor: 'grab', display: 'flex', alignItems: 'center' }}>
+          <IconGrip />
+        </div>
+        <div style={{ display: 'inline-flex', width: 32, height: 32, borderRadius: 9, background: 'rgba(232,160,32,0.08)', border: '1px solid rgba(232,160,32,0.15)', alignItems: 'center', justifyContent: 'center', color: '#E8A020', flexShrink: 0 }}>
+          {cat.icon_type === 'builtin'
+            ? renderIcon(cat.icon_value, 14)
+            : cat.icon_value
+              ? <span aria-hidden="true" style={{ width: 20, height: 20, display: 'inline-block', backgroundImage: `url(${cat.icon_value})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} />
+              : null}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: '#F5EDD6', fontFamily: 'DM Sans, sans-serif' }}>{cat.name}</div>
+          <div style={{ fontSize: 11, color: '#7A6E58', marginTop: 1, fontFamily: 'DM Sans, sans-serif' }}>{cat.slug}</div>
+        </div>
+        <span style={{ padding: '2px 8px', borderRadius: 50, fontSize: 10, fontWeight: 700, fontFamily: 'DM Sans, sans-serif', background: cat.active ? 'rgba(80,200,120,0.12)' : 'rgba(255,107,107,0.12)', color: cat.active ? '#50C878' : '#FF6B6B', flexShrink: 0 }}>
+          {cat.active ? 'Actif' : 'Inactif'}
+        </span>
       </div>
-      <div style={{ display: 'inline-flex', width: 32, height: 32, borderRadius: 9, background: 'rgba(232,160,32,0.08)', border: '1px solid rgba(232,160,32,0.15)', alignItems: 'center', justifyContent: 'center', color: '#E8A020', flexShrink: 0 }}>
-        {cat.icon_type === 'builtin'
-          ? renderIcon(cat.icon_value, 14)
-          : cat.icon_value
-            ? <span aria-hidden="true" style={{ width: 20, height: 20, display: 'inline-block', backgroundImage: `url(${cat.icon_value})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} />
-            : null}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, color: '#F5EDD6', fontFamily: 'DM Sans, sans-serif' }}>{cat.name}</div>
-        <div style={{ fontSize: 11, color: '#7A6E58', marginTop: 2, fontFamily: 'DM Sans, sans-serif' }}>{cat.slug}</div>
-      </div>
-      <span style={{ padding: '3px 10px', borderRadius: 50, fontSize: 11, fontWeight: 700, fontFamily: 'DM Sans, sans-serif', background: cat.active ? 'rgba(80,200,120,0.12)' : 'rgba(255,107,107,0.12)', color: cat.active ? '#50C878' : '#FF6B6B', flexShrink: 0 }}>
-        {cat.active ? 'Actif' : 'Inactif'}
-      </span>
-      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-        {isFirst ? <div style={{ width: 28 }} /> : <button onClick={onMoveUp} style={BTN_ORDER}>↑</button>}
-        {isLast  ? <div style={{ width: 28 }} /> : <button onClick={onMoveDown} style={BTN_ORDER}>↓</button>}
-      </div>
-      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-        <button
-          onClick={() => onToggleVisible(cat.id, !cat.is_visible)}
-          style={{ ...BTN_ORDER, color: cat.is_visible ? '#F5C842' : '#7A6E58' }}
-        >
-          {cat.is_visible ? <Eye size={14} /> : <EyeOff size={14} />}
-        </button>
-        <button onClick={() => onEdit(cat)} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.06)', color: '#E8A020', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <IconEdit />
-        </button>
-        <button onClick={() => onDelete(cat.id)} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(255,107,107,0.2)', background: 'rgba(255,107,107,0.06)', color: '#FF6B6B', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <IconTrash />
-        </button>
+      {/* Ligne 2 : boutons d'action */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(232,160,32,0.07)' }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {isFirst ? <div style={{ width: 28 }} /> : <button onClick={onMoveUp} style={BTN_ORDER}>↑</button>}
+          {isLast  ? <div style={{ width: 28 }} /> : <button onClick={onMoveDown} style={BTN_ORDER}>↓</button>}
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            onClick={() => onToggleVisible(cat.id, !cat.is_visible)}
+            style={{ ...BTN_ORDER, color: cat.is_visible ? '#F5C842' : '#7A6E58' }}
+          >
+            {cat.is_visible ? <Eye size={14} /> : <EyeOff size={14} />}
+          </button>
+          <button onClick={() => onEdit(cat)} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.06)', color: '#E8A020', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <IconEdit />
+          </button>
+          <button onClick={() => onDelete(cat.id)} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(255,107,107,0.2)', background: 'rgba(255,107,107,0.06)', color: '#FF6B6B', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <IconTrash />
+          </button>
+        </div>
       </div>
     </div>
   )

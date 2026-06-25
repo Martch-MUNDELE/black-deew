@@ -83,19 +83,22 @@ export default async function AdminNav() {
 
   let isSuperAdmin = false;
   let siteName = "Black Deew";
+  let siteLogo = "";
 
   if (user?.email) {
     const [adminData, settingsData] = await Promise.all([
       supabase.from("admins").select("role, status").eq("email", user.email).maybeSingle(),
-      supabase.from("settings").select("key, value").in("key", ["site_name"]),
+      supabase.from("settings").select("key, value").in("key", ["site_name", "site_logo"]),
     ]);
     isSuperAdmin = adminData.data?.role === "superadmin" && adminData.data?.status === "active";
     const nameRow = (settingsData.data || []).find(s => s.key === "site_name");
     if (nameRow?.value) siteName = nameRow.value;
+    const logoRow = (settingsData.data || []).find(s => s.key === "site_logo");
+    if (logoRow?.value) siteLogo = logoRow.value;
   }
 
   return (
-    <AdminNavClient groups={NAV_GROUPS} siteName={siteName} isSuperAdmin={isSuperAdmin}>
+    <AdminNavClient groups={NAV_GROUPS} siteName={siteName} siteLogo={siteLogo} isSuperAdmin={isSuperAdmin}>
       <AdminLogoutButton />
     </AdminNavClient>
   );
