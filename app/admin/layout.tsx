@@ -1,11 +1,10 @@
-'use client'
-import AdminNav from '@/components/AdminNav'
+import AdminNav from '@/components/admin/AdminNav'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: '100vh', background: '#0A0804' }}>
+    <div className="bd-admin-shell">
       <AdminNav />
-      <main style={{ marginTop: 56, padding: '32px 24px 80px' }}>
+      <main className="bd-admin-main">
         {children}
       </main>
     </div>
