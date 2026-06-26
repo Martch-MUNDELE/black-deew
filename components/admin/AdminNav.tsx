@@ -90,6 +90,7 @@ export default async function AdminNav() {
       supabase.from("admins").select("role, status").eq("email", user.email).maybeSingle(),
       supabase.from("settings").select("key, value").in("key", ["site_name", "site_logo"]),
     ]);
+    console.log('[AdminNav] email:', user.email, 'adminData:', JSON.stringify(adminData.data))
     isSuperAdmin = adminData.data?.role === "superadmin" && adminData.data?.status === "active";
     const nameRow = (settingsData.data || []).find(s => s.key === "site_name");
     if (nameRow?.value) siteName = nameRow.value;
