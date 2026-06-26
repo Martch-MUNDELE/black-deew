@@ -55,17 +55,49 @@ export default function AdminNavClient({
   groups,
   siteName,
   siteLogo,
-  isSuperAdmin,
   children,
 }: {
   groups: NavGroup[];
   siteName: string;
   siteLogo?: string;
-  isSuperAdmin: boolean;
   children?: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [superAdmin, setSuperAdmin] = useState(false);
+
+  useEffect(() => {
+    const sb = createClient();
+    let active = true;
+    let handled = false;
+
+    const checkRole = async (email: string) => {
+      try {
+        const { data: admin } = await sb.from("admins").select("role,status").eq("email", email).single();
+        if (active) setSuperAdmin(admin?.role === "superadmin" && admin?.status === "active");
+      } catch {
+        if (active) setSuperAdmin(false);
+      }
+    };
+
+    sb.auth.getSession().then(({ data: { session } }) => {
+      if (!active || handled) return;
+      const email = session?.user?.email;
+      if (!email) return;
+      handled = true;
+      checkRole(email);
+    });
+
+    const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
+      if (!active || handled) return;
+      const email = session?.user?.email;
+      if (!email) return;
+      handled = true;
+      checkRole(email);
+    });
+
+    return () => { active = false; subscription.unsubscribe(); };
+  }, []);
   const [expandedHref, setExpandedHref] = useState<string | null>(null);
   const [newOrderCount, setNewOrderCount] = useState(0);
   const [logoUrl, setLogoUrl] = useState(siteLogo || "");
@@ -129,7 +161,7 @@ export default function AdminNavClient({
 
   // Groupes visibles (superadmin conditionnel)
   const visibleGroups = groups.filter(g => {
-    if (g.label === "SUPER ADMIN") return isSuperAdmin;
+    if (g.label === "SUPER ADMIN") return superAdmin;
     return true;
   });
 
@@ -190,7 +222,7 @@ export default function AdminNavClient({
                       <div className="bd-sidebar-sub">
                         {link.sub.map(sub => (
                           <Link
-                            key={sub.url}
+                            key={sub.label}
                             href={sub.url}
                             className={`bd-sidebar-sub-link${pathname + (typeof window !== "undefined" ? window.location.search : "") === sub.url ? " is-active" : ""}`}
                           >
@@ -261,7 +293,7 @@ export default function AdminNavClient({
                       <div className="bd-drawer-sub">
                         {link.sub.map(sub => (
                           <Link
-                            key={sub.url}
+                            key={sub.label}
                             href={sub.url}
                             className="bd-drawer-sub-link"
                             onClick={close}

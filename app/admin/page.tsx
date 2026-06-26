@@ -115,6 +115,7 @@ export default function AdminDashboard() {
   const [hoveredWeek, setHoveredWeek] = useState<{week:number;serie:string}|null>(null)
   const [hoveredDay30, setHoveredDay30] = useState<number|null>(null)
   const [toast, setToast] = useState<{name:string;total:number}|null>(null)
+  const [billing, setBilling] = useState<{flatFee:number;commission:number;totalDue:number;ordersBase:number;commissionRate:number}|null>(null)
   const currency = useCurrency()
   const toastTimer = useRef<ReturnType<typeof setTimeout>|null>(null)
   const prevOrderIds = useRef<Set<string>>(new Set())
@@ -158,6 +159,29 @@ export default function AdminDashboard() {
       if (toastTimer.current) clearTimeout(toastTimer.current)
     }
   }, [fetchOrders])
+
+  useEffect(() => {
+    const sb = createClient()
+    sb.from('billing_periods')
+      .select('flat_fee_amount, commission_amount, total_due, orders_base_amount')
+      .eq('status', 'en_cours')
+      .order('period_start', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return
+        const rate = data.orders_base_amount > 0
+          ? Math.round((data.commission_amount / data.orders_base_amount) * 100 * 10) / 10
+          : 0
+        setBilling({
+          flatFee: data.flat_fee_amount,
+          commission: data.commission_amount,
+          totalDue: data.total_due,
+          ordersBase: data.orders_base_amount,
+          commissionRate: rate,
+        })
+      })
+  }, [])
 
   const today     = dashboardNow.toISOString().slice(0,10)
   const yesterday = new Date(dashboardNow.getTime() - DAY_MS).toISOString().slice(0,10)
@@ -275,19 +299,50 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* CA Mensuel */}
-      <div style={{ marginBottom: 12 }}>
-      <KpiCardCA
-        label="CA ce mois"
-        total={caMonth}
-        classic={caMonthClassic}
-        vip={caMonthVip}
-        mixed={caMonthMixed}
-        trend={monthTrend}
-        trendVal={caMonthPrev}
-        trendLabel="vs mois préc."
-        currency={currency}
-      />
+      {/* CA Mensuel + Facturation */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+        <KpiCardCA
+          label="CA ce mois"
+          total={caMonth}
+          classic={caMonthClassic}
+          vip={caMonthVip}
+          mixed={caMonthMixed}
+          trend={monthTrend}
+          trendVal={caMonthPrev}
+          trendLabel="vs mois préc."
+          currency={currency}
+        />
+        {/* Box Redevance mensuelle */}
+        <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#7A6E58', letterSpacing: '1.5px', textTransform: 'uppercase' as const, marginBottom: 10 }}>REDEVANCE DU MOIS</div>
+          {billing ? (
+            <>
+              {/* Détail */}
+              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 5, marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 10, color: '#7A6E58' }}>Abonnement fixe</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#C8B99A' }}>{billing.flatFee} USD</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 10, color: '#7A6E58' }}>Commission {billing.commissionRate}% × {caMonth.toFixed(0)} {currency}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#C8B99A' }}>{(caMonth * billing.commissionRate / 100).toFixed(0)} USD</span>
+                </div>
+              </div>
+              {/* Total */}
+              <div style={{ borderTop: '1px solid rgba(255,107,32,0.2)', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 10, color: '#7A6E58', marginBottom: 2 }}>TOTAL DÛ</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: '#FF6B20', fontFamily: 'Playfair Display, serif', lineHeight: 1 }}>
+                    {(billing.flatFee + caMonth * billing.commissionRate / 100).toFixed(0)} <span style={{ fontSize: 12, fontWeight: 400, color: '#7A6E58' }}>USD</span>
+                  </div>
+                </div>
+                <span style={{ fontSize: 9, fontWeight: 800, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,107,32,0.12)', color: '#FF6B20', letterSpacing: '1px', textTransform: 'uppercase' as const }}>EN COURS</span>
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 12, color: '#4A4035', textAlign: 'center' as const, paddingTop: 16 }}>Aucune période en cours</div>
+          )}
+        </div>
       </div>
 
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:24}}>

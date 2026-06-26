@@ -70,9 +70,23 @@ const NAV_GROUPS = [
     ],
   },
   {
+    label: "FACTURATION",
+    links: [
+      { href: "/admin/abonnement", label: "Mon abonnement", icon: "clock" },
+    ],
+  },
+  {
     label: "SUPER ADMIN",
     links: [
-      { href: "/admin/superadmin", label: "Utilisateurs", icon: "star" },
+      { href: "/admin/superadmin", label: "Super Admin", icon: "star", sub: [
+        { label: "Administrateurs", url: "/admin/superadmin" },
+        { label: "Journal", url: "/admin/superadmin" },
+      ]},
+      { href: "/admin/superadmin/facturation/contrats", label: "Facturation", icon: "clock", sub: [
+        { label: "Clients & Contrats", url: "/admin/superadmin/facturation/contrats" },
+        { label: "Périodes", url: "/admin/superadmin/facturation/periodes" },
+        { label: "Ajustements", url: "/admin/superadmin/facturation/ajustements" },
+      ]},
     ],
   },
 ];
@@ -90,7 +104,6 @@ export default async function AdminNav() {
       supabase.from("admins").select("role, status").eq("email", user.email).maybeSingle(),
       supabase.from("settings").select("key, value").in("key", ["site_name", "site_logo"]),
     ]);
-    console.log('[AdminNav] email:', user.email, 'adminData:', JSON.stringify(adminData.data))
     isSuperAdmin = adminData.data?.role === "superadmin" && adminData.data?.status === "active";
     const nameRow = (settingsData.data || []).find(s => s.key === "site_name");
     if (nameRow?.value) siteName = nameRow.value;
@@ -99,7 +112,7 @@ export default async function AdminNav() {
   }
 
   return (
-    <AdminNavClient groups={NAV_GROUPS} siteName={siteName} siteLogo={siteLogo} isSuperAdmin={isSuperAdmin}>
+    <AdminNavClient groups={NAV_GROUPS} siteName={siteName} siteLogo={siteLogo} isSuperAdmin={isSuperAdmin} superAdminStr={isSuperAdmin ? "1" : "0"}>
       <AdminLogoutButton />
     </AdminNavClient>
   );
