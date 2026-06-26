@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useMemo, useState, Suspense } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Image, { type ImageLoaderProps } from 'next/image'
 import { createClient } from '@/lib/supabase/client'
@@ -37,6 +37,7 @@ function ProduitsAdminInner() {
   const [search, setSearch] = useState('')
   const [filterCat, setFilterCat] = useState('')
   const [openCatDropdown, setOpenCatDropdown] = useState(false)
+  const filterCatMounted = useRef(false)
   const [stockEnabled, setStockEnabled] = useState(false)
   const [editingStock, setEditingStock] = useState<{id: string, value: string} | null>(null)
   useEffect(() => {
@@ -73,6 +74,7 @@ function ProduitsAdminInner() {
     setProducts((prods as Product[]) || [])
   }, [supabase])
 
+  // Chargement initial
   useEffect(() => {
     Promise.resolve().then(async () => {
       await loadCats()
@@ -80,33 +82,27 @@ function ProduitsAdminInner() {
     })
   }, [loadCats, loadAllProducts])
 
+  // Recherche texte avec debounce
   useEffect(() => {
-    if (!search) {
-      Promise.resolve().then(() => {
-        if (filterCat) {
-          void loadProducts(filterCat)
-        } else {
-          setProducts([])
-        }
-      })
+    if (!search) return
+    const t = setTimeout(() => { void searchProducts(search) }, 300)
+    return () => clearTimeout(t)
+  }, [search, searchProducts])
+
+  // Effacement recherche texte -> recharger selon contexte
+  useEffect(() => {
+    if (search) return // géré par l'effet ci-dessus
+    if (!filterCatMounted.current) {
+      filterCatMounted.current = true
       return
     }
-
-    const t = setTimeout(() => {
-      void searchProducts(search)
-    }, 300)
-
-    return () => clearTimeout(t)
-  }, [search, filterCat, loadProducts, searchProducts])
-
-  useEffect(() => {
-    if (!filterCat) return
-
-    Promise.resolve().then(() => {
-      setSearch('')
+    // search vient d'être vidé ou filterCat a changé
+    if (filterCat) {
       void loadProducts(filterCat)
-    })
-  }, [filterCat, loadProducts])
+    } else {
+      void loadAllProducts()
+    }
+  }, [search, filterCat, loadProducts, loadAllProducts])
 
   const del = async (id: string) => {
     if (!window.confirm('Supprimer ce produit ?')) return
@@ -117,7 +113,7 @@ function ProduitsAdminInner() {
       const path = product.image_url.split('/products/')[1]?.split('?')[0]
       if (path) await supabase.storage.from('products').remove([path])
     }
-    await loadProducts(filterCat)
+    if (filterCat) { await loadProducts(filterCat) } else { await loadAllProducts() }
   }
 
   const setFeatured = async (id: string) => {
