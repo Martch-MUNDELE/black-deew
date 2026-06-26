@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { createClient } from '@/lib/supabase/server'
+import PushNotificationManager from '@/components/pwa/PushNotificationManager'
 
 type MetadataSettingRow = {
   key: string
@@ -12,6 +13,7 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: '#080603',
 }
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -26,6 +28,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title,
     description,
+    manifest: '/manifest.json',
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: 'black-translucent',
+      title: title,
+    },
     openGraph: {
       title,
       description,
@@ -47,7 +55,13 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang='fr' style={{ background: '#080603' }}>
+      <head>
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </head>
       <body style={{ background: '#080603', minHeight: '100vh' }}>
+        <PushNotificationManager />
         {children}
       </body>
     </html>
