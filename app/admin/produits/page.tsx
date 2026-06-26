@@ -43,7 +43,15 @@ function ProduitsAdminInner() {
   const [openCatDropdown, setOpenCatDropdown] = useState(false)
   const [stockEnabled, setStockEnabled] = useState(false)
   const [editingStock, setEditingStock] = useState<{id: string; value: string} | null>(null)
-  const [debugV] = useState(6)
+  const [debugV] = useState(7)
+
+  // Auto-sélection du tab qui a des résultats lors d'une recherche texte
+  useEffect(() => {
+    if (!search) return
+    if (countActifs > 0) { setTab('actifs'); return }
+    if (countInactifs > 0) { setTab('inactifs'); return }
+    if (countVip > 0) { setTab('vip'); return }
+  }, [countActifs, countInactifs, countVip, search])
 
   // ── Chargement initial ─────────────────────────────────────────────────
   useEffect(() => {
