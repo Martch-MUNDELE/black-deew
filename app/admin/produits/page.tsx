@@ -43,7 +43,7 @@ function ProduitsAdminInner() {
   const [openCatDropdown, setOpenCatDropdown] = useState(false)
   const [stockEnabled, setStockEnabled] = useState(false)
   const [editingStock, setEditingStock] = useState<{id: string; value: string} | null>(null)
-  const [debugV] = useState(8)
+  const [debugV] = useState(9)
 
   // ── Chargement initial ─────────────────────────────────────────────────
   useEffect(() => {
@@ -236,7 +236,7 @@ function ProduitsAdminInner() {
       {!loading && Object.entries(grouped).map(([sub, items]) => (
         <div key={sub} style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#E8A020', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid rgba(232,160,32,0.15)' }}>
-            {sub} ({items.length})
+            {cats.find(c => c.slug === sub)?.name || sub.replace(/_/g, ' ')} ({items.length})
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {items.map(p => (
