@@ -43,7 +43,6 @@ function ProduitsAdminInner() {
   const [openCatDropdown, setOpenCatDropdown] = useState(false)
   const [stockEnabled, setStockEnabled] = useState(false)
   const [editingStock, setEditingStock] = useState<{id: string; value: string} | null>(null)
-  const [debugV] = useState(9)
 
   // ── Chargement initial ─────────────────────────────────────────────────
   useEffect(() => {
@@ -160,9 +159,6 @@ function ProduitsAdminInner() {
   // ── Rendu ──────────────────────────────────────────────────────────────
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', position: 'relative' }}>
-
-      {/* Pastille debug */}
-      <div style={{ position: 'fixed', top: 8, right: 8, zIndex: 9999, background: '#F5C842', color: '#000', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900 }}>{debugV}</div>
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
