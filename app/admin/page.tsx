@@ -203,11 +203,12 @@ export default function AdminDashboard() {
     const d   = new Date(dashboardNow.getTime() - (6-i)*DAY_MS)
     const key = d.toISOString().slice(0,10)
     const dayOrders = deliveredBusinessOrders.filter(o => o.created_at.slice(0,10) === key)
-    const caC = dayOrders.filter(o => !isVipOrder(o)).reduce((s,o) => s+(o.total||0), 0)
-    const caV = dayOrders.filter(isVipOrder).reduce((s,o) => s+(o.total||0), 0)
-    return { label: d.toLocaleDateString('fr-FR',{weekday:'short'}), classic: caC, vip: caV }
+    const caC = dayOrders.filter(isClassicOnly).reduce((s,o) => s+(o.total||0), 0)
+    const caV = dayOrders.filter(isVipOnly).reduce((s,o) => s+(o.total||0), 0)
+    const caM = dayOrders.filter(isMixed).reduce((s,o) => s+(o.total||0), 0)
+    return { label: d.toLocaleDateString('fr-FR',{weekday:'short'}), classic: caC, vip: caV, mixed: caM }
   })
-  const maxCA = Math.max(...chartData.map(d => d.classic+d.vip), 1)
+  const maxCA = Math.max(...chartData.map(d => d.classic+d.vip+d.mixed), 1)
 
   const weeklyData = Array.from({length:4}, (_,i) => {
     const now = new Date(dashboardNow.getTime())
@@ -216,12 +217,13 @@ export default function AdminDashboard() {
     weekStart.setHours(0,0,0,0)
     const weekEnd = new Date(weekStart.getTime() + 7*DAY_MS)
     const wo = deliveredBusinessOrders.filter(o => { const d=new Date(o.created_at); return d>=weekStart && d<weekEnd })
-    const caC = wo.filter(o => !isVipOrder(o)).reduce((s,o)=>s+(o.total||0),0)
-    const caV = wo.filter(isVipOrder).reduce((s,o)=>s+(o.total||0),0)
+    const caC = wo.filter(isClassicOnly).reduce((s,o)=>s+(o.total||0),0)
+    const caV = wo.filter(isVipOnly).reduce((s,o)=>s+(o.total||0),0)
+    const caM = wo.filter(isMixed).reduce((s,o)=>s+(o.total||0),0)
     const label = i===3 ? 'S act.' : 'S-'+(3-i)
-    return { label, classic: caC, vip: caV }
+    return { label, classic: caC, vip: caV, mixed: caM }
   })
-  const maxWeekCA = Math.max(...weeklyData.map(d=>d.classic+d.vip),1)
+  const maxWeekCA = Math.max(...weeklyData.map(d=>d.classic+d.vip+(d.mixed||0)),1)
   const dailyData30 = Array.from({length:30}, (_,i) => {
     const d = new Date(dashboardNow.getTime() - (29-i)*DAY_MS)
     const key = d.toISOString().slice(0,10)
@@ -359,6 +361,9 @@ export default function AdminDashboard() {
           <span style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'#FF6EB4'}}>
             <span style={{width:10,height:10,borderRadius:2,background:'#FF6EB4',display:'inline-block'}}></span>VIP
           </span>
+          <span style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'#A078FF'}}>
+            <span style={{width:10,height:10,borderRadius:2,background:'#A078FF',display:'inline-block'}}></span>Mixte
+          </span>
         </div>
         <svg viewBox="0 0 280 118" style={{width:'100%',height:'auto',display:'block',overflow:'visible'}}>
           {chartData.map((d,i) => {
@@ -366,18 +371,25 @@ export default function AdminDashboard() {
             const xCenter = xSlot+SLOT_W/2
             const hC = d.classic>0 ? Math.max((d.classic/maxCA)*MAX_H,2) : 0
             const hV = d.vip>0 ? Math.max((d.vip/maxCA)*MAX_H,2) : 0
-            const xC = xSlot+(SLOT_W-BAR_W*2-2)/2
+            const hM = (d.mixed||0)>0 ? Math.max(((d.mixed||0)/maxCA)*MAX_H,2) : 0
+            const totalW = BAR_W*3+4
+            const xC = xSlot+(SLOT_W-totalW)/2
             const xV = xC+BAR_W+2
+            const xM = xV+BAR_W+2
             const isHovC = hoveredSerie?.day===i && hoveredSerie?.serie==='classic'
             const isHovV = hoveredSerie?.day===i && hoveredSerie?.serie==='vip'
+            const isHovM = hoveredSerie?.day===i && hoveredSerie?.serie==='mixed'
             return (
               <g key={i}>
                 <rect x={xC} y={12} width={BAR_W} height={MAX_H} rx={3} fill="rgba(245,200,66,0.08)" />
                 <rect x={xV} y={12} width={BAR_W} height={MAX_H} rx={3} fill="rgba(255,110,180,0.08)" />
+                <rect x={xM} y={12} width={BAR_W} height={MAX_H} rx={3} fill="rgba(160,120,255,0.08)" />
                 {hC>0 && <rect x={xC} y={BASE_Y-hC} width={BAR_W} height={hC} rx={3} fill={isHovC?'#FFD76A':'#F5C842'}
                   onMouseEnter={()=>setHoveredSerie({day:i,serie:'classic'})} onMouseLeave={()=>setHoveredSerie(null)} style={{cursor:'default'}} />}
                 {hV>0 && <rect x={xV} y={BASE_Y-hV} width={BAR_W} height={hV} rx={3} fill={isHovV?'#FFB0D8':'#FF6EB4'}
                   onMouseEnter={()=>setHoveredSerie({day:i,serie:'vip'})} onMouseLeave={()=>setHoveredSerie(null)} style={{cursor:'default'}} />}
+                {hM>0 && <rect x={xM} y={BASE_Y-hM} width={BAR_W} height={hM} rx={3} fill={isHovM?'#C4A8FF':'#A078FF'}
+                  onMouseEnter={()=>setHoveredSerie({day:i,serie:'mixed'})} onMouseLeave={()=>setHoveredSerie(null)} style={{cursor:'default'}} />}
                 <text x={xCenter} y={106} textAnchor="middle" fill="#6A5A40" fontSize="9.5" fontFamily="DM Sans, sans-serif">{d.label}</text>
                 {isHovC && <g>
                   <rect x={xC-8} y={BASE_Y-hC-22} width={BAR_W+16} height={18} rx={3} fill="#1F1A10" stroke="rgba(245,200,66,0.35)" strokeWidth={1}/>
@@ -398,22 +410,27 @@ export default function AdminDashboard() {
         <div style={{display:'flex',gap:16,marginBottom:14}}>
           <span style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'#F5C842'}}><span style={{width:10,height:10,borderRadius:2,background:'#F5C842',display:'inline-block'}}></span>Classique</span>
           <span style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'#FF6EB4'}}><span style={{width:10,height:10,borderRadius:2,background:'#FF6EB4',display:'inline-block'}}></span>VIP</span>
+          <span style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'#A078FF'}}><span style={{width:10,height:10,borderRadius:2,background:'#A078FF',display:'inline-block'}}></span>Mixte</span>
         </div>
         <svg viewBox="0 0 280 118" style={{width:'100%',height:'auto',display:'block',overflow:'visible'}}>
           {weeklyData.map((d,i) => {
-            const WSLOT=64,WBAR=16,WBY=90,WMH=72
+            const WSLOT=64,WBAR=14,WBY=90,WMH=72
             const xSlot=i*WSLOT+8
             const hC=d.classic>0?Math.max((d.classic/maxWeekCA)*WMH,2):0
             const hV=d.vip>0?Math.max((d.vip/maxWeekCA)*WMH,2):0
-            const xC=xSlot,xV=xSlot+WBAR+4
+            const hM=(d.mixed||0)>0?Math.max(((d.mixed||0)/maxWeekCA)*WMH,2):0
+            const xC=xSlot,xV=xSlot+WBAR+2,xM=xSlot+WBAR*2+4
             const isHovC=hoveredWeek?.week===i&&hoveredWeek?.serie==='classic'
             const isHovV=hoveredWeek?.week===i&&hoveredWeek?.serie==='vip'
+            const isHovM=hoveredWeek?.week===i&&hoveredWeek?.serie==='mixed'
             return (
               <g key={i}>
                 <rect x={xC} y={12} width={WBAR} height={WMH} rx={3} fill="rgba(245,200,66,0.06)"/>
                 <rect x={xV} y={12} width={WBAR} height={WMH} rx={3} fill="rgba(255,110,180,0.06)"/>
+                <rect x={xM} y={12} width={WBAR} height={WMH} rx={3} fill="rgba(160,120,255,0.06)"/>
                 {hC>0&&<rect x={xC} y={WBY-hC} width={WBAR} height={hC} rx={3} fill={isHovC?'#FFD76A':'#F5C842'} onMouseEnter={()=>setHoveredWeek({week:i,serie:'classic'})} onMouseLeave={()=>setHoveredWeek(null)} style={{cursor:'default'}}/>}
                 {hV>0&&<rect x={xV} y={WBY-hV} width={WBAR} height={hV} rx={3} fill={isHovV?'#FFB0D8':'#FF6EB4'} onMouseEnter={()=>setHoveredWeek({week:i,serie:'vip'})} onMouseLeave={()=>setHoveredWeek(null)} style={{cursor:'default'}}/>}
+                {hM>0&&<rect x={xM} y={WBY-hM} width={WBAR} height={hM} rx={3} fill={isHovM?'#C4A8FF':'#A078FF'} onMouseEnter={()=>setHoveredWeek({week:i,serie:'mixed'})} onMouseLeave={()=>setHoveredWeek(null)} style={{cursor:'default'}}/>}
                 <text x={xC+WBAR} y={106} textAnchor="middle" fill="#6A5A40" fontSize="10" fontFamily="DM Sans, sans-serif">{d.label}</text>
                 {isHovC&&hC>0&&<g><rect x={xC-4} y={WBY-hC-22} width={WBAR+8} height={18} rx={3} fill="#1F1A10" stroke="rgba(245,200,66,0.35)" strokeWidth={1}/><text x={xC+WBAR/2} y={WBY-hC-10} textAnchor="middle" fill="#F5C842" fontSize="9" fontFamily="DM Sans, sans-serif" fontWeight="700">{d.classic.toFixed(0)}</text></g>}
                 {isHovV&&hV>0&&<g><rect x={xV-4} y={WBY-hV-22} width={WBAR+8} height={18} rx={3} fill="#1F1A10" stroke="rgba(255,110,180,0.35)" strokeWidth={1}/><text x={xV+WBAR/2} y={WBY-hV-10} textAnchor="middle" fill="#FF6EB4" fontSize="9" fontFamily="DM Sans, sans-serif" fontWeight="700">{d.vip.toFixed(0)}</text></g>}
