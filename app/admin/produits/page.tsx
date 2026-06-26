@@ -43,7 +43,7 @@ function ProduitsAdminInner() {
   const [openCatDropdown, setOpenCatDropdown] = useState(false)
   const [stockEnabled, setStockEnabled] = useState(false)
   const [editingStock, setEditingStock] = useState<{id: string; value: string} | null>(null)
-  const [debugV] = useState(5)
+  const [debugV] = useState(6)
 
   // ── Chargement initial ─────────────────────────────────────────────────
   useEffect(() => {
@@ -90,10 +90,13 @@ function ProduitsAdminInner() {
     return acc
   }, {})
 
-  // Compteurs onglets
-  const countActifs = allProducts.filter(p => p.active && !p.is_vip).length
-  const countInactifs = allProducts.filter(p => !p.active && !p.is_vip).length
-  const countVip = allProducts.filter(p => p.is_vip).length
+  // Compteurs onglets : dynamiques si recherche texte active
+  const searchBase = search
+    ? allProducts.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) && (!filterCat || p.subcategory === filterCat))
+    : allProducts
+  const countActifs = searchBase.filter(p => p.active && !p.is_vip).length
+  const countInactifs = searchBase.filter(p => !p.active && !p.is_vip).length
+  const countVip = searchBase.filter(p => p.is_vip).length
 
   // ── Actions ────────────────────────────────────────────────────────────
   const del = async (id: string) => {
