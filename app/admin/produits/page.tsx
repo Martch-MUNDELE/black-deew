@@ -43,7 +43,7 @@ function ProduitsAdminInner() {
   const [openCatDropdown, setOpenCatDropdown] = useState(false)
   const [stockEnabled, setStockEnabled] = useState(false)
   const [editingStock, setEditingStock] = useState<{id: string; value: string} | null>(null)
-  const [debugV] = useState(3)
+  const [debugV] = useState(5)
 
   // ── Chargement initial ─────────────────────────────────────────────────
   useEffect(() => {
@@ -68,14 +68,17 @@ function ProduitsAdminInner() {
 
   // ── Filtrage (tout en mémoire, pas de requête Supabase) ────────────────
   const filtered = allProducts.filter(p => {
-    // Filtre tab
+    // Si recherche texte : chercher dans tous les produits (tab ignoré)
+    if (search) {
+      if (filterCat && p.subcategory !== filterCat) return false
+      return p.name.toLowerCase().includes(search.toLowerCase())
+    }
+    // Sinon : filtre par tab
     if (tab === 'vip' && !p.is_vip) return false
     if (tab === 'actifs' && (!p.active || p.is_vip)) return false
     if (tab === 'inactifs' && (p.active || p.is_vip)) return false
     // Filtre catégorie
     if (filterCat && p.subcategory !== filterCat) return false
-    // Filtre texte
-    if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
 
@@ -167,7 +170,7 @@ function ProduitsAdminInner() {
         type="text"
         placeholder="Rechercher un produit..."
         value={search}
-        onChange={e => { setSearch(e.target.value); if (filterCat) setFilterCat('') }}
+        onChange={e => { setSearch(e.target.value); setFilterCat('') }}
         style={{ width: '100%', padding: '10px 16px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.2)', background: '#131009', color: '#F5EDD6', fontSize: 14, fontFamily: 'DM Sans, sans-serif', outline: 'none', marginBottom: 10, boxSizing: 'border-box' }}
       />
 
@@ -182,11 +185,11 @@ function ProduitsAdminInner() {
         </button>
         {openCatDropdown && (
           <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: '#131009', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 12, zIndex: 100, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
-            <button onClick={() => { setFilterCat(''); setSearch(''); setOpenCatDropdown(false) }} style={{ width: '100%', padding: '10px 16px', background: !filterCat ? 'rgba(232,160,32,0.1)' : 'transparent', color: !filterCat ? '#F5C842' : '#C8B99A', fontSize: 13, fontFamily: 'DM Sans, sans-serif', border: 'none', textAlign: 'left' as const, cursor: 'pointer', borderBottom: '1px solid rgba(232,160,32,0.06)' }}>
+            <button onClick={() => { setFilterCat(''); setSearch(''); setTab('actifs'); setOpenCatDropdown(false) }} style={{ width: '100%', padding: '10px 16px', background: !filterCat ? 'rgba(232,160,32,0.1)' : 'transparent', color: !filterCat ? '#F5C842' : '#C8B99A', fontSize: 13, fontFamily: 'DM Sans, sans-serif', border: 'none', textAlign: 'left' as const, cursor: 'pointer', borderBottom: '1px solid rgba(232,160,32,0.06)' }}>
               Toutes les catégories
             </button>
             {cats.map(c => (
-              <button key={c.slug} onClick={() => { setFilterCat(c.slug); setSearch(''); setOpenCatDropdown(false) }} style={{ width: '100%', padding: '10px 16px', background: filterCat === c.slug ? 'rgba(232,160,32,0.1)' : 'transparent', color: filterCat === c.slug ? '#F5C842' : '#C8B99A', fontSize: 13, fontFamily: 'DM Sans, sans-serif', border: 'none', textAlign: 'left' as const, cursor: 'pointer', borderBottom: '1px solid rgba(232,160,32,0.06)' }}>
+              <button key={c.slug} onClick={() => { setFilterCat(c.slug); setSearch(''); setTab('actifs'); setOpenCatDropdown(false) }} style={{ width: '100%', padding: '10px 16px', background: filterCat === c.slug ? 'rgba(232,160,32,0.1)' : 'transparent', color: filterCat === c.slug ? '#F5C842' : '#C8B99A', fontSize: 13, fontFamily: 'DM Sans, sans-serif', border: 'none', textAlign: 'left' as const, cursor: 'pointer', borderBottom: '1px solid rgba(232,160,32,0.06)' }}>
                 {c.name}
               </button>
             ))}
