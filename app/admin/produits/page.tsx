@@ -45,11 +45,13 @@ function ProduitsAdminInner() {
       // Vider sessionStorage après restauration
       sessionStorage.removeItem('bd_prod_search')
       sessionStorage.removeItem('bd_prod_cat')
-      if (s) {
-        setSearch(s)
-      } else if (c) {
-        setFilterCat(c)
-      }
+      startTransition(() => {
+        if (s) {
+          setSearch(s)
+        } else if (c) {
+          setFilterCat(c)
+        }
+      })
     } catch {}
     // Charger les counts globaux
     const sb = createClient()

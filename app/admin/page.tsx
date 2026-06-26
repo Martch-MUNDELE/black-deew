@@ -46,9 +46,9 @@ function KpiCardCA({ label, total, classic, vip, mixed, trend, trendVal, trendLa
 }) {
   return (
     <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: 16 }}>
-      <div style={{ fontSize: 11, color: '#8A7A60', textTransform: 'uppercase' as const, letterSpacing: '0.8px', marginBottom: 8 }}>{label}</div>
+      <div style={{ fontSize: 11, color: '#8A7A60', textTransform: 'uppercase' as const, letterSpacing: '0.8px', marginBottom: 8, whiteSpace: 'pre-line' as const }}>{label}</div>
       <div style={{ fontSize: 26, fontFamily: 'Playfair Display, serif', fontWeight: 800, color: '#F5C842', lineHeight: 1, marginBottom: 8 }}>
-        {total.toFixed(0)} {currency}
+        {total.toFixed(0)} <span style={{fontSize:13,fontWeight:400,color:'#7A6E58'}}>{currency}</span>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const, marginBottom: 6 }}>
         <span style={{ fontSize: 10, color: '#E8A020', background: 'rgba(245,200,66,0.1)', borderRadius: 6, padding: '2px 7px', fontWeight: 600 }}>
@@ -57,7 +57,7 @@ function KpiCardCA({ label, total, classic, vip, mixed, trend, trendVal, trendLa
         <span style={{ fontSize: 10, color: '#FF6EB4', background: 'rgba(255,110,180,0.1)', borderRadius: 6, padding: '2px 7px', fontWeight: 600 }}>
           VIP {vip.toFixed(0)}
         </span>
-        {(mixed ?? 0) > 0 && <span style={{ fontSize: 10, color: '#A078FF', background: 'rgba(150,100,255,0.1)', borderRadius: 6, padding: '2px 7px', fontWeight: 600 }}>Mix {(mixed??0).toFixed(0)}</span>}
+        <span style={{ fontSize: 10, color: '#A078FF', background: 'rgba(150,100,255,0.1)', borderRadius: 6, padding: '2px 7px', fontWeight: 600 }}>Mix {(mixed??0).toFixed(0)}</span>
       </div>
       {trend && (
         <div style={{ fontSize: 11, color: trend === 'up' ? '#5BC57A' : '#FF6B6B', marginTop: 4, display: 'flex', gap: 3 }}>
@@ -69,22 +69,19 @@ function KpiCardCA({ label, total, classic, vip, mixed, trend, trendVal, trendLa
   )
 }
 
-function KpiCardOrders({ label, total, classic, vip, trend, sub }: {
-  label: string; total: number; classic: number; vip: number; trend?: string; sub?: string
+function KpiCardOrders({ label, total, classic, vip, mixed, trend, sub }: {
+  label: string; total: number; classic: number; vip: number; mixed?: number; trend?: string; sub?: string
 }) {
   return (
     <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: 16 }}>
-      <div style={{ fontSize: 11, color: '#8A7A60', textTransform: 'uppercase' as const, letterSpacing: '0.8px', marginBottom: 8 }}>{label}</div>
+      <div style={{ fontSize: 11, color: '#8A7A60', textTransform: 'uppercase' as const, letterSpacing: '0.8px', marginBottom: 8, whiteSpace: 'pre-line' as const }}>{label}</div>
       <div style={{ fontSize: 26, fontFamily: 'Playfair Display, serif', fontWeight: 800, color: '#F5C842', lineHeight: 1, marginBottom: 8 }}>
         {total}
       </div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' as const }}>
-        <span style={{ fontSize: 11, color: '#F5C842', background: 'rgba(245,200,66,0.12)', borderRadius: 6, padding: '2px 8px', fontWeight: 600 }}>
-          Classique {classic}
-        </span>
-        <span style={{ fontSize: 11, color: '#FF6EB4', background: 'rgba(255,110,180,0.12)', borderRadius: 6, padding: '2px 8px', fontWeight: 600 }}>
-          VIP {vip}
-        </span>
+      <div style={{ display: "flex", gap: 6, flexWrap: 'wrap' as const }}>
+        <span style={{ fontSize: 10, color: '#E8A020', background: 'rgba(245,200,66,0.1)', borderRadius: 6, padding: '2px 7px', fontWeight: 600 }}>Cl. {classic}</span>
+        <span style={{ fontSize: 10, color: '#FF6EB4', background: 'rgba(255,110,180,0.1)', borderRadius: 6, padding: '2px 7px', fontWeight: 600 }}>VIP {vip}</span>
+        <span style={{ fontSize: 10, color: '#A078FF', background: 'rgba(150,100,255,0.1)', borderRadius: 6, padding: '2px 7px', fontWeight: 600 }}>Mix {mixed ?? 0}</span>
       </div>
       <div style={{ fontSize: 11, color: trend === 'up' ? '#5BC57A' : trend === 'down' ? '#FF6B6B' : '#8A7A60', marginTop: 6, display: 'flex', gap: 3 }}>
         {trend && <span>{trend === 'up' ? '▲' : '▼'}</span>}
@@ -99,7 +96,7 @@ function KpiCard({ label, value, valueColor, trend, sub }: {
 }) {
   return (
     <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: 16 }}>
-      <div style={{ fontSize: 11, color: '#8A7A60', textTransform: 'uppercase' as const, letterSpacing: '0.8px', marginBottom: 8 }}>{label}</div>
+      <div style={{ fontSize: 11, color: '#8A7A60', textTransform: 'uppercase' as const, letterSpacing: '0.8px', marginBottom: 8, whiteSpace: 'pre-line' as const }}>{label}</div>
       <div style={{ fontSize: 26, fontFamily: 'Playfair Display, serif', fontWeight: 800, color: valueColor, lineHeight: 1, marginBottom: 6 }}>
         {value}
       </div>
@@ -277,6 +274,7 @@ export default function AdminDashboard() {
       )}
 
       {/* CA Mensuel */}
+      <div style={{ marginBottom: 12 }}>
       <KpiCardCA
         label="CA ce mois"
         total={caMonth}
@@ -288,10 +286,11 @@ export default function AdminDashboard() {
         trendLabel="vs mois préc."
         currency={currency}
       />
+      </div>
 
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:24}}>
         <KpiCardCA
-          label="CA aujourd'hui"
+          label={"CA\nAUJOURD'HUI"}
           total={caToday}
           classic={caClassicToday}
           vip={caVipToday}
@@ -301,7 +300,7 @@ export default function AdminDashboard() {
           currency={currency}
         />
         <KpiCardOrders
-          label="Commandes aujourd'hui"
+          label={"COMMANDES\nAUJOURD'HUI"}
           total={todayO.length}
           classic={todayClassicOrders.length}
           vip={todayVipOrders.length}

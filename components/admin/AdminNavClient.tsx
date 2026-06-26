@@ -76,7 +76,7 @@ export default function AdminNavClient({
     sb.from("settings").select("value").eq("key", "site_logo").maybeSingle().then(({ data }) => {
       if (data?.value) setLogoUrl(data.value);
     });
-  }, []);
+  }, [logoUrl]);
   const [pendingVipCount, setPendingVipCount] = useState(0);
   const prevOrderIds = useRef<Set<string>>(new Set());
   const isFirstLoad = useRef(true);
@@ -213,7 +213,8 @@ export default function AdminNavClient({
       <header className="bd-mobile-header" aria-label="En-tête administration">
         <Link href="/admin" className="bd-mobile-logo-link">
           {logoUrl
-            ? <img src={logoUrl} alt={siteName} style={{ width: 32, height: 32, objectFit: "contain", borderRadius: 8, flexShrink: 0 }} />
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={logoUrl} alt={siteName} width={32} height={32} style={{ objectFit: "contain", borderRadius: 8, flexShrink: 0 }} />
             : <span className="bd-mobile-logo-mark">{logoMark}</span>
           }
           <span className="bd-mobile-logo-name">{siteName} Admin</span>
@@ -280,7 +281,7 @@ export default function AdminNavClient({
       )}
 
       {/* ── BOTTOM BAR MOBILE ── */}
-      <div style={{ position: "fixed", top: 8, right: 8, zIndex: 200, background: "#F5C842", color: "#000", borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 900 }}>25</div>
+      <div style={{ position: "fixed", top: 8, right: 8, zIndex: 200, background: "#F5C842", color: "#000", borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 900 }}>32</div>
       <nav className="bd-bottom-bar" aria-label="Navigation principale">
         {bottomLinks.map(link => {
           const isVip = link.href === "/admin/settings";
