@@ -76,9 +76,9 @@ function ProduitsAdminInner() {
   useEffect(() => {
     Promise.resolve().then(async () => {
       await loadCats()
-      if (tab === 'vip') await loadAllProducts()
+      await loadAllProducts()
     })
-  }, [loadCats, loadAllProducts, tab])
+  }, [loadCats, loadAllProducts])
 
   useEffect(() => {
     if (!search) {
@@ -259,10 +259,10 @@ function ProduitsAdminInner() {
       </div>
       {/* ONGLETS */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' as const }}>
-        <button onClick={() => setTab('actifs')} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === 'actifs' ? 'rgba(245,200,66,0.4)' : 'rgba(255,255,255,0.06)', background: tab === 'actifs' ? 'rgba(245,200,66,0.12)' : 'transparent', color: tab === 'actifs' ? '#F5C842' : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+        <button onClick={() => { setTab('actifs'); if (!filterCat && !search) loadAllProducts() }} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === 'actifs' ? 'rgba(245,200,66,0.4)' : 'rgba(255,255,255,0.06)', background: tab === 'actifs' ? 'rgba(245,200,66,0.12)' : 'transparent', color: tab === 'actifs' ? '#F5C842' : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
           Actifs <span style={{ marginLeft: 4, background: tab === 'actifs' ? 'rgba(245,200,66,0.2)' : 'rgba(255,255,255,0.06)', padding: '1px 7px', borderRadius: 50, fontSize: 10 }}>{products.filter(p => p.active).length}</span>
         </button>
-        <button onClick={() => setTab('inactifs')} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === 'inactifs' ? 'rgba(255,107,107,0.4)' : 'rgba(255,255,255,0.06)', background: tab === 'inactifs' ? 'rgba(255,107,107,0.08)' : 'transparent', color: tab === 'inactifs' ? '#FF6B6B' : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+        <button onClick={() => { setTab('inactifs'); if (!filterCat && !search) loadAllProducts() }} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === 'inactifs' ? 'rgba(255,107,107,0.4)' : 'rgba(255,255,255,0.06)', background: tab === 'inactifs' ? 'rgba(255,107,107,0.08)' : 'transparent', color: tab === 'inactifs' ? '#FF6B6B' : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
           Inactifs <span style={{ marginLeft: 4, background: tab === 'inactifs' ? 'rgba(255,107,107,0.2)' : 'rgba(255,255,255,0.06)', padding: '1px 7px', borderRadius: 50, fontSize: 10 }}>{products.filter(p => !p.active).length}</span>
         </button>
         <button onClick={() => { setTab('vip'); loadAllProducts() }} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === 'vip' ? 'rgba(245,200,66,0.5)' : 'rgba(255,255,255,0.06)', background: tab === 'vip' ? 'rgba(245,200,66,0.12)' : 'transparent', color: tab === 'vip' ? '#F5C842' : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
@@ -271,18 +271,18 @@ function ProduitsAdminInner() {
       </div>
 
       {/* LISTE PAR SOUS-CATEGORIE */}
-      {!filterCat && !search && tab !== 'vip' && (
+      {!filterCat && !search && tab === 'none_impossible' && (
         <div style={{ textAlign: 'center', color: '#7A6E58', padding: '40px 0', fontSize: 14, fontFamily: 'DM Sans, sans-serif' }}>
           Recherchez un produit ou sélectionnez une catégorie
         </div>
       )}
-      {(filterCat || search || tab === 'vip') && Object.keys(grouped).length === 0 && (
+      {Object.keys(grouped).length === 0 && products.length === 0 && !search && !filterCat && tab !== 'vip' && (
         <div style={{ textAlign: 'center', color: '#7A6E58', padding: '40px 0', fontSize: 14, fontFamily: 'DM Sans, sans-serif' }}>
           Aucun produit {tab === 'actifs' ? 'actif' : 'inactif'}
         </div>
       )}
 
-      {(filterCat || search || tab === 'vip') && Object.entries(grouped).map(([sub, items]) => (
+      {Object.entries(grouped).map(([sub, items]) => (
         <div key={sub} style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#E8A020', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid rgba(232,160,32,0.15)' }}>
             {subcatLabel(sub)} ({(items as Product[]).length})
