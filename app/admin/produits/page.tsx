@@ -160,23 +160,14 @@ function ProduitsAdminInner() {
 
   const filtered = search ? products.filter(p => tab === 'vip' ? p.is_vip : tab === 'actifs' ? p.active : !p.active) : products.filter(p => tab === 'vip' ? p.is_vip : tab === 'actifs' ? (p.active && !p.is_vip) : (!p.active && !p.is_vip))
 
-  // Grouper par sous-catégorie dynamiquement
-  const allSubs = tab === 'vip' ? ['vip'] : (subcats.length > 0
-    ? subcats.map(s => s.slug)
-    : [...new Set(filtered.map(p => p.subcategory))])
+  // Grouper par sous-catégorie directement depuis les produits filtrés
   const subcatLabel = (slug: string) => slug === 'vip' ? 'Sélection VIP' : (subcats.find(s => s.slug === slug)?.name ?? slug)
-  const grouped = allSubs.reduce<Record<string, Product[]>>((acc, sub) => {
-    const items = filtered.filter(p => p.subcategory === sub || (tab === 'vip' && sub === 'vip' && !p.subcategory))
-    if (items.length > 0) acc[sub] = items
+  const grouped = filtered.reduce<Record<string, Product[]>>((acc, p) => {
+    const key = tab === 'vip' ? 'vip' : (p.subcategory || '__sans_categorie__')
+    if (!acc[key]) acc[key] = []
+    acc[key].push(p)
     return acc
   }, {})
-  // Ajouter les produits avec subcategory hors liste
-  filtered.forEach(p => {
-    if (!allSubs.includes(p.subcategory) && p.subcategory) {
-      if (!grouped[p.subcategory]) grouped[p.subcategory] = []
-      if (!grouped[p.subcategory].find(x => x.id === p.id)) grouped[p.subcategory].push(p)
-    }
-  })
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto' }}>
