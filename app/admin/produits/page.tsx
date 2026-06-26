@@ -76,11 +76,9 @@ function ProduitsAdminInner() {
 
   // Chargement initial
   useEffect(() => {
-    Promise.resolve().then(async () => {
-      await loadCats()
-      await loadAllProducts()
-    })
-  }, [loadCats, loadAllProducts])
+    loadCats()
+    loadAllProducts()
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Recherche texte avec debounce
   useEffect(() => {
@@ -89,22 +87,26 @@ function ProduitsAdminInner() {
     return () => clearTimeout(t)
   }, [search, searchProducts])
 
-  // Effacement recherche texte -> recharger selon contexte
+  // Changement catégorie
   useEffect(() => {
-    if (search) return // géré par l'effet ci-dessus
     if (!filterCatMounted.current) {
       filterCatMounted.current = true
       return
     }
-    // search vient d'être vidé ou filterCat a changé
-    startTransition(() => {
-      if (filterCat) {
-        void loadProducts(filterCat)
-      } else {
-        void loadAllProducts()
-      }
-    })
-  }, [search, filterCat, loadProducts, loadAllProducts])
+    if (filterCat) {
+      loadProducts(filterCat)
+    } else if (!search) {
+      loadAllProducts()
+    }
+  }, [filterCat])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Effacement recherche texte
+  useEffect(() => {
+    if (search) return
+    if (!filterCat) {
+      loadAllProducts()
+    }
+  }, [search])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const del = async (id: string) => {
     if (!window.confirm('Supprimer ce produit ?')) return
