@@ -64,12 +64,23 @@ function ProduitsAdminInner() {
       })
     })
   }, [])
+  const [loading, setLoading] = useState(false)
   const [stockEnabled, setStockEnabled] = useState(false)
   const [editingStock, setEditingStock] = useState<{id: string, value: string} | null>(null)
   useEffect(() => {
     if (searchTab === tab) return
     Promise.resolve().then(() => setTab(searchTab))
   }, [searchTab, tab])
+
+  // Recharger quand tab change sans filterCat ni search
+  useEffect(() => {
+    if (filterCat || search) return
+    if (tab === 'vip') {
+      void loadAllProducts()
+    } else {
+      setProducts([])
+    }
+  }, [tab])
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
 
@@ -86,12 +97,16 @@ function ProduitsAdminInner() {
 
   const loadProducts = useCallback(async (cat: string) => {
     if (!cat) { setProducts([]); return }
+    setLoading(true)
     const { data: prods } = await supabase.from('products').select('*').eq('subcategory', cat).order('name')
     setProducts((prods as Product[]) || [])
+    setLoading(false)
   }, [supabase])
   const loadAllProducts = useCallback(async () => {
+    setLoading(true)
     const { data: prods } = await supabase.from('products').select('*').order('name')
     setProducts((prods as Product[]) || [])
+    setLoading(false)
   }, [supabase])
 
   const searchProducts = useCallback(async (q: string) => {
@@ -303,6 +318,12 @@ function ProduitsAdminInner() {
           Recherchez un produit ou sélectionnez une catégorie
         </div>
       )}
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: '#7A6E58', fontFamily: 'DM Sans, sans-serif', fontSize: 13 }}>
+          <div style={{ display: 'inline-block', width: 20, height: 20, border: '2px solid rgba(232,160,32,0.2)', borderTop: '2px solid #F5C842', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 8 }} />
+          <div>Chargement...</div>
+        </div>
+      )}
       {(filterCat || search || tab === 'vip') && Object.keys(grouped).length === 0 && (
         <div style={{ textAlign: 'center', color: '#7A6E58', padding: '40px 0', fontSize: 14, fontFamily: 'DM Sans, sans-serif' }}>
           Aucun produit {tab === 'actifs' ? 'actif' : 'inactif'}
@@ -363,7 +384,7 @@ function ProduitsAdminInner() {
           </div>
         </div>
       ))}
-    <style>{`input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}`}</style>
+    <style>{`@keyframes spin { to { transform: rotate(360deg) } } input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}`}</style>
     </div>
   )
 }

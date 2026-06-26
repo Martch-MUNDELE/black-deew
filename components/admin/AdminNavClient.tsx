@@ -281,7 +281,6 @@ export default function AdminNavClient({
       )}
 
       {/* ── BOTTOM BAR MOBILE ── */}
-      <div style={{ position: "fixed", top: 8, right: 8, zIndex: 200, background: "#F5C842", color: "#000", borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 900 }}>32</div>
       <nav className="bd-bottom-bar" aria-label="Navigation principale">
         {bottomLinks.map(link => {
           const isVip = link.href === "/admin/settings";
