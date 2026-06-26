@@ -43,7 +43,7 @@ function ProduitsAdminInner() {
   const [openCatDropdown, setOpenCatDropdown] = useState(false)
   const [stockEnabled, setStockEnabled] = useState(false)
   const [editingStock, setEditingStock] = useState<{id: string; value: string} | null>(null)
-  const [debugV] = useState(2)
+  const [debugV] = useState(3)
 
   // ── Chargement initial ─────────────────────────────────────────────────
   useEffect(() => {
@@ -197,7 +197,7 @@ function ProduitsAdminInner() {
       {/* Onglets */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         {([['actifs', countActifs], ['inactifs', countInactifs], ['vip', countVip]] as [Tab, number][]).map(([t, count]) => (
-          <button key={t} onClick={() => setTab(t)} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === t ? (t === 'inactifs' ? 'rgba(255,107,107,0.4)' : 'rgba(245,200,66,0.4)') : 'rgba(255,255,255,0.06)', background: tab === t ? (t === 'inactifs' ? 'rgba(255,107,107,0.08)' : 'rgba(245,200,66,0.12)') : 'transparent', color: tab === t ? (t === 'inactifs' ? '#FF6B6B' : '#F5C842') : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' as const }}>
+          <button key={t} onClick={() => { setTab(t); setSearch(''); setFilterCat('') }} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === t ? (t === 'inactifs' ? 'rgba(255,107,107,0.4)' : 'rgba(245,200,66,0.4)') : 'rgba(255,255,255,0.06)', background: tab === t ? (t === 'inactifs' ? 'rgba(255,107,107,0.08)' : 'rgba(245,200,66,0.12)') : 'transparent', color: tab === t ? (t === 'inactifs' ? '#FF6B6B' : '#F5C842') : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' as const }}>
             {t} <span style={{ marginLeft: 4, background: tab === t ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)', padding: '1px 7px', borderRadius: 50, fontSize: 10 }}>{count}</span>
           </button>
         ))}
