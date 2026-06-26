@@ -88,6 +88,7 @@ function SettingsContent() {
   const [bgGradEnd, setBgGradEnd] = useState('#1a0a02')
   const [bgGradDir, setBgGradDir] = useState('to bottom')
   const [saving, setSaving] = useState(false)
+  const [tabDropOpen, setTabDropOpen] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [siteName, setSiteName] = useState('Black Deew')
@@ -487,12 +488,30 @@ function SettingsContent() {
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
       <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 26, fontWeight: 900, color: '#F5EDD6', marginBottom: 20 }}>Paramètres</h1>
-      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 24, paddingBottom: 4 }}>
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => router.push(`/admin/settings?tab=${t.key}`)} style={{ padding: '8px 14px', borderRadius: 50, border: '1px solid', borderColor: activeTab === t.key ? 'rgba(232,160,32,0.4)' : 'rgba(232,160,32,0.12)', background: activeTab === t.key ? 'rgba(232,160,32,0.12)' : 'transparent', color: activeTab === t.key ? '#E8A020' : '#C8B99A', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap' as const }}>
-            {t.label}
-          </button>
-        ))}
+      {/* Dropdown custom navigation paramètres */}
+      <div style={{ position: 'relative', marginBottom: 24 }}>
+        <button
+          onClick={() => setTabDropOpen(o => !o)}
+          style={{ width: '100%', padding: '12px 16px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.25)', background: '#131009', color: '#F5EDD6', fontSize: 14, fontFamily: 'DM Sans, sans-serif', fontWeight: 600, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', outline: 'none' }}
+        >
+          <span>{TABS.find(t => t.key === activeTab)?.label || 'Statut'}</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F5C842" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: tabDropOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+        {tabDropOpen && (
+          <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#131009', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 12, zIndex: 100, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+            {TABS.map(t => (
+              <button
+                key={t.key}
+                onClick={() => { router.push(`/admin/settings?tab=${t.key}`); setTabDropOpen(false) }}
+                style={{ width: '100%', padding: '12px 16px', background: activeTab === t.key ? 'rgba(232,160,32,0.1)' : 'transparent', color: activeTab === t.key ? '#F5C842' : '#C8B99A', fontSize: 14, fontFamily: 'DM Sans, sans-serif', fontWeight: activeTab === t.key ? 700 : 400, cursor: 'pointer', border: 'none', textAlign: 'left' as const, borderBottom: '1px solid rgba(232,160,32,0.06)', outline: 'none' }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {activeTab === 'statut' && (

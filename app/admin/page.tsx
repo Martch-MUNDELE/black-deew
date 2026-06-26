@@ -41,8 +41,8 @@ function isVipOrder(o: OrderWithItems): boolean {
 }
 
 
-function KpiCardCA({ label, total, classic, vip, trend, currency }: {
-  label: string; total: number; classic: number; vip: number; trend?: string; currency: string
+function KpiCardCA({ label, total, classic, vip, mixed, trend, trendVal, trendLabel, currency }: {
+  label: string; total: number; classic: number; vip: number; mixed?: number; trend?: string; trendVal?: number; trendLabel?: string; currency: string
 }) {
   return (
     <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: 16 }}>
@@ -50,17 +50,19 @@ function KpiCardCA({ label, total, classic, vip, trend, currency }: {
       <div style={{ fontSize: 26, fontFamily: 'Playfair Display, serif', fontWeight: 800, color: '#F5C842', lineHeight: 1, marginBottom: 8 }}>
         {total.toFixed(0)} {currency}
       </div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' as const }}>
-        <span style={{ fontSize: 11, color: '#F5C842', background: 'rgba(245,200,66,0.12)', borderRadius: 6, padding: '2px 8px', fontWeight: 600 }}>
-          Classique {classic.toFixed(0)} {currency}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const, marginBottom: 6 }}>
+        <span style={{ fontSize: 10, color: '#E8A020', background: 'rgba(245,200,66,0.1)', borderRadius: 6, padding: '2px 7px', fontWeight: 600 }}>
+          Cl. {classic.toFixed(0)}
         </span>
-        <span style={{ fontSize: 11, color: '#FF6EB4', background: 'rgba(255,110,180,0.12)', borderRadius: 6, padding: '2px 8px', fontWeight: 600 }}>
-          VIP {vip.toFixed(0)} {currency}
+        <span style={{ fontSize: 10, color: '#FF6EB4', background: 'rgba(255,110,180,0.1)', borderRadius: 6, padding: '2px 7px', fontWeight: 600 }}>
+          VIP {vip.toFixed(0)}
         </span>
+        {(mixed ?? 0) > 0 && <span style={{ fontSize: 10, color: '#A078FF', background: 'rgba(150,100,255,0.1)', borderRadius: 6, padding: '2px 7px', fontWeight: 600 }}>Mix {(mixed??0).toFixed(0)}</span>}
       </div>
       {trend && (
-        <div style={{ fontSize: 11, color: trend === 'up' ? '#5BC57A' : '#FF6B6B', marginTop: 6, display: 'flex', gap: 3 }}>
-          <span>{trend === 'up' ? '▲' : '▼'}</span><span>vs hier</span>
+        <div style={{ fontSize: 11, color: trend === 'up' ? '#5BC57A' : '#FF6B6B', marginTop: 4, display: 'flex', gap: 3 }}>
+          <span>{trend === 'up' ? '▲' : '▼'}</span>
+          <span>{trendLabel || 'vs hier'} ({trendVal !== undefined ? trendVal.toFixed(0) : '—'} {currency})</span>
         </div>
       )}
     </div>
@@ -171,11 +173,28 @@ export default function AdminDashboard() {
   const caToday = todayO.reduce((s,o) => s+(o.total||0), 0)
   const caYest  = yestO.reduce((s,o) => s+(o.total||0), 0)
 
-  const todayVipOrders     = todayO.filter(isVipOrder)
-  const todayClassicOrders = todayO.filter(o => !isVipOrder(o))
+  // CA mensuel
+  const currentMonth = dashboardNow.toISOString().slice(0,7) // YYYY-MM
+  const monthO = deliveredBusinessOrders.filter(o => o.created_at.slice(0,7) === currentMonth)
+  const caMonth = monthO.reduce((s,o) => s+(o.total||0), 0)
+  const isClassicOnly = (o: OrderWithItems) => !o.order_items?.some(i => i.is_vip === true)
+  const isVipOnly = (o: OrderWithItems) => o.order_items?.every(i => i.is_vip === true)
+  const isMixed = (o: OrderWithItems) => !isClassicOnly(o) && !isVipOnly(o)
+  const caMonthClassic = monthO.filter(isClassicOnly).reduce((s,o) => s+(o.total||0), 0)
+  const caMonthVip = monthO.filter(isVipOnly).reduce((s,o) => s+(o.total||0), 0)
+  const caMonthMixed = monthO.filter(isMixed).reduce((s,o) => s+(o.total||0), 0)
+  const prevMonth = new Date(dashboardNow.getFullYear(), dashboardNow.getMonth()-1, 1).toISOString().slice(0,7)
+  const prevMonthO = deliveredBusinessOrders.filter(o => o.created_at.slice(0,7) === prevMonth)
+  const caMonthPrev = prevMonthO.reduce((s,o) => s+(o.total||0), 0)
+  const monthTrend = caMonth >= caMonthPrev ? 'up' : 'down'
 
-  const caVipToday     = todayVipOrders.reduce((s,o) => s+(o.total||0), 0)
+  const todayClassicOrders = todayO.filter(isClassicOnly)
+  const todayVipOrders     = todayO.filter(isVipOnly)
+  const todayMixedOrders   = todayO.filter(isMixed)
+
   const caClassicToday = todayClassicOrders.reduce((s,o) => s+(o.total||0), 0)
+  const caVipToday     = todayVipOrders.reduce((s,o) => s+(o.total||0), 0)
+  const caMixedToday   = todayMixedOrders.reduce((s,o) => s+(o.total||0), 0)
 
   const nouvelles  = orders.filter(o => o.status === 'nouvelle')
   const livrees    = orders.filter(o => o.status === 'livrée')
@@ -257,13 +276,28 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* CA Mensuel */}
+      <KpiCardCA
+        label="CA ce mois"
+        total={caMonth}
+        classic={caMonthClassic}
+        vip={caMonthVip}
+        mixed={caMonthMixed}
+        trend={monthTrend}
+        trendVal={caMonthPrev}
+        trendLabel="vs mois préc."
+        currency={currency}
+      />
+
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:24}}>
         <KpiCardCA
           label="CA aujourd'hui"
           total={caToday}
           classic={caClassicToday}
           vip={caVipToday}
+          mixed={caMixedToday}
           trend={caToday >= caYest ? 'up' : 'down'}
+          trendVal={caYest}
           currency={currency}
         />
         <KpiCardOrders
@@ -271,6 +305,7 @@ export default function AdminDashboard() {
           total={todayO.length}
           classic={todayClassicOrders.length}
           vip={todayVipOrders.length}
+          mixed={todayMixedOrders.length}
           trend={todayO.length >= yestO.length ? 'up' : 'down'}
           sub={'vs ' + yestO.length + ' hier'}
         />
