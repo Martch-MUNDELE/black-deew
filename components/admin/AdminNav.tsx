@@ -112,7 +112,7 @@ export default async function AdminNav() {
   }
 
   return (
-    <AdminNavClient groups={NAV_GROUPS} siteName={siteName} siteLogo={siteLogo} isSuperAdmin={isSuperAdmin} superAdminStr={isSuperAdmin ? "1" : "0"}>
+    <AdminNavClient groups={NAV_GROUPS} siteName={siteName} siteLogo={siteLogo}>
       <AdminLogoutButton />
     </AdminNavClient>
   );
