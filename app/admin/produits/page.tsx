@@ -28,6 +28,7 @@ const IconTrash = () => (
 
 function ProduitsAdminInner() {
   const [products, setProducts] = useState<Product[]>([])
+  const [allCounts, setAllCounts] = useState({ actifs: 0, inactifs: 0, vip: 0 })
   const [subcats, setSubcats] = useState<{slug: string, name: string, parent_id: string | null}[]>([])
   const [parentCats, setParentCats] = useState<{id: string, slug: string, name: string}[]>([])
   const currency = useCurrency()
@@ -37,6 +38,30 @@ function ProduitsAdminInner() {
   const [search, setSearch] = useState('')
   const [filterCat, setFilterCat] = useState('')
   const [openCatDropdown, setOpenCatDropdown] = useState(false)
+  useEffect(() => {
+    try {
+      const s = sessionStorage.getItem('bd_prod_search') || ''
+      const c = sessionStorage.getItem('bd_prod_cat') || ''
+      // Vider sessionStorage après restauration
+      sessionStorage.removeItem('bd_prod_search')
+      sessionStorage.removeItem('bd_prod_cat')
+      if (s) {
+        setSearch(s)
+      } else if (c) {
+        setFilterCat(c)
+      }
+    } catch {}
+    // Charger les counts globaux
+    const sb = createClient()
+    sb.from('products').select('id, active, is_vip').then(({ data }) => {
+      const all = (data || []) as { id: string; active: boolean; is_vip: boolean }[]
+      setAllCounts({
+        actifs: all.filter(p => p.active && !p.is_vip).length,
+        inactifs: all.filter(p => !p.active && !p.is_vip).length,
+        vip: all.filter(p => p.is_vip).length,
+      })
+    })
+  }, [])
   const [stockEnabled, setStockEnabled] = useState(false)
   const [editingStock, setEditingStock] = useState<{id: string, value: string} | null>(null)
   useEffect(() => {
@@ -217,7 +242,7 @@ function ProduitsAdminInner() {
           <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#1A1510', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 14, overflow: 'hidden', zIndex: 100, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
             {filterCat && (
               <button
-                onClick={() => { setFilterCat(''); setOpenCatDropdown(false) }}
+                onClick={() => { setFilterCat(''); setSearch(''); setOpenCatDropdown(false) }}
                 style={{ width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(232,160,32,0.1)', color: '#7A6E58', fontSize: 11, fontFamily: 'DM Sans, sans-serif', fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
               >
                 ✕ Effacer le filtre
@@ -234,7 +259,7 @@ function ProduitsAdminInner() {
                     </div>
                   ) : (
                     <button
-                      onClick={() => { setFilterCat(parent.slug); setOpenCatDropdown(false) }}
+                      onClick={() => { setFilterCat(parent.slug); setSearch(''); setOpenCatDropdown(false) }}
                       style={{ width: '100%', padding: '9px 16px', background: filterCat === parent.slug ? 'rgba(245,200,66,0.08)' : 'transparent', border: 'none', borderBottom: '1px solid rgba(232,160,32,0.06)', color: filterCat === parent.slug ? '#F5C842' : '#E8A020', fontSize: 11, fontFamily: 'DM Sans, sans-serif', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                     >
                       {parent.name}
@@ -244,7 +269,7 @@ function ProduitsAdminInner() {
                   {children.map(s => (
                     <button
                       key={s.slug}
-                      onClick={() => { setFilterCat(s.slug); setOpenCatDropdown(false) }}
+                      onClick={() => { setFilterCat(s.slug); setSearch(''); setOpenCatDropdown(false) }}
                       style={{ width: '100%', padding: '9px 16px 9px 28px', background: filterCat === s.slug ? 'rgba(245,200,66,0.08)' : 'transparent', border: 'none', borderBottom: '1px solid rgba(232,160,32,0.04)', color: filterCat === s.slug ? '#F5C842' : '#C8B99A', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: filterCat === s.slug ? 700 : 400, cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                     >
                       {s.name}
@@ -260,13 +285,13 @@ function ProduitsAdminInner() {
       {/* ONGLETS */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' as const }}>
         <button onClick={() => setTab('actifs')} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === 'actifs' ? 'rgba(245,200,66,0.4)' : 'rgba(255,255,255,0.06)', background: tab === 'actifs' ? 'rgba(245,200,66,0.12)' : 'transparent', color: tab === 'actifs' ? '#F5C842' : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-          Actifs <span style={{ marginLeft: 4, background: tab === 'actifs' ? 'rgba(245,200,66,0.2)' : 'rgba(255,255,255,0.06)', padding: '1px 7px', borderRadius: 50, fontSize: 10 }}>{products.filter(p => p.active).length}</span>
+          Actifs <span style={{ marginLeft: 4, background: tab === 'actifs' ? 'rgba(245,200,66,0.2)' : 'rgba(255,255,255,0.06)', padding: '1px 7px', borderRadius: 50, fontSize: 10 }}>{allCounts.actifs || products.filter(p => p.active && !p.is_vip).length}</span>
         </button>
         <button onClick={() => setTab('inactifs')} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === 'inactifs' ? 'rgba(255,107,107,0.4)' : 'rgba(255,255,255,0.06)', background: tab === 'inactifs' ? 'rgba(255,107,107,0.08)' : 'transparent', color: tab === 'inactifs' ? '#FF6B6B' : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-          Inactifs <span style={{ marginLeft: 4, background: tab === 'inactifs' ? 'rgba(255,107,107,0.2)' : 'rgba(255,255,255,0.06)', padding: '1px 7px', borderRadius: 50, fontSize: 10 }}>{products.filter(p => !p.active).length}</span>
+          Inactifs <span style={{ marginLeft: 4, background: tab === 'inactifs' ? 'rgba(255,107,107,0.2)' : 'rgba(255,255,255,0.06)', padding: '1px 7px', borderRadius: 50, fontSize: 10 }}>{allCounts.inactifs || products.filter(p => !p.active && !p.is_vip).length}</span>
         </button>
         <button onClick={() => { setTab('vip'); loadAllProducts() }} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === 'vip' ? 'rgba(245,200,66,0.5)' : 'rgba(255,255,255,0.06)', background: tab === 'vip' ? 'rgba(245,200,66,0.12)' : 'transparent', color: tab === 'vip' ? '#F5C842' : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-          VIP <span style={{ marginLeft: 4, background: tab === 'vip' ? 'rgba(245,200,66,0.2)' : 'rgba(255,255,255,0.06)', padding: '1px 7px', borderRadius: 50, fontSize: 10 }}>{products.filter(p => p.is_vip).length}</span>
+          VIP <span style={{ marginLeft: 4, background: tab === 'vip' ? 'rgba(245,200,66,0.2)' : 'rgba(255,255,255,0.06)', padding: '1px 7px', borderRadius: 50, fontSize: 10 }}>{allCounts.vip || products.filter(p => p.is_vip).length}</span>
         </button>
       </div>
 
@@ -289,55 +314,47 @@ function ProduitsAdminInner() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {items.map(p => (
-              <div key={p.id} style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.1)', borderRadius: 14, padding: '14px 16px', display: 'flex', gap: 14, alignItems: 'center' }}>
-                {p.image_url && <Image loader={adminProductImageLoader} src={p.image_url} alt={p.name} width={64} height={64} unoptimized style={{ width: 52, height: 52, borderRadius: 10, objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(232,160,32,0.1)' }} />}
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: '#F5EDD6' }}>{p.name}</div>
-                  <div style={{ fontSize: 11, color: '#C8B99A', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
-                    {(p.discount ?? 0) > 0 && (
-                      <span style={{ textDecoration: 'line-through', color: '#4A4035' }}>{p.price}</span>
+              <div key={p.id} style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.1)', borderRadius: 14, padding: '12px', display: 'flex', gap: 12, alignItems: 'stretch' }}>
+                {p.image_url && <Image loader={adminProductImageLoader} src={p.image_url} alt={p.name} width={80} height={80} unoptimized style={{ width: 72, height: 'auto', minHeight: 72, borderRadius: 10, objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(232,160,32,0.1)', alignSelf: 'stretch' }} />}
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' as const, gap: 0 }}>
+                  {/* Ligne 1 : titre + stock */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 4 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: '#F5EDD6', flex: 1, minWidth: 0 }}>{p.name}</div>
+                    {stockEnabled && (
+                      editingStock?.id === p.id ? (
+                        <input autoFocus type="text" inputMode="numeric" value={editingStock.value}
+                          onChange={e => setEditingStock({ id: p.id, value: e.target.value })}
+                          onBlur={() => saveStock(p.id, editingStock.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveStock(p.id, editingStock.value); if (e.key === 'Escape') setEditingStock(null) }}
+                          style={{ width: 70, padding: '2px 8px', borderRadius: 6, border: '1px solid rgba(245,200,66,0.3)', background: 'rgba(245,200,66,0.05)', color: '#F5EDD6', fontSize: 11, fontFamily: 'DM Sans, sans-serif', outline: 'none', flexShrink: 0 }}
+                        />
+                      ) : (
+                        <button onClick={() => setEditingStock({ id: p.id, value: p.stock === null ? '' : String(p.stock) })}
+                          style={{ padding: '0 4px', border: 'none', background: 'transparent', color: p.stock === null ? '#4A4035' : p.stock === 0 ? '#FF6B6B' : p.stock <= 3 ? '#FF6B20' : '#7A6E58', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', flexShrink: 0 }}>
+                          {p.stock === null ? '∞' : p.stock === 0 ? 'épuisé' : p.stock + ' u.'}
+                        </button>
+                      )
                     )}
+                  </div>
+                  {/* Ligne 2 : prix */}
+                  <div style={{ fontSize: 12, color: '#C8B99A', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {(p.discount ?? 0) > 0 && <span style={{ textDecoration: 'line-through', color: '#4A4035' }}>{p.price}</span>}
                     <span style={{ color: (p.discount ?? 0) > 0 ? '#FF6B20' : '#C8B99A' }}>{(p.discount ?? 0) > 0 ? (p.price * (1 - (p.discount ?? 0) / 100)).toFixed(2) : p.price} {currency}</span>
                   </div>
-                  {stockEnabled && (
-                    <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {editingStock?.id === p.id ? (
-                        <>
-                          <input
-                            autoFocus
-                            type="text"
-                            inputMode="numeric"
-                            value={editingStock.value}
-                            onChange={e => setEditingStock({ id: p.id, value: e.target.value })}
-                            onBlur={() => saveStock(p.id, editingStock.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') saveStock(p.id, editingStock.value); if (e.key === 'Escape') setEditingStock(null) }}
-                            style={{ width: 80, padding: '2px 10px', borderRadius: 6, border: '1px solid rgba(245,200,66,0.3)', background: 'rgba(245,200,66,0.05)', color: '#F5EDD6', fontSize: 12, fontFamily: 'DM Sans, sans-serif', outline: 'none', MozAppearance: 'textfield' }}
-                          />
-
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => setEditingStock({ id: p.id, value: p.stock === null ? '' : String(p.stock) })}
-                          style={{ padding: '1px 8px', borderRadius: 4, border: 'none', background: 'transparent', color: p.stock === null ? '#4A4035' : p.stock === 0 ? '#FF6B6B' : p.stock <= 3 ? '#FF6B20' : '#7A6E58', fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', letterSpacing: '0.2px' }}
-                        >
-                          {p.stock === null ? '· ∞' : p.stock === 0 ? '· épuisé' : '· ' + p.stock + ' unités'}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {/* Séparateur + boutons */}
+                  <div style={{ marginTop: 'auto', paddingTop: 8, borderTop: '1px solid rgba(232,160,32,0.07)', display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
                   <button onClick={() => setFeatured(p.id)} title="Mettre à la une" style={{ width: 34, height: 34, borderRadius: 8, border: p.featured ? '1px solid rgba(245,200,66,0.6)' : '1px solid rgba(255,255,255,0.08)', background: p.featured ? 'rgba(245,200,66,0.15)' : 'transparent', color: p.featured ? '#F5C842' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
                     ★
                   </button>
                   <button onClick={() => setPopular(p.id, p.subcategory, !!p.is_vip)} title="Populaire" style={{ width: 34, height: 34, borderRadius: 8, border: p.popular ? '1px solid rgba(255,107,32,0.6)' : '1px solid rgba(255,255,255,0.08)', background: p.popular ? 'rgba(255,107,32,0.15)' : 'transparent', color: p.popular ? '#FF6B20' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🔥</button>
                   <button onClick={() => setCoupDeCoeur(p.id)} title="Coup de coeur" style={{ width: 34, height: 34, borderRadius: 8, border: p.is_coup_de_coeur ? '1px solid rgba(255,100,130,0.6)' : '1px solid rgba(255,255,255,0.08)', background: p.is_coup_de_coeur ? 'rgba(255,100,130,0.15)' : 'transparent', color: p.is_coup_de_coeur ? '#FF6482' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>❤️</button>
-                  <button onClick={() => router.push('/admin/produits/' + p.id + '/modifier')} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.06)', color: '#E8A020', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <button onClick={() => { try { sessionStorage.setItem('bd_prod_search', search); sessionStorage.setItem('bd_prod_cat', filterCat) } catch {}; router.push('/admin/produits/' + p.id + '/modifier') }} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.06)', color: '#E8A020', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <IconEdit />
                   </button>
                   <button onClick={() => del(p.id)} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(255,107,107,0.2)', background: 'rgba(255,107,107,0.06)', color: '#FF6B6B', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <IconTrash />
                   </button>
+                  </div>
                 </div>
               </div>
             ))}
