@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import webpush from 'web-push'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 
 webpush.setVapidDetails(
-  'mailto:admin@basefood.app',
+  'mailto:admin@black-deew.app',
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
   process.env.VAPID_PRIVATE_KEY!
 )
+
+function createServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 export interface PushPayload {
   title: string
@@ -24,9 +31,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'title et body requis' }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const supabase = createServiceClient()
 
-    // Récupérer tous les abonnements actifs
     const { data: subscriptions, error } = await supabase
       .from('push_subscriptions')
       .select('endpoint, p256dh, auth')
@@ -49,19 +55,12 @@ export async function POST(req: NextRequest) {
       subscriptions.map(async (sub) => {
         try {
           await webpush.sendNotification(
-            {
-              endpoint: sub.endpoint,
-              keys: { p256dh: sub.p256dh, auth: sub.auth }
-            },
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
             pushPayload
           )
         } catch (err: unknown) {
-          // Supprimer les abonnements expirés (410 Gone)
           if (err && typeof err === 'object' && 'statusCode' in err && err.statusCode === 410) {
-            await supabase
-              .from('push_subscriptions')
-              .delete()
-              .eq('endpoint', sub.endpoint)
+            await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint)
           }
           throw err
         }

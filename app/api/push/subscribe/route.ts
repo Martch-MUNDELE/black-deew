@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+
+// Utiliser service_role pour bypasser RLS
+function createServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,7 +17,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Subscription invalide' }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const supabase = createServiceClient()
 
     // Vérifier si déjà abonné
     const { data: existing } = await supabase
@@ -44,7 +52,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { endpoint } = await req.json()
-    const supabase = await createClient()
+    const supabase = createServiceClient()
 
     await supabase
       .from('push_subscriptions')
