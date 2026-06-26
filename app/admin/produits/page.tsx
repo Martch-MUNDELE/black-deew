@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense, startTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Image, { type ImageLoaderProps } from 'next/image'
 import { createClient } from '@/lib/supabase/client'
@@ -97,11 +97,13 @@ function ProduitsAdminInner() {
       return
     }
     // search vient d'être vidé ou filterCat a changé
-    if (filterCat) {
-      void loadProducts(filterCat)
-    } else {
-      void loadAllProducts()
-    }
+    startTransition(() => {
+      if (filterCat) {
+        void loadProducts(filterCat)
+      } else {
+        void loadAllProducts()
+      }
+    })
   }, [search, filterCat, loadProducts, loadAllProducts])
 
   const del = async (id: string) => {
