@@ -45,14 +45,6 @@ function ProduitsAdminInner() {
   const [editingStock, setEditingStock] = useState<{id: string; value: string} | null>(null)
   const [debugV] = useState(7)
 
-  // Auto-sélection du tab qui a des résultats lors d'une recherche texte
-  useEffect(() => {
-    if (!search) return
-    if (countActifs > 0) { setTab('actifs'); return }
-    if (countInactifs > 0) { setTab('inactifs'); return }
-    if (countVip > 0) { setTab('vip'); return }
-  }, [countActifs, countInactifs, countVip, search])
-
   // ── Chargement initial ─────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
@@ -105,6 +97,14 @@ function ProduitsAdminInner() {
   const countActifs = searchBase.filter(p => p.active && !p.is_vip).length
   const countInactifs = searchBase.filter(p => !p.active && !p.is_vip).length
   const countVip = searchBase.filter(p => p.is_vip).length
+
+  // Auto-sélection du tab qui a des résultats lors d'une recherche texte
+  useEffect(() => {
+    if (!search) return
+    if (countActifs > 0) { setTab('actifs'); return }
+    if (countInactifs > 0) { setTab('inactifs'); return }
+    if (countVip > 0) { setTab('vip'); return }
+  }, [countActifs, countInactifs, countVip, search])
 
   // ── Actions ────────────────────────────────────────────────────────────
   const del = async (id: string) => {
