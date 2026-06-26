@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useMemo, useState, Suspense } from 'react'
+import { useCallback, useEffect, useMemo, useState, Suspense, startTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Image, { type ImageLoaderProps } from 'next/image'
 import { createClient } from '@/lib/supabase/client'
