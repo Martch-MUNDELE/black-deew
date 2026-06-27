@@ -96,6 +96,10 @@ function SettingsContent() {
   const [siteLogo, setSiteLogo] = useState('')
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [logoDimensions, setLogoDimensions] = useState<{w:number,h:number}|null>(null)
+  const [siteLogoAdmin, setSiteLogoAdmin] = useState('')
+  const [uploadingLogoAdmin, setUploadingLogoAdmin] = useState(false)
+  const [siteLogoVip, setSiteLogoVip] = useState('')
+  const [uploadingLogoVip, setUploadingLogoVip] = useState(false)
   const [feature1, setFeature1] = useState<Feature>({ icon: 'chef', title: 'Préparé à Kinshasa', desc: 'Par chez vous à Kinshasa, repas cuisinés avec soin par nos équipes.' })
   const [feature2, setFeature2] = useState<Feature>({ icon: 'delivery', title: 'Livraison rapide', desc: 'On vous livre rapidement et directement à votre porte.' })
   const [feature3, setFeature3] = useState<Feature>({ icon: 'fresh', title: 'Frais du jour', desc: 'Profitez de produits toujours frais, choisis chaque jour.' })
@@ -184,6 +188,8 @@ function SettingsContent() {
         if (s.key === 'site_baseline') setSiteBaseline(value)
         if (s.key === 'site_description') setSiteDescription(value)
         if (s.key === 'site_logo') setSiteLogo(value)
+        if (s.key === 'site_logo_admin') setSiteLogoAdmin(value)
+        if (s.key === 'site_logo_vip') setSiteLogoVip(value)
         if (s.key === 'feature_1') { try { setFeature1(JSON.parse(value)) } catch {} }
         if (s.key === 'feature_1_active') setFeature1Active(value !== 'false')
         if (s.key === 'feature_2_active') setFeature2Active(value !== 'false')
@@ -409,6 +415,34 @@ function SettingsContent() {
     setUploadingLogo(false)
   }
 
+  const uploadLogoAdmin = async (file: File) => {
+    setSiteLogoAdmin(URL.createObjectURL(file))
+    setUploadingLogoAdmin(true)
+    const ext = file.name.split('.').pop()
+    const fileName = `logo-admin-${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('products').upload(fileName, file, { upsert: true })
+    if (!error) {
+      const { data } = supabase.storage.from('products').getPublicUrl(fileName)
+      setSiteLogoAdmin(data.publicUrl)
+      await supabase.from('settings').upsert({ key: 'site_logo_admin', value: data.publicUrl })
+    }
+    setUploadingLogoAdmin(false)
+  }
+
+  const uploadLogoVip = async (file: File) => {
+    setSiteLogoVip(URL.createObjectURL(file))
+    setUploadingLogoVip(true)
+    const ext = file.name.split('.').pop()
+    const fileName = `logo-vip-${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('products').upload(fileName, file, { upsert: true })
+    if (!error) {
+      const { data } = supabase.storage.from('products').getPublicUrl(fileName)
+      setSiteLogoVip(data.publicUrl)
+      await supabase.from('settings').upsert({ key: 'site_logo_vip', value: data.publicUrl })
+    }
+    setUploadingLogoVip(false)
+  }
+
   const uploadBackgroundImage = async (file: File) => {
     setUploadingBackground(true)
     const ext = file.name.split('.').pop()
@@ -541,6 +575,30 @@ function SettingsContent() {
             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) uploadLogo(e.target.files[0]) }} />
             {logoDimensions && <div style={{ fontSize: 11, color: '#5BC57A', marginTop: 6 }}>✓ {logoDimensions.w} × {logoDimensions.h} px</div>}
           </label>
+          <label style={labelStyle}>Logo Admin (icône app &amp; partage WhatsApp admin)</label>
+          {siteLogoAdmin && (
+            <div style={{ marginBottom: 12, borderRadius: 12, overflow: 'hidden', height: 160, background: '#0A0804', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+              <span role="img" aria-label="Logo Admin" style={{ width: '140px', height: '140px', display: 'inline-block', backgroundImage: `url(${siteLogoAdmin})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} />
+              <button onClick={() => { setSiteLogoAdmin(''); supabase.from('settings').upsert({ key: 'site_logo_admin', value: '' }) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: '#F5EDD6', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '4px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Supprimer</button>
+            </div>
+          )}
+          <label style={{ display: 'block', width: '100%', padding: '14px', borderRadius: 10, border: '1.5px dashed rgba(232,160,32,0.25)', background: 'rgba(232,160,32,0.03)', color: uploadingLogoAdmin ? '#C8B99A' : '#E8A020', cursor: uploadingLogoAdmin ? 'wait' : 'pointer', textAlign: 'center', fontSize: 12, fontWeight: 600, fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' as const, marginBottom: 14 }}>
+            {uploadingLogoAdmin ? 'Upload en cours...' : 'Choisir le logo admin (PNG recommandé)'}
+            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) uploadLogoAdmin(e.target.files[0]) }} />
+          </label>
+
+          <label style={labelStyle}>Logo VIP (partage WhatsApp page VIP)</label>
+          {siteLogoVip && (
+            <div style={{ marginBottom: 12, borderRadius: 12, overflow: 'hidden', height: 160, background: '#0A0804', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+              <span role="img" aria-label="Logo VIP" style={{ width: '140px', height: '140px', display: 'inline-block', backgroundImage: `url(${siteLogoVip})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} />
+              <button onClick={() => { setSiteLogoVip(''); supabase.from('settings').upsert({ key: 'site_logo_vip', value: '' }) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: '#F5EDD6', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '4px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Supprimer</button>
+            </div>
+          )}
+          <label style={{ display: 'block', width: '100%', padding: '14px', borderRadius: 10, border: '1.5px dashed rgba(232,160,32,0.25)', background: 'rgba(232,160,32,0.03)', color: uploadingLogoVip ? '#C8B99A' : '#E8A020', cursor: uploadingLogoVip ? 'wait' : 'pointer', textAlign: 'center', fontSize: 12, fontWeight: 600, fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' as const, marginBottom: 14 }}>
+            {uploadingLogoVip ? 'Upload en cours...' : 'Choisir le logo VIP (PNG recommandé)'}
+            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { if (e.target.files?.[0]) uploadLogoVip(e.target.files[0]) }} />
+          </label>
+
           <label style={labelStyle}>Nom du site</label>
           <input type="text" value={siteName} onChange={e => setSiteName(e.target.value)} style={{ ...inputStyle, marginBottom: 14 }} />
           <label style={labelStyle}>Baseline</label>
