@@ -17,39 +17,6 @@ export default function PushNotificationManager() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'subscribed' | 'denied' | 'unsupported' | 'ready'>('idle')
   const [swReg, setSwReg] = useState<ServiceWorkerRegistration | null>(null)
 
-  useEffect(() => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      setStatus('unsupported')
-      return
-    }
-
-    // Enregistrer le SW silencieusement
-    navigator.serviceWorker.register('/sw.js').then(async (registration) => {
-      setSwReg(registration)
-
-      // Vérifier si déjà abonné
-      const existing = await registration.pushManager.getSubscription()
-      if (existing) {
-        setStatus('subscribed')
-        return
-      }
-
-      // Vérifier permission déjà accordée
-      if (Notification.permission === 'granted') {
-        await doSubscribe(registration)
-        return
-      }
-
-      if (Notification.permission === 'denied') {
-        setStatus('denied')
-        return
-      }
-
-      // Attendre action utilisateur
-      setStatus('ready')
-    }).catch(() => setStatus('unsupported'))
-  }, [])
-
   async function doSubscribe(registration: ServiceWorkerRegistration) {
     try {
       setStatus('loading')
@@ -72,6 +39,35 @@ export default function PushNotificationManager() {
       setStatus('idle')
     }
   }
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setTimeout(() => setStatus('unsupported'), 0)
+      return
+    }
+
+    navigator.serviceWorker.register('/sw.js').then(async (registration) => {
+      setSwReg(registration)
+
+      const existing = await registration.pushManager.getSubscription()
+      if (existing) {
+        setStatus('subscribed')
+        return
+      }
+
+      if (Notification.permission === 'granted') {
+        await doSubscribe(registration)
+        return
+      }
+
+      if (Notification.permission === 'denied') {
+        setStatus('denied')
+        return
+      }
+
+      setStatus('ready')
+    }).catch(() => setStatus('unsupported'))
+  }, [])
 
   async function handleEnable() {
     if (!swReg) return

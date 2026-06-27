@@ -1,7 +1,7 @@
 // Service Worker — Black Deew PWA
-const CACHE_NAME = 'black-deew-v1';
+// const CACHE_NAME = 'black-deew-v1';
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -22,7 +22,7 @@ self.addEventListener('push', (event) => {
   if (event.data) {
     try {
       data = { ...data, ...event.data.json() };
-    } catch (e) {
+    } catch {
       data.body = event.data.text();
     }
   }
