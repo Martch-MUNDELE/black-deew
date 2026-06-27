@@ -115,6 +115,21 @@ export async function POST(req: NextRequest) {
   }
   await sendOrderNotification({ ...order, items, slot, vipItems, vipTotal }, currency, siteName, adminEmail)
 
+  // Push notification PWA
+  try {
+    const hasVip = items.some((i: CommandeItemInput) => i.isVip)
+    await fetch(`${getRequestBaseUrl(req)}/api/push/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: hasVip ? '⭐ Nouvelle commande VIP !' : '🛒 Nouvelle commande !',
+        body: `${body.name || 'Client'} — ${items.length} article(s)`,
+        tag: 'nouvelle-commande',
+        url: '/admin/commandes'
+      })
+    })
+  } catch (e) { console.error('[Push commande]', e) }
+
   if (wantFacture && email) {
     try {
       await fetch(`${getRequestBaseUrl(req)}/api/facture`, {

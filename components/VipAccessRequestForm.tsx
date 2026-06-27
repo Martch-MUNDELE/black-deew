@@ -89,16 +89,20 @@ export default function VipAccessRequestForm({
       return
     }
 
-    const { error: insertError } = await supabase.from('vip_access_requests').insert({
-      phone,
-      pseudo: cleanPseudo,
-      status: 'pending',
-      requested_password: requestedPassword.trim(),
+    // Appel API avec push notification intégré
+    const res = await fetch('/api/vip-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone,
+        pseudo: cleanPseudo,
+        requested_password: requestedPassword.trim()
+      })
     })
 
     setLoading(false)
 
-    if (insertError) {
+    if (!res.ok) {
       setError('Impossible d’envoyer votre demande. Réessayez dans quelques instants.')
       return
     }

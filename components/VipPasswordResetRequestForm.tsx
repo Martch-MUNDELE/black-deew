@@ -68,6 +68,20 @@ export default function VipPasswordResetRequestForm({
       return
     }
 
+    // Push notification admin
+    try {
+      await fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: '🔑 Reset mot de passe VIP',
+          body: `Demande de reset pour ${phone}`,
+          tag: 'reset-vip',
+          url: '/admin/settings?tab=vip'
+        })
+      })
+    } catch (e) { console.error('[Push reset VIP]', e) }
+
     setSuccess(true)
     onSubmitted?.()
   }
