@@ -16,6 +16,9 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description,
     manifest: '/vip-manifest.webmanifest',
+    icons: {
+      apple: ogImage,
+    },
     appleWebApp: {
       capable: true,
       statusBarStyle: 'black-translucent',
