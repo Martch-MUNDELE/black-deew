@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { createClient } from '@/lib/supabase/server'
-import PushNotificationManager from '@/components/pwa/PushNotificationManager'
 
 type MetadataSettingRow = {
   key: string
@@ -61,7 +60,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body style={{ background: '#080603', minHeight: '100vh' }}>
-        <PushNotificationManager />
         {children}
       </body>
     </html>
