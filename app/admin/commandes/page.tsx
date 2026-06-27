@@ -102,6 +102,7 @@ type OrderItemRow = {
   quantity: number
   product_name: string
   variant_name?: string | null
+  variant_price?: number | null
   unit_price: number
   is_vip?: boolean | null
 }
@@ -211,7 +212,7 @@ function buildWhatsAppUrl(order: OrderRow, slot: DeliverySlotRow | null, targetS
 
   if (targetStatus === 'confirmée') {
     const itemsList = order.order_items?.map((i: OrderItemRow) =>
-      `${i.quantity} x ${i.product_name}${i.variant_name ? ` (${i.variant_name})` : ''} — ${(i.unit_price * i.quantity).toFixed(2)} ${currency}`
+      `${i.quantity} x ${i.product_name}${i.variant_name ? ` (${i.variant_name})` : ''} — ${((i.variant_price ?? i.unit_price) * i.quantity).toFixed(2)} ${currency}`
     ).join('\n') || ''
     const slotDate = slot ? formatDate(slot.date) : 'À confirmer'
     const slotTime = slot ? `${slot.time_start?.slice(0, 5)} à ${slot.time_end?.slice(0, 5)}` : ''
@@ -692,7 +693,7 @@ function CommandesAdminInner() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                 {order.order_items?.map((item: OrderItemRow) => (
                   <span key={item.id} style={{ background: 'rgba(232,160,32,0.07)', border: '1px solid rgba(232,160,32,0.12)', color: '#C8B890', padding: '3px 10px', borderRadius: 50, fontSize: 11, fontWeight: 500 }}>
-                    {item.quantity}× {item.product_name}{item.variant_name ? ` (${item.variant_name})` : ''}{item.variant_name ? ` (${item.variant_name})` : ''}
+                    {item.quantity}× {item.product_name}{item.variant_name ? ` (${item.variant_name})` : ''}{item.variant_price != null && item.variant_price > 0 ? ` — ${item.variant_price.toFixed(2)} ${currency}` : ''}
                   </span>
                 ))}
               </div>
