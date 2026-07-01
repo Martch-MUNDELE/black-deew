@@ -289,6 +289,16 @@ export default function VipAccessGate({
       return
     }
 
+    // BF-P2-013 : tracking connexion - VIP
+    fetch('/api/track-connexion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'vip',
+        client_phone: cleanPhone,
+      }),
+    }).catch(() => {})
+
     setGranted(true)
     setLoading(false)
   }
@@ -357,6 +367,16 @@ export default function VipAccessGate({
       setPasswordChangeError('Impossible d’enregistrer votre nouveau mot de passe. Réessayez.')
       return
     }
+
+    // BF-P2-013 : tracking connexion - VIP (apres changement mot de passe)
+    fetch('/api/track-connexion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'vip',
+        client_phone: pendingPhoneForPasswordChange,
+      }),
+    }).catch(() => {})
 
     setNeedsPasswordChange(false)
     setGranted(true)

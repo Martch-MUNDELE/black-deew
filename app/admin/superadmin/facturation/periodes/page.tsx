@@ -80,8 +80,9 @@ export default function PeriodesPage() {
       const periodEnd   = new Date(period.period_end)
       const nextStart   = new Date(periodEnd.getFullYear(), periodEnd.getMonth() + 1, 1)
       const nextEnd     = new Date(nextStart.getFullYear(), nextStart.getMonth() + 1, 0)
-      const nextStartStr = nextStart.toISOString().slice(0, 10)
-      const nextEndStr   = nextEnd.toISOString().slice(0, 10)
+      const pad2 = (n: number) => String(n).padStart(2, '0')
+      const nextStartStr = `${nextStart.getFullYear()}-${pad2(nextStart.getMonth() + 1)}-${pad2(nextStart.getDate())}`
+      const nextEndStr   = `${nextEnd.getFullYear()}-${pad2(nextEnd.getMonth() + 1)}-${pad2(nextEnd.getDate())}`
 
       // Vérifier qu'il n'y a pas déjà une période en cours
       const { data: existing } = await supabase

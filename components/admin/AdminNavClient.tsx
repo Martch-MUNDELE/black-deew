@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import {
   Home, Package, ShoppingBag, Truck, Clock, Settings,
-  Users, Star, UtensilsCrossed, ChevronDown, X, Menu, Lock,
+  Users, Star, UtensilsCrossed, ChevronDown, X, Menu, Lock, BarChart3,
   type LucideProps,
 } from "lucide-react";
 
@@ -42,6 +42,7 @@ const ICON_MAP: Record<string, IconComponent> = {
   "star": Star,
   "utensils": UtensilsCrossed,
   "lock": Lock,
+  "bar-chart": BarChart3,
 };
 
 function NavIcon({ name, className }: { name: string; className?: string }) {

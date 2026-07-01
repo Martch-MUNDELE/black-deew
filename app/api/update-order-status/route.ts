@@ -5,11 +5,14 @@ import {
   canonicalizeOrderStatus,
   isCancelledOrderStatus,
 } from '@/lib/order-status'
+import { recalculatePeriodCore } from '@/app/actions/billing'
+import { isTestPhone } from '@/lib/test-orders'
 
 type OrderRow = {
   id: string
   status: string | null
   slot_id: string | null
+  customer_phone?: string | null
   previous_status_before_cancel?: string | null
   cancelled_at?: string | null
   purge_after?: string | null
@@ -98,7 +101,7 @@ export async function POST(req: NextRequest) {
 
   const { data: currentOrderRaw, error: currentError } = await supabase
     .from('orders')
-    .select('id, status, slot_id, previous_status_before_cancel, cancelled_at, purge_after')
+    .select('id, status, slot_id, customer_phone, previous_status_before_cancel, cancelled_at, purge_after')
     .eq('id', orderId)
     .maybeSingle()
 
@@ -163,6 +166,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid params' }, { status: 400 })
   }
 
+  // BF-P2-013 : numero de test - suppression au lieu de marquage livree
+  if (nextStatus === 'livrée' && isTestPhone(currentOrder.customer_phone)) {
+    await supabase.from('order_items').delete().eq('order_id', orderId)
+    await supabase.from('order_status_history').delete().eq('order_id', orderId)
+    await supabase.from('order_deliveries').delete().eq('order_id', orderId)
+    await supabase.from('orders').delete().eq('id', orderId)
+    return NextResponse.json({ ok: true, testOrderDeleted: true })
+  }
+
   const wasCancelled = isCancelledOrderStatus(currentOrder.status)
   const willBeCancelled = isCancelledOrderStatus(nextStatus)
 
@@ -186,6 +198,30 @@ export async function POST(req: NextRequest) {
     .eq('id', orderId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // BF-P2-013 : historique statuts pour funnel operationnel
+  supabase.from('order_status_history').insert({
+    order_id: orderId,
+    from_status: currentOrder.status,
+    to_status: nextStatus,
+  }).then(() => {}, () => {})
+
+  // BF-P2-013 : recalcul automatique facturation quand une commande passe livree
+  if (nextStatus === 'livrée') {
+    ;(async () => {
+      const today = new Date().toISOString().slice(0, 10)
+      const { data: openPeriod } = await supabase
+        .from('billing_periods')
+        .select('id')
+        .eq('status', 'en_cours')
+        .lte('period_start', today)
+        .gte('period_end', today)
+        .maybeSingle()
+      if (openPeriod?.id) {
+        recalculatePeriodCore(openPeriod.id, supabase).catch(() => {})
+      }
+    })()
+  }
 
   let slotSync: Awaited<ReturnType<typeof syncDeliverySlotBookingFromOrders>> | null = null
 

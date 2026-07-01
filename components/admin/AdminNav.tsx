@@ -19,6 +19,7 @@ const NAV_GROUPS = [
           { label: "Retrait",     url: "/admin/commandes?tab=retrait" },
         ],
       },
+      { href: "/admin/statistiques", label: "Statistiques", icon: "bar-chart" },
       {
         href: "/admin/produits", label: "Produits", icon: "package",
         sub: [

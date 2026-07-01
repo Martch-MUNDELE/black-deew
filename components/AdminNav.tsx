@@ -57,6 +57,7 @@ const NAV_GROUPS: AdminNavGroup[] = [
         { label: 'Annulées', anchor: 'annulee', url: '/admin/commandes?tab=annulée' },
         { label: 'Retrait', anchor: 'retrait', url: '/admin/commandes?tab=retrait' },
       ]},
+      { href: '/admin/statistiques', label: 'Statistiques' },
       { href: '/admin/produits', label: 'Produits', sub: [
         { label: '+ Ajouter', anchor: 'nouveau', url: '/admin/produits/nouveau' },
         { label: 'Actifs', anchor: 'actifs', url: '/admin/produits?tab=actifs' },

@@ -1,10 +1,16 @@
 'use server'
 import { createClient } from '@/lib/supabase/server'
 import type { CommissionRule } from '@/lib/types/billing'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export async function recalculatePeriod(periodId: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
+  return recalculatePeriodCore(periodId, supabase)
+}
 
+// BF-P2-013 : version interne reutilisable avec un client deja instancie
+// (ex: service role depuis une route API sans session utilisateur)
+export async function recalculatePeriodCore(periodId: string, supabase: SupabaseClient): Promise<{ success: boolean; error?: string }> {
   // 1. Charger la période
   const { data: period, error: pErr } = await supabase
     .from('billing_periods')
@@ -36,9 +42,9 @@ export async function recalculatePeriod(periodId: string): Promise<{ success: bo
   const validOrders = orders || []
   const ordersCount = validOrders.length
 
-  // Base globale : total - frais livraison
+  // Base globale : total complet (frais de livraison inclus)
   const baseAmount = validOrders.reduce((sum, o) => {
-    return sum + Math.max((o.total ?? 0) - (o.delivery_fee ?? 0), 0)
+    return sum + Math.max(o.total ?? 0, 0)
   }, 0)
 
   const rules: CommissionRule[] = contract.commission_rules || []

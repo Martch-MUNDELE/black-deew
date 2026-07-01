@@ -6,10 +6,17 @@ import { BILLING_MODE_LABELS, type BillingMode, type ClientContract, type Billin
 
 const supabase = createClient()
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
 function getMonthRange() {
   const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
-  const end   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10)
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  const lastDay = new Date(y, m + 1, 0).getDate()
+  const start = `${y}-${pad2(m + 1)}-01`
+  const end   = `${y}-${pad2(m + 1)}-${pad2(lastDay)}`
   return { start, end }
 }
 

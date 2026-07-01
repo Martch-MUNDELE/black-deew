@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { recalculatePeriodCore } from '@/app/actions/billing'
+import { isTestPhone } from '@/lib/test-orders'
 
 type MarkLivreeRequestBody = {
   orderId?: string
@@ -22,12 +24,49 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid params' }, { status: 400 })
   }
 
+  // 0. Recuperation statut actuel pour historique
+  const { data: currentOrderRow } = await supabase
+    .from('orders')
+    .select('status, customer_phone')
+    .eq('id', orderId)
+    .maybeSingle()
+
+  // BF-P2-013 : numero de test - suppression au lieu de marquage livree
+  if (isTestPhone(currentOrderRow?.customer_phone)) {
+    await supabase.from('order_items').delete().eq('order_id', orderId)
+    await supabase.from('order_status_history').delete().eq('order_id', orderId)
+    await supabase.from('order_deliveries').delete().eq('order_id', orderId)
+    await supabase.from('orders').delete().eq('id', orderId)
+    return NextResponse.json({ ok: true, testOrderDeleted: true })
+  }
+
   // 1. orders.status -> livrée
   const { error: orderErr } = await supabase
     .from('orders')
     .update({ status: 'livrée' })
     .eq('id', orderId)
   if (orderErr) return NextResponse.json({ error: `orders: ${orderErr.message}` }, { status: 500 })
+
+  // BF-P2-013 : historique statuts pour funnel operationnel
+  supabase.from('order_status_history').insert({
+    order_id: orderId,
+    from_status: currentOrderRow?.status ?? null,
+    to_status: 'livrée',
+  }).then(() => {}, () => {})
+
+  // BF-P2-013 : recalcul automatique facturation (best-effort, ne bloque jamais la reponse)
+  ;(async () => {
+    const { data: openPeriod } = await supabase
+      .from('billing_periods')
+      .select('id')
+      .eq('status', 'en_cours')
+      .lte('period_start', new Date().toISOString().slice(0, 10))
+      .gte('period_end', new Date().toISOString().slice(0, 10))
+      .maybeSingle()
+    if (openPeriod?.id) {
+      recalculatePeriodCore(openPeriod.id, supabase).catch(() => {})
+    }
+  })()
 
   // 2. order_deliveries -> delivered + delivered_at + amount_collected
   const { data: updatedDel, error: delErr } = await supabase
