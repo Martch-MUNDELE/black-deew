@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // BF-P2-013 (extension) : script de build Node.js pur (CommonJS)
+    "scripts/**",
   ]),
 ]);
 
