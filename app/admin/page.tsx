@@ -116,6 +116,7 @@ export default function AdminDashboard() {
   const [hoveredDay30, setHoveredDay30] = useState<number|null>(null)
   const [toast, setToast] = useState<{name:string;total:number}|null>(null)
   const [billing, setBilling] = useState<{flatFee:number;commission:number;totalDue:number;ordersBase:number;commissionRate:number}|null>(null)
+  const [delaiLivraisonMin, setDelaiLivraisonMin] = useState<number | null>(null)
   const currency = useCurrency()
   const toastTimer = useRef<ReturnType<typeof setTimeout>|null>(null)
   const prevOrderIds = useRef<Set<string>>(new Set())
@@ -159,6 +160,34 @@ export default function AdminDashboard() {
       if (toastTimer.current) clearTimeout(toastTimer.current)
     }
   }, [fetchOrders])
+
+  useEffect(() => {
+    const sb = createClient()
+    const monthStart = new Date(dashboardNow.getFullYear(), dashboardNow.getMonth(), 1).toISOString()
+    sb.from('order_status_history')
+      .select('order_id, to_status, changed_at')
+      .gte('changed_at', monthStart)
+      .in('to_status', ['nouvelle', 'livr' + String.fromCharCode(0xe9) + 'e'])
+      .then(({ data }) => {
+        if (!data) return
+        const byOrder = new Map<string, { nouvelle?: string; livree?: string }>()
+        data.forEach((h: { order_id: string; to_status: string; changed_at: string }) => {
+          const entry = byOrder.get(h.order_id) || {}
+          if (h.to_status === 'nouvelle' && (!entry.nouvelle || h.changed_at < entry.nouvelle)) entry.nouvelle = h.changed_at
+          if (h.to_status === 'livr' + String.fromCharCode(0xe9) + 'e' && (!entry.livree || h.changed_at < entry.livree)) entry.livree = h.changed_at
+          byOrder.set(h.order_id, entry)
+        })
+        let totalMs = 0
+        let count = 0
+        byOrder.forEach(({ nouvelle, livree }) => {
+          if (nouvelle && livree) {
+            const diff = new Date(livree).getTime() - new Date(nouvelle).getTime()
+            if (diff >= 0) { totalMs += diff; count += 1 }
+          }
+        })
+        setDelaiLivraisonMin(count > 0 ? Math.round((totalMs / count) / 60000) : null)
+      })
+  }, [dashboardNow])
 
   useEffect(() => {
     const sb = createClient()
@@ -311,6 +340,16 @@ export default function AdminDashboard() {
           trendVal={caMonthPrev}
           trendLabel="vs mois préc."
           currency={currency}
+        />
+        <KpiCard
+          label="Delai livraison moyen"
+          value={delaiLivraisonMin != null
+            ? (Math.floor(delaiLivraisonMin / 60) > 0
+                ? `${Math.floor(delaiLivraisonMin / 60)}h ${delaiLivraisonMin % 60}min`
+                : `${delaiLivraisonMin} min`)
+            : 'N/A'}
+          valueColor="#F5C842"
+          sub="nouvelle -> livree, ce mois"
         />
         {/* Box Redevance mensuelle */}
         <div style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.12)', borderRadius: 16, padding: 16 }}>

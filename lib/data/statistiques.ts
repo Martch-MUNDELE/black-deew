@@ -40,7 +40,7 @@ type StatusHistoryRow = {
 
 type ProductRow = {
   id: string
-  category?: string | null
+  subcategory?: string | null
 }
 
 type DeliveryZoneRow = {
@@ -116,7 +116,7 @@ export type MonthlyStatistics = {
   topClients: Array<{ label: string; commandes: number; ca: number }>
 
   zones: Array<{ label: string; commandes: number; ca: number }>
-  categories: Array<{ category: string; ca: number; percent: number }>
+  categories: Array<{ subcategory: string; ca: number; percent: number }>
 
   operationnel: {
     tauxLivraisonPercent: number
@@ -136,6 +136,13 @@ export type MonthlyStatistics = {
 
   funnel: Array<{ status: string; count: number }>
 
+  delaisMoyens: Array<{ from: string; to: string; avgMinutes: number; count: number }>
+
+  delaiMoyenLivraisonTotalMinutes: number
+
+  debugErrors: string[]
+
+
   pointsLivraison: Array<{
     phone: string
     customerName: string
@@ -148,6 +155,7 @@ export type MonthlyStatistics = {
       id: string
       date: string
       total: number
+      deliveryMinutes: number | null
       items: Array<{ name: string; quantity: number; unitPrice: number }>
     }>
   }>
@@ -235,7 +243,7 @@ export async function getMonthlyStatistics(
       .lt('changed_at', end),
     supabase
       .from('products')
-      .select('id, category'),
+      .select('id, subcategory'),
     supabase
       .from('delivery_zones')
       .select('id, min_km, max_km')
@@ -262,6 +270,10 @@ export async function getMonthlyStatistics(
   const prevOrders = ((prevOrdersRes.data || []) as { customer_phone?: string | null }[])
   const connexions = (connexionsRes.data || []) as ConnexionRow[]
   const statusHistory = (statusHistoryRes.data || []) as StatusHistoryRow[]
+  const debugErrors: string[] = []
+  if (statusHistoryRes.error) debugErrors.push('order_status_history: ' + statusHistoryRes.error.message)
+  if (connexionsRes.error) debugErrors.push('platform_connexions: ' + connexionsRes.error.message)
+  if (ordersRes.error) debugErrors.push('orders: ' + ordersRes.error.message)
   const products = (productsRes.data || []) as ProductRow[]
   const zones = (zonesRes.data || []) as DeliveryZoneRow[]
   const slots = (slotsRes.data || []) as DeliverySlotRow[]
@@ -285,7 +297,7 @@ export async function getMonthlyStatistics(
       .filter(Boolean)
   )
 
-  const productCategoryMap = new Map(products.map(p => [p.id, p.category || 'autre']))
+  const productCategoryMap = new Map(products.map(p => [p.id, p.subcategory || 'autre']))
 
   const deliveredOrders = orders.filter(o => o.status === 'livr' + String.fromCharCode(0xe9) + 'e')
   const cancelledOrders = allOrdersRaw.filter(o => o.status === 'annul' + String.fromCharCode(0xe9) + 'e')
@@ -396,18 +408,18 @@ export async function getMonthlyStatistics(
   })
   const zonesStats = Array.from(zoneAgg.values()).sort((a, b) => b.ca - a.ca)
 
-  // Categories (via order_items -> product_id -> products.category)
+  // Sous-categories reelles (via order_items -> product_id -> products.subcategory)
   const categoryAgg = new Map<string, number>()
   deliveredOrders.forEach(o => {
     o.order_items?.forEach(item => {
-      const category = item.product_id ? (productCategoryMap.get(item.product_id) || 'autre') : 'autre'
+      const subcategory = item.product_id ? (productCategoryMap.get(item.product_id) || 'autre') : 'autre'
       const lineCa = (item.unit_price || 0) * (item.quantity || 0)
-      categoryAgg.set(category, (categoryAgg.get(category) || 0) + lineCa)
+      categoryAgg.set(subcategory, (categoryAgg.get(subcategory) || 0) + lineCa)
     })
   })
   const categoryTotal = Array.from(categoryAgg.values()).reduce((s, v) => s + v, 0)
-  const categories = Array.from(categoryAgg.entries()).map(([category, ca]) => ({
-    category,
+  const categories = Array.from(categoryAgg.entries()).map(([subcategory, ca]) => ({
+    subcategory,
     ca,
     percent: categoryTotal > 0 ? Math.round((ca / categoryTotal) * 100) : 0,
   })).sort((a, b) => b.ca - a.ca)
@@ -455,6 +467,62 @@ export async function getMonthlyStatistics(
     count: funnelAgg.get(status)?.size || 0,
   }))
 
+  // Delais moyens entre statuts (deduplication : une seule transition par order_id+to_status)
+  const dedupedByOrderAndStatus = new Map<string, StatusHistoryRow>()
+  statusHistory.forEach(h => {
+    const key = h.order_id + '|' + h.to_status
+    const existing = dedupedByOrderAndStatus.get(key)
+    if (!existing || new Date(h.changed_at) < new Date(existing.changed_at)) {
+      dedupedByOrderAndStatus.set(key, h)
+    }
+  })
+  const transitionsByOrder = new Map<string, StatusHistoryRow[]>()
+  Array.from(dedupedByOrderAndStatus.values()).forEach(h => {
+    const list = transitionsByOrder.get(h.order_id) || []
+    list.push(h)
+    transitionsByOrder.set(h.order_id, list)
+  })
+  const delaySumsMs = new Map<string, { totalMs: number; count: number }>()
+  transitionsByOrder.forEach(list => {
+    const sorted = list.slice().sort((a, b) => new Date(a.changed_at).getTime() - new Date(b.changed_at).getTime())
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1]
+      const curr = sorted[i]
+      const durationMs = new Date(curr.changed_at).getTime() - new Date(prev.changed_at).getTime()
+      if (durationMs < 0) continue
+      const key = prev.to_status + '->' + curr.to_status
+      const existing = delaySumsMs.get(key) || { totalMs: 0, count: 0 }
+      existing.totalMs += durationMs
+      existing.count += 1
+      delaySumsMs.set(key, existing)
+    }
+  })
+  const delaisMoyens = Array.from(delaySumsMs.entries()).map(([key, { totalMs, count }]) => {
+    const [from, to] = key.split('->')
+    return {
+      from,
+      to,
+      avgMinutes: Math.round((totalMs / count) / 60000),
+      count,
+    }
+  }).sort((a, b) => b.count - a.count)
+
+  // Delai total bout-en-bout : nouvelle -> livree
+  let totalDeliveryMs = 0
+  let totalDeliveryCount = 0
+  transitionsByOrder.forEach(list => {
+    const nouvelleEntry = list.find(h => h.to_status === 'nouvelle')
+    const livreeEntry = list.find(h => h.to_status === 'livr' + String.fromCharCode(0xe9) + 'e')
+    if (nouvelleEntry && livreeEntry) {
+      const durationMs = new Date(livreeEntry.changed_at).getTime() - new Date(nouvelleEntry.changed_at).getTime()
+      if (durationMs >= 0) {
+        totalDeliveryMs += durationMs
+        totalDeliveryCount += 1
+      }
+    }
+  })
+  const delaiMoyenLivraisonTotalMinutes = totalDeliveryCount > 0 ? Math.round((totalDeliveryMs / totalDeliveryCount) / 60000) : 0
+
   // Points de livraison (pour la carte) : un point par client + adresse distincte
   // (retrait boutique exclu, ce n'est pas une livraison)
   type DeliveryPointAgg = {
@@ -487,6 +555,17 @@ export async function getMonthlyStatistics(
     existing.ordersRaw.push(o)
     deliveryPointsAgg.set(key, existing)
   })
+  // Delai de livraison individuel par commande (nouvelle -> livree)
+  const orderDeliveryMinutes = new Map<string, number>()
+  transitionsByOrder.forEach((list, orderId) => {
+    const nouvelleEntry = list.find(h => h.to_status === 'nouvelle')
+    const livreeEntry = list.find(h => h.to_status === 'livr' + String.fromCharCode(0xe9) + 'e')
+    if (nouvelleEntry && livreeEntry) {
+      const diff = new Date(livreeEntry.changed_at).getTime() - new Date(nouvelleEntry.changed_at).getTime()
+      if (diff >= 0) orderDeliveryMinutes.set(orderId, Math.round(diff / 60000))
+    }
+  })
+
   const pointsLivraison = Array.from(deliveryPointsAgg.values()).map(p => {
     const allClassic = p.ordersRaw.every(isClassicOnly)
     const allVip = p.ordersRaw.every(isVipOnly)
@@ -503,6 +582,7 @@ export async function getMonthlyStatistics(
         id: o.id,
         date: o.created_at,
         total: o.total || 0,
+        deliveryMinutes: orderDeliveryMinutes.get(o.id) ?? null,
         items: (o.order_items || []).map(i => ({
           name: i.product_name || 'Inconnu',
           quantity: i.quantity || 0,
@@ -579,6 +659,9 @@ export async function getMonthlyStatistics(
       total: connexionsClassique + connexionsVip,
     },
     funnel,
+    delaisMoyens,
+    delaiMoyenLivraisonTotalMinutes,
+    debugErrors,
     pointsLivraison,
     dailyBreakdown,
     hourlyBreakdown,

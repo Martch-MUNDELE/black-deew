@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/lib/currency'
 import { getMonthlyStatistics, type MonthlyStatistics } from '@/lib/data/statistiques'
@@ -66,12 +66,22 @@ export default function StatistiquesPage() {
   const [error, setError] = useState<string | null>(null)
   const [hoveredDay, setHoveredDay] = useState<number | null>(null)
   const [mapFilter, setMapFilter] = useState<'tout' | 'classique' | 'vip' | 'mixte'>('tout')
+  const chartRef = useRef<HTMLDivElement>(null)
+  const [sessionInfo, setSessionInfo] = useState<string>('verification...')
 
   const load = useCallback(async (m: string) => {
     setLoading(true)
     setError(null)
     try {
       const supabase = createClient()
+
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (sessionData.session) {
+        setSessionInfo('Connecte : ' + (sessionData.session.user.email || 'sans email') + ' (role JWT : ' + (sessionData.session.user.role || 'inconnu') + ')')
+      } else {
+        setSessionInfo('AUCUNE SESSION ACTIVE - vous naviguez en anonyme')
+      }
+
       const [data, settingsRes] = await Promise.all([
         getMonthlyStatistics(supabase, m),
         supabase.from('settings').select('key, value').in('key', ['delivery_shop_lat', 'delivery_shop_lng']),
@@ -106,6 +116,18 @@ export default function StatistiquesPage() {
   const BASE_Y = 102
   const BAR_W = Math.max(SLOT_W / 4, 1.2)
 
+  const handleChartTouch = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!chartRef.current || !stats) return
+    const touch = e.touches[0]
+    if (!touch) return
+    const rect = chartRef.current.getBoundingClientRect()
+    const relativeX = touch.clientX - rect.left
+    const svgX = (relativeX / rect.width) * 320
+    const dayIndex = Math.floor(svgX / SLOT_W)
+    const clamped = Math.max(0, Math.min(stats.dailyBreakdown.length - 1, dayIndex))
+    setHoveredDay(clamped)
+  }
+
   const maxHourly = Math.max(...stats.hourlyBreakdown.map(h => h.commandes), 1)
 
   return (
@@ -121,6 +143,14 @@ export default function StatistiquesPage() {
       </div>
 
       <div style={{ fontSize: 13, color: '#8A7A5C', marginBottom: 20, textTransform: 'capitalize' }}>{monthLabel(stats.month)}</div>
+
+      <div style={{ fontSize: 11, color: '#8A7A5C', marginBottom: 12 }}>{sessionInfo}</div>
+
+      {stats.debugErrors.length > 0 && (
+        <div style={{ background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.4)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#FF6B6B' }}>
+          {stats.debugErrors.map((e, i) => <div key={i}>{e}</div>)}
+        </div>
+      )}
 
       {/* Facturation */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -177,7 +207,13 @@ export default function StatistiquesPage() {
             <span style={{ width: 10, height: 10, borderRadius: 2, background: '#A078FF', display: 'inline-block' }}></span>Mixte
           </span>
         </div>
-        <div style={{ position: 'relative' }}>
+        <div
+          ref={chartRef}
+          style={{ position: 'relative', touchAction: 'pan-y' }}
+          onTouchStart={handleChartTouch}
+          onTouchMove={handleChartTouch}
+          onTouchEnd={() => setHoveredDay(null)}
+        >
           <svg viewBox="0 0 320 140" style={{ width: '100%', height: 'auto', display: 'block', overflow: 'visible' }}>
             <line x1={0} y1={BASE_Y} x2={320} y2={BASE_Y} stroke="rgba(232,160,32,0.15)" strokeWidth={1} />
             {stats.dailyBreakdown.map((d, i) => {
@@ -259,8 +295,8 @@ export default function StatistiquesPage() {
           rows={stats.zones.map(z => ({ left: z.label, right: `${z.commandes} cmd - ${z.ca.toFixed(0)} ${currency}` }))}
         />
         <ListCard
-          title="Repartition categories"
-          rows={stats.categories.map(c => ({ left: c.category, right: `${c.percent}% - ${c.ca.toFixed(0)} ${currency}` }))}
+          title="Repartition sous-categories"
+          rows={stats.categories.map(c => ({ left: c.subcategory, right: `${c.percent}% - ${c.ca.toFixed(0)} ${currency}` }))}
         />
       </div>
 
@@ -325,6 +361,11 @@ export default function StatistiquesPage() {
                               <span style={{ color: '#8A7A5C' }}>{new Date(o.date).toLocaleDateString('fr-FR')}</span>
                               <span style={{ color: '#E8DCC0', fontWeight: 700 }}>{o.total.toFixed(0)} {currency}</span>
                             </div>
+                            {o.deliveryMinutes != null && (
+                              <div style={{ fontSize: 11, color: '#F5C842', marginBottom: 4 }}>
+                                Livre en {Math.floor(o.deliveryMinutes / 60) > 0 ? `${Math.floor(o.deliveryMinutes / 60)}h ${o.deliveryMinutes % 60}min` : `${o.deliveryMinutes} min`}
+                              </div>
+                            )}
                             {o.items.map((item, i) => (
                               <div key={i} style={{ fontSize: 11, color: '#6A5A40', display: 'flex', justifyContent: 'space-between' }}>
                                 <span>{item.quantity}x {item.name}</span>
@@ -354,6 +395,16 @@ export default function StatistiquesPage() {
         <KpiCard label="Revenu frais livraison" value={`${stats.operationnel.revenuFraisLivraison.toFixed(0)} ${currency}`} color="#F5C842" />
         <KpiCard label="Remplissage creneaux" value={`${stats.operationnel.remplissageCreneauxPercent}%`} color="#E8DCC0" />
         <KpiCard label="Connexions" value={String(stats.connexions.total)} sub={`${stats.connexions.classique} classique / ${stats.connexions.vip} VIP`} color="#E8DCC0" />
+        <KpiCard
+          label="Delai livraison moyen"
+          value={stats.delaiMoyenLivraisonTotalMinutes > 0
+            ? (Math.floor(stats.delaiMoyenLivraisonTotalMinutes / 60) > 0
+                ? `${Math.floor(stats.delaiMoyenLivraisonTotalMinutes / 60)}h ${stats.delaiMoyenLivraisonTotalMinutes % 60}min`
+                : `${stats.delaiMoyenLivraisonTotalMinutes} min`)
+            : 'N/A'}
+          sub="nouvelle -> livree"
+          color="#F5C842"
+        />
       </div>
 
       {/* Funnel statuts */}
@@ -368,6 +419,25 @@ export default function StatistiquesPage() {
           ))}
         </div>
         <div style={{ fontSize: 11, color: '#6A5A40', marginTop: 12 }}>Nombre de commandes ayant atteint chaque statut ce mois-ci (tracking actif depuis la mise en place).</div>
+
+        {stats.delaisMoyens.length > 0 && (
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(232,160,32,0.08)' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#E8DCC0', marginBottom: 10 }}>Delais moyens entre statuts</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {stats.delaisMoyens.map((d, i) => {
+                const h = Math.floor(d.avgMinutes / 60)
+                const m = d.avgMinutes % 60
+                const label = h > 0 ? `${h}h ${m}min` : `${m} min`
+                return (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: '#8A7A5C', textTransform: 'capitalize' }}>{d.from} &rarr; {d.to}</span>
+                    <span style={{ color: '#F5C842', fontWeight: 700 }}>{label} <span style={{ color: '#6A5A40', fontWeight: 400, fontSize: 11 }}>({d.count} commande{d.count > 1 ? 's' : ''})</span></span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Repartition horaire */}
