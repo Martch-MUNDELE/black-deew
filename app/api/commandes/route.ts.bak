@@ -86,13 +86,12 @@ export async function POST(req: NextRequest) {
   const calculatedTotal = subtotal + (delivery_fee ?? 0)
 
   const today = new Date().toISOString().split('T')[0]
-  const dateKey = today.replace(/-/g, '')
-  const { data: seqData, error: seqError } = await supabase.rpc('get_next_invoice_seq', { p_date_key: dateKey })
-  if (seqError || seqData == null) {
-    return NextResponse.json({ error: 'Erreur generation numero de commande' }, { status: 500 })
-  }
-  const seqNum = String(seqData).padStart(4, '0')
-  const invoice_number = `BD-${dateKey}-${seqNum}`
+  const { count: orderCount } = await supabase.from('orders')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', today + 'T00:00:00.000Z')
+    .lte('created_at', today + 'T23:59:59.999Z')
+  const seqNum = String((orderCount ?? 0) + 1).padStart(4, '0')
+  const invoice_number = `BD-${today.replace(/-/g, '')}-${seqNum}`
 
   const { data: order, error } = await supabase.from('orders').insert({
     customer_name: name, customer_phone: phone, customer_address: address,

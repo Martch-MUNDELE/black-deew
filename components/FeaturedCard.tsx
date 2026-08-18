@@ -5,8 +5,8 @@ import FeaturedCardClient from '@/components/FeaturedCardClient'
 export default async function FeaturedCard() {
   const supabase = await createClient()
   const [{ data: featuredRaw }, { data: coupRaw }, { data: stockRow }] = await Promise.all([
-    supabase.from('products').select('*').eq('featured', true).single(),
-    supabase.from('products').select('*').eq('is_coup_de_coeur', true).eq('active', true).single(),
+    supabase.from('products').select('*').eq('is_vip', false).neq('subcategory', 'vip').eq('featured', true).single(),
+    supabase.from('products').select('*').eq('is_vip', false).neq('subcategory', 'vip').eq('is_coup_de_coeur', true).eq('active', true).single(),
     supabase.from('settings').select('value').eq('key', 'stock_enabled').single(),
   ])
   const stockEnabled = stockRow?.value === 'true'
@@ -20,7 +20,7 @@ export default async function FeaturedCard() {
   if (!product) return null
 
   const subcats = [product.subcategory, ...(coupProduct && coupProduct.subcategory !== product.subcategory ? [coupProduct.subcategory] : [])]
-  const { data: allData } = await supabase.from('products').select('*').in('subcategory', subcats).eq('active', true)
+  const { data: allData } = await supabase.from('products').select('*').eq('is_vip', false).neq('subcategory', 'vip').in('subcategory', subcats).eq('active', true)
   const allProducts = (allData as Product[]) || []
 
   return <FeaturedCardClient product={product} allProducts={allProducts} coupProduct={coupProduct} />

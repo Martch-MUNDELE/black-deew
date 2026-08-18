@@ -4,9 +4,8 @@ import Image, { type ImageLoaderProps } from 'next/image'
 import { useCart } from '@/store/cart'
 import { usePathname } from 'next/navigation'
 import { useCatalogue } from '@/store/catalogue'
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Logo from '@/components/Logo'
-import { createClient } from '@/lib/supabase/client'
 import {
   UtensilsCrossed, Utensils, ChefHat, Pizza, Sandwich, Coffee,
   CupSoda, Wine, Beer, Soup, Salad, Apple, Beef, Fish, Egg, Cookie, Cake,
@@ -86,23 +85,47 @@ const renderMenuIcon = (icon_type: string, icon_value: string, size = 16): React
   return null
 }
 
-export default function Navbar() {
+export default function Navbar({
+  initialSettings = [],
+  initialMenuCategories = [],
+}: {
+  initialSettings?: SettingRow[]
+  initialMenuCategories?: MenuCat[]
+}) {
+  const initialSetting = (key: string, fallback = '') =>
+    initialSettings.find((setting) => setting.key === key)?.value ?? fallback
   const count = useCart(s => s.count())
   const [mounted, setMounted] = useState(false)
-  const [isOpen, setIsOpen] = useState(false)
-  const [siteName, setSiteName] = useState('Black Deew')
-  const [siteBaseline, setSiteBaseline] = useState('')
-  const [siteLogo, setSiteLogo] = useState<string | null>(null)
-  const [menuPlaceholder, setMenuPlaceholder] = useState("Qu'est-ce qui te fait envie ?")
-  const [menuPlaceholderIcon, setMenuPlaceholderIcon] = useState('')
+  const [isOpen, setIsOpen] = useState(
+    initialSetting('status') === 'open'
+  )
+  const [siteName, setSiteName] = useState(
+    initialSetting('site_name', 'Black Deew')
+  )
+  const [siteBaseline, setSiteBaseline] = useState(
+    initialSetting('site_baseline')
+  )
+  const [siteLogo, setSiteLogo] = useState<string | null>(
+    initialSetting('site_logo') || null
+  )
+  const [menuPlaceholder, setMenuPlaceholder] = useState(
+    initialSetting('menu_placeholder', "Qu'est-ce qui te fait envie ?")
+  )
+  const [menuPlaceholderIcon, setMenuPlaceholderIcon] = useState(
+    initialSetting('menu_placeholder_icon')
+  )
   const [menuPlaceholderIconType, setMenuPlaceholderIconType] = useState<'builtin' | 'custom'>('builtin')
-  const [menuPlaceholderBuiltinIcon, setMenuPlaceholderBuiltinIcon] = useState('Coffee')
+  const [menuPlaceholderBuiltinIcon, setMenuPlaceholderBuiltinIcon] = useState(
+    initialSetting('menu_placeholder_builtin_icon', 'Coffee')
+  )
   const { activeGroupe, activeSous, hasSelected, setGroupe, setHasSelected, menuGroupes: storeGroupes } = useCatalogue()
   const pathname = usePathname()
   const isHome = pathname === '/'
   const [openDropdown, setOpenDropdown] = useState(false)
-  const [groupes, setGroupes] = useState<GroupeItem[]>(GROUPES)
-  const supabase = useMemo(() => createClient(), [])
+  const [groupes, setGroupes] = useState<GroupeItem[]>(() => {
+    const built = buildGroupes(initialMenuCategories)
+    return built.length > 0 ? built : GROUPES
+  })
 
   // Sync depuis store quand menuGroupes disponibles (chargés par CatalogueClient)
   useEffect(() => {
@@ -130,50 +153,162 @@ export default function Navbar() {
     let cancelled = false
 
     Promise.resolve().then(() => {
-      if (!cancelled) setMounted(true)
-    })
-
-    supabase.from('settings').select('*').then(({ data }) => {
-      if (cancelled) return
-
-      data?.forEach((s: SettingRow) => {
-        if (s.key === 'status') setIsOpen(s.value === 'open')
-        if (s.key === 'site_name') setSiteName(s.value ?? 'Black Deew')
-        if (s.key === 'site_baseline') setSiteBaseline(s.value ?? '')
-        if (s.key === 'site_logo') {
-          if (s.value) {
-            const base = s.value.split('?')[0]
-            setSiteLogo(base + '?t=' + Date.now())
-          } else {
-            setSiteLogo('')
-          }
-        }
-        if (s.key === 'menu_placeholder') setMenuPlaceholder(s.value ?? "Qu'est-ce qui te fait envie ?")
-        if (s.key === 'menu_placeholder_icon') setMenuPlaceholderIcon(s.value ?? '')
-        if (s.key === 'menu_placeholder_icon_type') setMenuPlaceholderIconType(s.value === 'custom' ? 'custom' : 'builtin')
-        if (s.key === 'menu_placeholder_builtin_icon') setMenuPlaceholderBuiltinIcon(s.value ?? 'Coffee')
-      })
-    })
-
-    supabase.from('menu_categories').select('*').then(({ data }) => {
-      if (cancelled) return
-      if (data && data.length > 0) {
-        const built = buildGroupes(data as MenuCat[])
-        if (built.length > 0) setGroupes(built)
+      if (!cancelled) {
+        setMounted(true)
       }
     })
 
-    const handleClick = (e: MouseEvent) => {
-      if (dropRef.current && !dropRef.current.contains(e.target as Node)) setOpenDropdown(false)
-    }
+    fetch('/api/public-cms', {
+      cache: 'no-store'
+    })
+      .then((res) => res.json())
+      .then((payload) => {
+        if (cancelled) return
 
-    document.addEventListener('mousedown', handleClick)
+        const settings =
+          Array.isArray(payload?.settings)
+            ? payload.settings
+            : []
+
+        settings.forEach(
+          (setting: SettingRow) => {
+
+            if (setting.key === 'status') {
+              setIsOpen(
+                setting.value === 'open'
+              )
+            }
+
+            if (
+              setting.key === 'site_name'
+            ) {
+              setSiteName(
+                setting.value ??
+                'Black Deew'
+              )
+            }
+
+            if (
+              setting.key ===
+              'site_baseline'
+            ) {
+              setSiteBaseline(
+                setting.value ?? ''
+              )
+            }
+
+            if (
+              setting.key ===
+              'site_logo'
+            ) {
+              if (setting.value) {
+                const base =
+                  setting.value
+                    .split('?')[0]
+
+                setSiteLogo(
+                  base +
+                  '?t=' +
+                  Date.now()
+                )
+              } else {
+                setSiteLogo('')
+              }
+            }
+
+            if (
+              setting.key ===
+              'menu_placeholder'
+            ) {
+              setMenuPlaceholder(
+                setting.value ??
+                "Qu'est-ce qui te fait envie ?"
+              )
+            }
+
+            if (
+              setting.key ===
+              'menu_placeholder_icon'
+            ) {
+              setMenuPlaceholderIcon(
+                setting.value ?? ''
+              )
+            }
+
+            if (
+              setting.key ===
+              'menu_placeholder_icon_type'
+            ) {
+              setMenuPlaceholderIconType(
+                setting.value === 'custom'
+                  ? 'custom'
+                  : 'builtin'
+              )
+            }
+
+            if (
+              setting.key ===
+              'menu_placeholder_builtin_icon'
+            ) {
+              setMenuPlaceholderBuiltinIcon(
+                setting.value ??
+                'Coffee'
+              )
+            }
+          }
+        )
+
+        const menuData =
+          Array.isArray(
+            payload?.menuCategories
+          )
+            ? payload.menuCategories
+            : []
+
+        if (menuData.length > 0) {
+          const built =
+            buildGroupes(
+              menuData as MenuCat[]
+            )
+
+          if (built.length > 0) {
+            setGroupes(built)
+          }
+        }
+      })
+      .catch((error) => {
+        console.error(
+          '[PUBLIC CMS Navbar]',
+          error
+        )
+      })
+
+    const handleClick =
+      (event: MouseEvent) => {
+        if (
+          dropRef.current &&
+          !dropRef.current.contains(
+            event.target as Node
+          )
+        ) {
+          setOpenDropdown(false)
+        }
+      }
+
+    document.addEventListener(
+      'mousedown',
+      handleClick
+    )
 
     return () => {
       cancelled = true
-      document.removeEventListener('mousedown', handleClick)
+
+      document.removeEventListener(
+        'mousedown',
+        handleClick
+      )
     }
-  }, [supabase])
+  }, [])
 
   const handleSelect = (groupeId: string, sousId?: string) => {
     const g = groupes.find(g => g.id === groupeId)

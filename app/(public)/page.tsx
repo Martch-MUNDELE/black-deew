@@ -10,8 +10,12 @@ export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
   const supabase = await createClient()
+
+  const { data: cmsSettings } = await supabase
+    .from('settings')
+    .select('key, value')
   const [{ data: products }, { data: settings }, { data: menuCats }, { data: stockSetting }] = await Promise.all([
-    supabase.from('products').select('*').eq('active', true).eq('is_vip', false).order('name'),
+    supabase.from('products').select('*').eq('active', true).eq('is_vip', false).neq('subcategory', 'vip').order('name'),
     supabase.from('settings').select('*').eq('key', 'status'),
     supabase.from('menu_categories').select('id, slug, name, parent_id, display_order, active, level, is_visible').order('display_order'),
     supabase.from('settings').select('value').eq('key', 'stock_enabled').single(),
@@ -57,7 +61,7 @@ export default async function HomePage() {
       {isOpen && <PopularCard fallback={<FeaturedCard />} />}
 
       {/* 3 ARGUMENTS */}
-      {isOpen && <FeaturesBar />}
+      {isOpen && <FeaturesBar initialSettings={cmsSettings ?? []} />}
 
       {/* CATALOGUE avec sous-menus */}
       {isOpen && <CatalogueClient products={visibleProducts} isOpen={isOpen} groupes={menuGroupes.length > 0 ? menuGroupes : undefined} />}

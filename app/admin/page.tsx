@@ -125,12 +125,44 @@ export default function AdminDashboard() {
 
   const fetchOrders = useCallback(async (supabase: ReturnType<typeof createClient>) => {
     const since = new Date(Date.now() - 30*86400000).toISOString()
-    const { data } = await supabase
-      .from('orders')
-      .select('*, order_items(*)')
-      .gte('created_at', since)
-      .order('created_at', { ascending: false })
-    const fetched: OrderWithItems[] = (data || []) as OrderWithItems[]
+
+    console.log('[BD ADMIN FETCH DEBUG V1] fetchOrders:start', {
+      href: typeof window !== 'undefined' ? window.location.href : 'server',
+      hostname: typeof window !== 'undefined' ? window.location.hostname : 'server',
+      online: typeof navigator !== 'undefined' ? navigator.onLine : null,
+      since
+    })
+
+    try {
+      console.log('[BD ADMIN FETCH DEBUG V1] query:before')
+
+      const queryPromise = supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('BD_ADMIN_ORDERS_TIMEOUT_10000MS'))
+        }, 10000)
+      })
+
+      const { data, error } = await Promise.race([
+        queryPromise,
+        timeoutPromise
+      ])
+
+      console.log('[BD ADMIN FETCH DEBUG V1] query:after', {
+        rows: Array.isArray(data) ? data.length : null,
+        error: error ? String(error.message || error) : null
+      })
+
+      if (error) {
+        console.error('[BD ADMIN FETCH DEBUG V1] supabase:error', error)
+      }
+
+      const fetched: OrderWithItems[] = (data || []) as OrderWithItems[]
     if (!isFirstLoad.current) {
       const newOnes = fetched.filter(o => !prevOrderIds.current.has(o.id))
       if (newOnes.length > 0) {
@@ -142,8 +174,15 @@ export default function AdminDashboard() {
     }
     prevOrderIds.current = new Set(fetched.map(o => o.id))
     isFirstLoad.current = false
-    setOrders(fetched)
-    setLoading(false)
+      setOrders(fetched)
+      setLoading(false)
+
+      console.log('[BD ADMIN FETCH DEBUG V1] fetchOrders:done')
+
+    } catch (error) {
+      console.error('[BD ADMIN FETCH DEBUG V1] fetchOrders:failed', error)
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {

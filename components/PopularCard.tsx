@@ -45,9 +45,10 @@ export default function PopularCard({ fallback }: { fallback?: React.ReactNode }
     supabase
       .from('products')
       .select('*')
+      .eq('is_vip', false)
+      .neq('subcategory', 'vip')
       .eq('subcategory', selectedSous)
       .eq('active', true)
-      .eq('is_vip', false)
       .then(async ({ data: rawData }) => {
         if (cancelled) return
 
@@ -72,10 +73,11 @@ export default function PopularCard({ fallback }: { fallback?: React.ReactNode }
         const { data: coupRaw } = await supabase
           .from('products')
           .select('*')
+          .eq('is_vip', false)
+          .neq('subcategory', 'vip')
           .eq('subcategory', selectedSous)
           .eq('is_coup_de_coeur', true)
           .eq('active', true)
-          .eq('is_vip', false)
           .maybeSingle()
 
         if (cancelled) return

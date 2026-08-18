@@ -1,7 +1,6 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCatalogue } from '@/store/catalogue'
-import { createClient } from '@/lib/supabase/client'
 
 type Feature = { icon: string; title: string; desc: string }
 
@@ -95,27 +94,91 @@ function Icon({ name }: { name: string }) {
   }
 }
 
-export default function FeaturesBar({ alwaysShow = false }: { alwaysShow?: boolean }) {
+export default function FeaturesBar({
+  alwaysShow = false,
+  initialSettings = [],
+}: {
+  alwaysShow?: boolean
+  initialSettings?: SettingRow[]
+}) {
   const { hasSelected } = useCatalogue()
-  const [features, setFeatures] = useState<Feature[]>(DEFAULTS)
-  const supabase = useMemo(() => createClient(), [])
+  const [features, setFeatures] = useState<Feature[]>(() => {
+    const parsed = DEFAULTS.map((fallback, index) => {
+      const row = initialSettings.find(
+        (setting) => setting.key === `feature_${index + 1}`
+      )
+
+      return parseFeature(row?.value, fallback)
+    })
+
+    const activeFlags = [1, 2, 3].map((index) => {
+      const row = initialSettings.find(
+        (setting) => setting.key === `feature_${index}_active`
+      )
+
+      return row ? row.value !== 'false' : true
+    })
+
+    return parsed.filter((_, index) => activeFlags[index])
+  })
 
   useEffect(() => {
-    supabase.from('settings').select('*').then(({ data }) => {
-      if (!data) return
-
-      const settingsRows = data as SettingRow[]
-      const parsed = DEFAULTS.map((d, i) => {
-        const row = settingsRows.find((s) => s.key === `feature_${i + 1}`)
-        return parseFeature(row?.value, d)
-      })
-      const activeFlags = [1, 2, 3].map(i => {
-        const row = settingsRows.find((s) => s.key === `feature_${i}_active`)
-        return row ? row.value !== 'false' : true
-      })
-      setFeatures(parsed.filter((_, i) => activeFlags[i]))
+    fetch('/api/public-cms', {
+      cache: 'no-store'
     })
-  }, [supabase])
+      .then((res) => res.json())
+      .then((payload) => {
+        const data =
+          Array.isArray(payload?.settings)
+            ? payload.settings
+            : []
+
+        const settingsRows =
+          data as SettingRow[]
+
+        const parsed =
+          DEFAULTS.map((fallback, index) => {
+            const row =
+              settingsRows.find(
+                (setting) =>
+                  setting.key ===
+                  `feature_${index + 1}`
+              )
+
+            return parseFeature(
+              row?.value,
+              fallback
+            )
+          })
+
+        const activeFlags =
+          [1, 2, 3].map((index) => {
+            const row =
+              settingsRows.find(
+                (setting) =>
+                  setting.key ===
+                  `feature_${index}_active`
+              )
+
+            return row
+              ? row.value !== 'false'
+              : true
+          })
+
+        setFeatures(
+          parsed.filter(
+            (_, index) =>
+              activeFlags[index]
+          )
+        )
+      })
+      .catch((error) => {
+        console.error(
+          '[PUBLIC CMS FeaturesBar]',
+          error
+        )
+      })
+  }, [])
 
   if (!alwaysShow && hasSelected) return null
 
