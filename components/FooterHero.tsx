@@ -1,36 +1,75 @@
 'use client'
 import { usePathname } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState } from 'react'
 
 type FooterSettingRow = {
   key: string
   value: string | null
 }
 
-export default function FooterHero() {
+export default function FooterHero({
+  initialSettings = [],
+}: {
+  initialSettings?: FooterSettingRow[]
+}) {
+  const initialSetting = (key: string, fallback = '') =>
+    initialSettings.find((setting) => setting.key === key)?.value ?? fallback
   const pathname = usePathname()
-  const supabase = useMemo(() => createClient(), [])
-  const [line1, setLine1] = useState('Livraison à')
-  const [line2, setLine2] = useState('Kinshasa.')
-  const [subtitle, setSubtitle] = useState('Directement chez toi.')
-  const [description, setDescription] = useState('Plats chauds, boissons fraîches et snacks livrés rapidement.')
+  const [line1, setLine1] = useState(initialSetting('footer_line1'))
+  const [line2, setLine2] = useState(initialSetting('footer_line2'))
+  const [subtitle, setSubtitle] = useState(initialSetting('footer_subtitle'))
+  const [description, setDescription] = useState(initialSetting('footer_description'))
 
   useEffect(() => {
-    supabase.from('settings').select('key, value')
-      .in('key', ['footer_line1', 'footer_line2', 'footer_subtitle', 'footer_description'])
-      .then(({ data }) => {
-        if (!data) return
+    fetch('/api/public-cms', {
+      cache: 'no-store'
+    })
+      .then((res) => res.json())
+      .then((payload) => {
+        const settingsRows =
+          (
+            Array.isArray(payload?.settings)
+              ? payload.settings
+              : []
+          ) as FooterSettingRow[]
 
-        const settingsRows = data as FooterSettingRow[]
-        settingsRows.forEach((s) => {
-          if (s.key === 'footer_line1' && s.value) setLine1(s.value)
-          if (s.key === 'footer_line2' && s.value) setLine2(s.value)
-          if (s.key === 'footer_subtitle' && s.value) setSubtitle(s.value)
-          if (s.key === 'footer_description' && s.value) setDescription(s.value)
+        settingsRows.forEach((setting) => {
+          if (
+            setting.key === 'footer_line1' &&
+            setting.value
+          ) {
+            setLine1(setting.value)
+          }
+
+          if (
+            setting.key === 'footer_line2' &&
+            setting.value
+          ) {
+            setLine2(setting.value)
+          }
+
+          if (
+            setting.key === 'footer_subtitle' &&
+            setting.value
+          ) {
+            setSubtitle(setting.value)
+          }
+
+          if (
+            setting.key === 'footer_description' &&
+            setting.value
+          ) {
+            setDescription(setting.value)
+          }
         })
       })
-  }, [supabase])
+      .catch((error) => {
+        console.error(
+          '[PUBLIC CMS FooterHero]',
+          error
+        )
+      })
+  }, [])
 
   if (pathname !== '/') return null
   return (

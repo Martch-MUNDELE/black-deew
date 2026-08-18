@@ -47,3 +47,5 @@ public/version.json
 next-env.d.ts
 cleanup-orphans.js
 gen-slots.mjs
+
+*.bak

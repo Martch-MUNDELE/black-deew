@@ -14,6 +14,16 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
 }
 
 export default function PushNotificationManager() {
+  /*
+    BD LOCAL MDH PWA DISABLE V1
+  */
+  const isLocalMdh =
+    typeof window !== 'undefined' &&
+    (
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === 'localhost'
+    )
+
   const [status, setStatus] = useState<'idle' | 'loading' | 'subscribed' | 'denied' | 'unsupported' | 'ready'>('idle')
   const [swReg, setSwReg] = useState<ServiceWorkerRegistration | null>(null)
 
@@ -41,8 +51,24 @@ export default function PushNotificationManager() {
   }
 
   useEffect(() => {
+    if (!isLocalMdh) return
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => {
+          registration.unregister()
+        })
+      })
+    }
+  }, [isLocalMdh])
+
+  useEffect(() => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       setTimeout(() => setStatus('unsupported'), 0)
+      return
+    }
+
+    if (isLocalMdh) {
       return
     }
 

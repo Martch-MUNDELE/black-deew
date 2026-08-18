@@ -1,7 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import SmokeEffect from '@/components/SmokeEffect'
 
 type BackgroundSettingRow = {
@@ -9,37 +8,101 @@ type BackgroundSettingRow = {
   value: string | null
 }
 
-export default function BackgroundSmoke() {
-  const [heroImage, setHeroImage] = useState('')
-  const [backgroundImage, setBackgroundImage] = useState('/background-home.jpg')
-  const [bgImageActive, setBgImageActive] = useState('true')
-  const [bgType, setBgType] = useState('color')
-  const [bgColor, setBgColor] = useState('#0A0804')
-  const [bgGradStart, setBgGradStart] = useState('#0A0804')
-  const [bgGradEnd, setBgGradEnd] = useState('#1a0a02')
-  const [bgGradDir, setBgGradDir] = useState('to bottom')
+export default function BackgroundSmoke({
+  initialSettings = [],
+}: {
+  initialSettings?: BackgroundSettingRow[]
+}) {
+  const initialSetting = (key: string, fallback = '') =>
+    initialSettings.find((setting) => setting.key === key)?.value ?? fallback
+  const [heroImage, setHeroImage] = useState(initialSetting('hero_image'))
+  const [backgroundImage, setBackgroundImage] = useState(initialSetting('background_image', '/background-home.jpg'))
+  const [bgImageActive, setBgImageActive] = useState(initialSetting('background_image_active', 'true'))
+  const [bgType, setBgType] = useState(initialSetting('background_type', 'color'))
+  const [bgColor, setBgColor] = useState(initialSetting('background_color', '#0A0804'))
+  const [bgGradStart, setBgGradStart] = useState(initialSetting('background_gradient_start', '#0A0804'))
+  const [bgGradEnd, setBgGradEnd] = useState(initialSetting('background_gradient_end', '#1a0a02'))
+  const [bgGradDir, setBgGradDir] = useState(initialSetting('background_gradient_dir', 'to bottom'))
   const pathname = usePathname()
   const showBg = pathname === '/'
 
   useEffect(() => {
-    const supabase = createClient()
-    supabase.from('settings').select('*').in('key', [
-      'hero_image', 'background_image', 'background_image_active',
-      'background_type', 'background_color', 'background_gradient_start',
-      'background_gradient_end', 'background_gradient_dir',
-    ]).then(({ data }) => {
-      const settingsRows = (data || []) as BackgroundSettingRow[]
-      settingsRows.forEach((s) => {
-        if (s.key === 'hero_image' && s.value) setHeroImage(s.value)
-        if (s.key === 'background_image' && s.value) setBackgroundImage(s.value)
-        if (s.key === 'background_image_active' && s.value) setBgImageActive(s.value)
-        if (s.key === 'background_type' && s.value) setBgType(s.value)
-        if (s.key === 'background_color' && s.value) setBgColor(s.value)
-        if (s.key === 'background_gradient_start' && s.value) setBgGradStart(s.value)
-        if (s.key === 'background_gradient_end' && s.value) setBgGradEnd(s.value)
-        if (s.key === 'background_gradient_dir' && s.value) setBgGradDir(s.value)
-      })
+    fetch('/api/public-cms', {
+      cache: 'no-store'
     })
+      .then((res) => res.json())
+      .then((payload) => {
+        const settingsRows =
+          (
+            Array.isArray(payload?.settings)
+              ? payload.settings
+              : []
+          ) as BackgroundSettingRow[]
+
+        settingsRows.forEach((setting) => {
+          if (
+            setting.key === 'hero_image' &&
+            setting.value
+          ) {
+            setHeroImage(setting.value)
+          }
+
+          if (
+            setting.key === 'background_image' &&
+            setting.value
+          ) {
+            setBackgroundImage(setting.value)
+          }
+
+          if (
+            setting.key === 'background_image_active' &&
+            setting.value
+          ) {
+            setBgImageActive(setting.value)
+          }
+
+          if (
+            setting.key === 'background_type' &&
+            setting.value
+          ) {
+            setBgType(setting.value)
+          }
+
+          if (
+            setting.key === 'background_color' &&
+            setting.value
+          ) {
+            setBgColor(setting.value)
+          }
+
+          if (
+            setting.key === 'background_gradient_start' &&
+            setting.value
+          ) {
+            setBgGradStart(setting.value)
+          }
+
+          if (
+            setting.key === 'background_gradient_end' &&
+            setting.value
+          ) {
+            setBgGradEnd(setting.value)
+          }
+
+          if (
+            setting.key === 'background_gradient_dir' &&
+            setting.value
+          ) {
+            setBgGradDir(setting.value)
+          }
+        })
+      })
+      .catch((error) => {
+        console.error(
+          '[PUBLIC CMS BackgroundSmoke]',
+          error
+        )
+      })
   }, [])
 
   if (!showBg) return null
