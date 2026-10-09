@@ -18,8 +18,6 @@ type VipAccessGateProps = {
 }
 
 const DEFAULT_SITE_NAME = 'VIP'
-const DEFAULT_PASSWORD_SETTING = 'vip_access_password'
-const DEFAULT_PHONES_SETTING = 'vip_allowed_phones'
 const DEFAULT_ENABLED_SETTING = 'vip_access_enabled'
 const VIP_PHONE_PREFILL_KEY = 'base_food_vip_prefill_phone'
 
@@ -29,64 +27,6 @@ function normalizePhone(value: string) {
   if (raw.startsWith('+')) return '+' + raw.replace(/[^\d]/g, '')
   if (raw.startsWith('00')) return '+' + raw.slice(2).replace(/[^\d]/g, '')
   return '+' + raw.replace(/[^\d]/g, '')
-}
-
-function phoneVariants(value: string) {
-  const normalized = normalizePhone(value)
-  const digits = normalized.replace(/[^\d]/g, '')
-  const variants = new Set<string>()
-
-  if (normalized) variants.add(normalized)
-  if (digits.length >= 8) variants.add(digits)
-
-  if (digits.startsWith('0') && digits.length > 8) {
-    variants.add(digits.slice(1))
-  }
-
-  if (digits.length > 9) {
-    variants.add(digits.slice(-9))
-  }
-
-  if (digits.length > 10) {
-    variants.add(digits.slice(-10))
-  }
-
-  return variants
-}
-
-function phonesMatch(inputPhone: string, allowedPhoneList: string[]) {
-  const inputVariants = phoneVariants(inputPhone)
-
-  if (inputVariants.size === 0) return false
-
-  return allowedPhoneList.some((allowedPhone) => {
-    const allowedVariants = phoneVariants(allowedPhone)
-
-    for (const variant of inputVariants) {
-      if (variant.length >= 8 && allowedVariants.has(variant)) return true
-    }
-
-    return false
-  })
-}
-
-function parseAllowedPhones(value: string | null | undefined) {
-  if (!value) return []
-
-  try {
-    const parsed = JSON.parse(value)
-    if (Array.isArray(parsed)) {
-      return parsed
-        .filter((item): item is string => typeof item === 'string')
-        .map(normalizePhone)
-        .filter(Boolean)
-    }
-  } catch {}
-
-  return value
-    .split(/[\n,;|]+/)
-    .map(normalizePhone)
-    .filter(Boolean)
 }
 
 function timeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
@@ -105,6 +45,30 @@ function timeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
   })
 }
 
+// Session VIP : cookie signe pose par le serveur (HttpOnly, 30 jours). Le navigateur ne conserve plus de session en localStorage.
+function clearVipSession(key: string) {
+  try {
+    window.localStorage.removeItem(key)
+  } catch {}
+  fetch('/api/vip/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {})
+}
+type VipLoginResult = { ok?: boolean; needsPasswordChange?: boolean; phone?: string; error?: string }
+// A3 : la verification de l'acces se fait cote serveur ; le navigateur ne lit plus ni mots de passe ni liste de numeros.
+async function checkVipSession(): Promise<boolean | null> {
+  try {
+    const res = await fetch('/api/vip/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+      credentials: 'same-origin',
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as { granted?: boolean }
+    return data.granted === true
+  } catch {
+    return null
+  }
+}
 export default function VipAccessGate({
   children,
   storageKey = 'base_food_vip_access_granted',
@@ -117,8 +81,6 @@ export default function VipAccessGate({
   const [siteName, setSiteName] = useState(DEFAULT_SITE_NAME)
   const [siteLogo, setSiteLogo] = useState<string | null>(null)
   const [enabled, setEnabled] = useState(true)
-  const [allowedPhones, setAllowedPhones] = useState<string[]>([])
-  const [commonPassword, setCommonPassword] = useState('')
   const [settingsError, setSettingsError] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -134,75 +96,74 @@ export default function VipAccessGate({
   const [passwordChangeLoading, setPasswordChangeLoading] = useState(false)
 
   useEffect(() => {
+    // Au chargement, le serveur decide (cookie signe) : le localStorage ne donne plus aucun acces
     let active = true
-
-    async function loadSettings() {
+    checkVipSession().then((ok) => {
+      if (active && ok === true) setGranted(true)
+    })
+    return () => {
+      active = false
+    }
+  }, [storageKey])
+  useEffect(() => {
+    let active = true
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+    async function loadSettings(attempt = 0) {
       try {
         const response = await timeout(
           supabase
             .from('settings')
             .select('key,value')
-            .in('key', [
-              'site_name',
-              'site_logo',
-              DEFAULT_ENABLED_SETTING,
-              DEFAULT_PASSWORD_SETTING,
-              DEFAULT_PHONES_SETTING,
-            ]),
-          3500,
+            .in('key', ['site_name', 'site_logo', DEFAULT_ENABLED_SETTING]),
+          10000,
         )
-
         if (!active) return
-
         const rows = (response.data || []) as SettingRow[]
-
         let nextSiteName = DEFAULT_SITE_NAME
         let nextSiteLogo: string | null = ''
         let nextEnabled = true
-        let nextPassword = ''
-        let nextAllowedPhones: string[] = []
-
         rows.forEach((setting) => {
           const value = setting.value ?? ''
-
           if (setting.key === 'site_name') nextSiteName = value || DEFAULT_SITE_NAME
           if (setting.key === 'site_logo') nextSiteLogo = value || ''
           if (setting.key === DEFAULT_ENABLED_SETTING) nextEnabled = value !== 'false'
-          if (setting.key === DEFAULT_PASSWORD_SETTING) nextPassword = value
-          if (setting.key === DEFAULT_PHONES_SETTING) nextAllowedPhones = parseAllowedPhones(value)
         })
-
         setSiteName(nextSiteName)
         setSiteLogo(nextSiteLogo)
         setEnabled(nextEnabled)
-        setCommonPassword(nextPassword)
-        setAllowedPhones(nextAllowedPhones)
-
         if (response.error) {
           setSettingsError('Configuration VIP indisponible. Vérifiez les réglages VIP dans l’admin.')
-        } else if (!nextPassword || nextAllowedPhones.length === 0) {
-          setSettingsError('Accès VIP non configuré : mot de passe commun ou numéros autorisés manquants.')
         } else {
           setSettingsError('')
         }
-
+        // A1 : on ne retire l'acces que si les reglages sont lus sans erreur
         if (!nextEnabled) {
-          window.sessionStorage.removeItem(storageKey)
+          clearVipSession(storageKey)
           setGranted(false)
-        } else {
-          window.sessionStorage.removeItem(storageKey)
-          setGranted(false)
+        } else if (!response.error) {
+          const stillAllowed = await checkVipSession()
+          if (!active) return
+          if (stillAllowed === true) {
+            setGranted(true)
+          } else if (stillAllowed === false) {
+            clearVipSession(storageKey)
+            setGranted(false)
+          }
         }
       } catch {
         if (active) {
-          setSettingsError('Configuration VIP indisponible. Vérifiez la connexion Supabase ou les réglages VIP.')
-          setGranted(false)
+          // A2 : lecture lente ou echouee : nouvelle tentative automatique (3 max), puis message clair
+          if (attempt < 3) {
+            setSettingsError('Chargement des réglages VIP lent (réseau). Nouvelle tentative en cours...')
+            retryTimer = setTimeout(() => { if (active) loadSettings(attempt + 1) }, 3000 * (attempt + 1))
+          } else {
+            setSettingsError('Les réglages VIP n’ont pas pu être chargés (réseau lent ou indisponible). Vous pouvez réessayer de vous connecter.')
+          }
         }
       } finally {
         if (active) setSettingsLoaded(true)
       }
     }
-
     loadSettings()
 
     const settingsChannel = supabase
@@ -214,6 +175,7 @@ export default function VipAccessGate({
 
     return () => {
       active = false
+      if (retryTimer) clearTimeout(retryTimer)
       supabase.removeChannel(settingsChannel)
     }
   }, [storageKey, supabase])
@@ -236,59 +198,45 @@ export default function VipAccessGate({
       setLoading(false)
       return
     }
-
-    if (settingsError) {
-      setError(settingsError)
-      setLoading(false)
-      return
-    }
+    // A2 : un echec de lecture des reglages ne bloque plus la connexion (le serveur verifie et renvoie le message adapte)
 
     const cleanPhone = normalizePhone(phone)
-    const phoneOk = phonesMatch(phone, allowedPhones)
-
     if (!cleanPhone || !password) {
       setError('Veuillez saisir votre numéro de téléphone et le mot de passe VIP.')
       setLoading(false)
       return
     }
-
-    if (!phoneOk) {
-      setError('Accès VIP refusé. Vérifiez votre numéro et votre mot de passe.')
+    // A3 : verification cote serveur, aucun mot de passe ne revient au navigateur
+    let result: VipLoginResult | null = null
+    let networkError = false
+    try {
+      const res = await fetch('/api/vip/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleanPhone, password }),
+      })
+      result = (await res.json().catch(() => null)) as VipLoginResult | null
+    } catch {
+      networkError = true
+    }
+    if (networkError) {
+      setError('Connexion impossible. Vérifiez votre réseau et réessayez.')
       setLoading(false)
       return
     }
-
-    const digits = cleanPhone.replace(/[^\d]/g, '')
-    const last9 = digits.slice(-9)
-
-    const { data: individualRows } = await supabase
-      .from('vip_individual_passwords')
-      .select('phone,password')
-
-    const individualMatch = (individualRows || []).find((row: { phone: string }) =>
-      row.phone.replace(/[^\d]/g, '').slice(-9) === last9
-    ) as { phone: string; password: string } | undefined
-
-    const passwordOk = individualMatch
-      ? password === individualMatch.password
-      : commonPassword.length > 0 && password === commonPassword
-
-    if (!passwordOk) {
-      setError('Accès VIP refusé. Vérifiez votre numéro et votre mot de passe.')
+    if (!result || !result.ok) {
+      setError(result?.error || 'Accès VIP refusé. Vérifiez votre numéro et votre mot de passe.')
       setLoading(false)
       return
     }
-
     window.sessionStorage.removeItem(storageKey)
     window.sessionStorage.setItem(VIP_PHONE_PREFILL_KEY, cleanPhone)
-
-    if (!individualMatch) {
+    if (result.needsPasswordChange) {
       setPendingPhoneForPasswordChange(cleanPhone)
       setNeedsPasswordChange(true)
       setLoading(false)
       return
     }
-
     // BF-P2-013 : tracking connexion - VIP
     fetch('/api/track-connexion', {
       method: 'POST',
@@ -354,12 +302,22 @@ export default function VipAccessGate({
 
     setPasswordChangeLoading(true)
 
-    const { error: upsertError } = await supabase
-      .from('vip_individual_passwords')
-      .upsert(
-        { phone: pendingPhoneForPasswordChange, password: newPassword.trim(), updated_at: new Date().toISOString() },
-        { onConflict: 'phone' }
-      )
+    // A3 : changement de mot de passe cote serveur (verifie le mot de passe actuel)
+    let upsertError = false
+    try {
+      const res = await fetch('/api/vip/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: pendingPhoneForPasswordChange,
+          currentPassword: password,
+          newPassword: newPassword.trim(),
+        }),
+      })
+      upsertError = !res.ok
+    } catch {
+      upsertError = true
+    }
 
     setPasswordChangeLoading(false)
 

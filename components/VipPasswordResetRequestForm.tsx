@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import PhoneInput from '@/components/PhoneInput'
-import { createClient } from '@/lib/supabase/client'
 
 type VipPasswordResetRequestFormProps = {
   defaultCountryCode?: string
@@ -21,7 +20,6 @@ export default function VipPasswordResetRequestForm({
   defaultCountryCode = 'CD',
   onSubmitted,
 }: VipPasswordResetRequestFormProps) {
-  const supabase = createClient()
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -39,35 +37,27 @@ export default function VipPasswordResetRequestForm({
 
     setLoading(true)
 
-    const last9 = digits.slice(-9)
-
-    const { data: existingRequests } = await supabase
-      .from('vip_password_reset_requests')
-      .select('id,phone,status')
-      .eq('status', 'pending')
-
-    const hasPendingRequest = (existingRequests || []).some((request: { phone: string }) =>
-      request.phone.replace(/[^\d]/g, '').slice(-9) === last9
-    )
-
-    if (hasPendingRequest) {
-      setLoading(false)
+    // A9 : creation de la demande cote serveur
+    let status = 0
+    try {
+      const res = await fetch('/api/vip/reset-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      })
+      status = res.status
+    } catch {
+      status = 0
+    }
+    setLoading(false)
+    if (status === 409) {
       setError('Une demande est deja en attente pour ce numero.')
       return
     }
-
-    const { error: insertError } = await supabase.from('vip_password_reset_requests').insert({
-      phone,
-      status: 'pending',
-    })
-
-    setLoading(false)
-
-    if (insertError) {
+    if (status < 200 || status >= 300) {
       setError('Impossible d’envoyer votre demande. Reessayez dans quelques instants.')
       return
     }
-
     // Push notification admin
     try {
       await fetch('/api/push/send', {

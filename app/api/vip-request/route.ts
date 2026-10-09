@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { lastDigits9, normalizePhone } from '@/lib/vip-server'
 
 function createServiceClient() {
   return createClient(
@@ -17,23 +18,38 @@ function getBaseUrl(req: Request) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { phone, pseudo, requested_password } = await req.json()
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
+    const rawPhone = typeof body.phone === 'string' ? body.phone.trim() : ''
+    const pseudo = typeof body.pseudo === 'string' ? body.pseudo.trim() : ''
+    const requested_password = typeof body.requested_password === 'string' ? body.requested_password : ''
 
-    if (!phone || !pseudo || !requested_password) {
+    if (!rawPhone || !pseudo || !requested_password) {
       return NextResponse.json({ error: 'Champs manquants' }, { status: 400 })
+    }
+    // A7 : validation minimale des entrees
+    if (rawPhone.length > 40 || pseudo.length > 100 || requested_password.length > 200) {
+      return NextResponse.json({ error: 'Données invalides' }, { status: 400 })
+    }
+    const phone = normalizePhone(rawPhone)
+    const last9 = lastDigits9(phone)
+    if (last9.length < 7) {
+      return NextResponse.json({ error: 'Numéro de téléphone invalide' }, { status: 400 })
     }
 
     const supabase = createServiceClient()
 
-    // Vérifier si déjà une demande pending
-    const { data: existing } = await supabase
+    // A7 : controle de doublon fiable (9 derniers chiffres, tolere 0 ou plusieurs lignes pending)
+    const { data: pendings, error: pendingError } = await supabase
       .from('vip_access_requests')
-      .select('id')
-      .eq('phone', phone)
+      .select('phone')
       .eq('status', 'pending')
-      .single()
 
-    if (existing) {
+    if (pendingError) throw pendingError
+
+    const duplicate = ((pendings || []) as { phone: string | null }[]).some(
+      (r) => lastDigits9(String(r.phone ?? '')) === last9
+    )
+    if (duplicate) {
       return NextResponse.json({ error: 'Demande déjà en cours' }, { status: 409 })
     }
 

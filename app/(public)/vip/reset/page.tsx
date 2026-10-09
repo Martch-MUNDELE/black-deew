@@ -2,15 +2,9 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import Logo from '@/components/Logo'
 
-type TokenRow = {
-  id: string
-  phone: string
-  expires_at: string
-  used_at: string | null
-}
+type TokenRow = { valid: true }
 
 const AUTOLOGIN_KEY = 'base_food_vip_autologin'
 
@@ -18,7 +12,6 @@ function VipResetContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token') || ''
-  const supabase = createClient()
 
   const [checking, setChecking] = useState(true)
   const [tokenRow, setTokenRow] = useState<TokenRow | null>(null)
@@ -39,45 +32,32 @@ function VipResetContent() {
         setChecking(false)
         return
       }
-
-      const { data, error } = await supabase
-        .from('vip_password_reset_tokens')
-        .select('id,phone,expires_at,used_at')
-        .eq('token', token)
-        .maybeSingle()
-
-      if (!active) return
-
-      if (error || !data) {
-        setTokenError('Lien invalide ou introuvable.')
-        setChecking(false)
-        return
+      // A9 : validation du jeton (existence, usage, expiration) cote serveur
+      try {
+        const res = await fetch('/api/vip/reset/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        })
+        const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null
+        if (!active) return
+        if (!res.ok || !data?.ok) {
+          setTokenError(data?.error || 'Lien invalide ou introuvable.')
+          setChecking(false)
+          return
+        }
+        setTokenRow({ valid: true })
+      } catch {
+        if (!active) return
+        setTokenError('Vérification impossible. Vérifiez votre connexion et réessayez.')
       }
-
-      const row = data as TokenRow
-
-      if (row.used_at) {
-        setTokenError('Ce lien a déjà été utilisé. Demandez un nouveau lien depuis la page VIP.')
-        setChecking(false)
-        return
-      }
-
-      if (new Date(row.expires_at).getTime() < Date.now()) {
-        setTokenError('Ce lien a expiré (validité 1 heure). Demandez un nouveau lien depuis la page VIP.')
-        setChecking(false)
-        return
-      }
-
-      setTokenRow(row)
       setChecking(false)
     }
-
     checkToken()
 
     return () => {
       active = false
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
   const submit = async () => {
@@ -99,28 +79,28 @@ function VipResetContent() {
 
     const cleanPassword = newPassword.trim()
 
-    const { error: upsertError } = await supabase
-      .from('vip_individual_passwords')
-      .upsert(
-        { phone: tokenRow.phone, password: cleanPassword, updated_at: new Date().toISOString() },
-        { onConflict: 'phone' }
-      )
-
-    if (upsertError) {
+    // A9 : consommation du jeton + changement du mot de passe cote serveur
+    let consumedPhone = ''
+    let failMessage = 'Impossible d’enregistrer votre nouveau mot de passe. Réessayez.'
+    try {
+      const res = await fetch('/api/vip/reset/consume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, newPassword: cleanPassword }),
+      })
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; phone?: string; error?: string } | null
+      if (res.ok && data?.ok && data.phone) consumedPhone = data.phone
+      else if (data?.error) failMessage = data.error
+    } catch {}
+    if (!consumedPhone) {
       setSubmitting(false)
-      setSubmitError('Impossible d’enregistrer votre nouveau mot de passe. Réessayez.')
+      setSubmitError(failMessage)
       return
     }
-
-    await supabase
-      .from('vip_password_reset_tokens')
-      .update({ used_at: new Date().toISOString() })
-      .eq('id', tokenRow.id)
-
     try {
       window.sessionStorage.setItem(
         AUTOLOGIN_KEY,
-        JSON.stringify({ phone: tokenRow.phone, password: cleanPassword })
+        JSON.stringify({ phone: consumedPhone, password: cleanPassword })
       )
     } catch {}
 

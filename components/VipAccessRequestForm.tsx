@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import PhoneInput from '@/components/PhoneInput'
-import { createClient } from '@/lib/supabase/client'
 
 type VipAccessRequestFormProps = {
   defaultCountryCode?: string
@@ -13,7 +12,6 @@ export default function VipAccessRequestForm({
   defaultCountryCode = 'CD',
   onSubmitted,
 }: VipAccessRequestFormProps) {
-  const supabase = createClient()
   const [phone, setPhone] = useState('')
   const [pseudo, setPseudo] = useState('')
   const [requestedPassword, setRequestedPassword] = useState('')
@@ -51,32 +49,26 @@ export default function VipAccessRequestForm({
 
     setLoading(true)
 
-    const last9 = digits.slice(-9)
-
-    const [{ data: existingRequests }, { data: allowedPhonesSetting }] = await Promise.all([
-      supabase
-        .from('vip_access_requests')
-        .select('id,phone,status')
-        .eq('status', 'pending'),
-      supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'vip_allowed_phones')
-        .maybeSingle(),
-    ])
-
-    const hasPendingRequest = (existingRequests || []).some((request: { phone: string }) =>
-      request.phone.replace(/[^\d]/g, '').slice(-9) === last9
-    )
-
+    // A3 : verification cote serveur (plus aucune lecture directe de vip_access_requests / vip_allowed_phones)
+    let hasPendingRequest = false
     let isAlreadyAllowed = false
     try {
-      const allowedPhones = JSON.parse(allowedPhonesSetting?.value || '[]') as string[]
-      isAlreadyAllowed = allowedPhones.some((allowedPhone) =>
-        allowedPhone.replace(/[^\d]/g, '').slice(-9) === last9
-      )
+      const pre = await fetch('/api/vip/request-precheck', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      })
+      if (pre.status === 429) {
+        setLoading(false)
+        setError('Trop de tentatives. Réessayez dans quelques minutes.')
+        return
+      }
+      if (pre.ok) {
+        const info = (await pre.json()) as { alreadyAllowed?: boolean; alreadyPending?: boolean }
+        hasPendingRequest = !!info.alreadyPending
+        isAlreadyAllowed = !!info.alreadyAllowed
+      }
     } catch {}
-
     if (hasPendingRequest) {
       setLoading(false)
       setError('Une demande est déjà en attente pour ce numéro.')
@@ -103,7 +95,16 @@ export default function VipAccessRequestForm({
     setLoading(false)
 
     if (!res.ok) {
-      setError('Impossible d’envoyer votre demande. Réessayez dans quelques instants.')
+      // A6 : messages distincts selon la cause (409 doublon, 400 saisie, 5xx serveur)
+      if (res.status === 409) {
+        setError('Une demande est déjà en cours pour ce numéro. Merci de patienter, nous reviendrons vers vous.')
+      } else if (res.status === 400) {
+        setError('Informations incomplètes : vérifiez le numéro, le pseudo et le mot de passe.')
+      } else if (res.status >= 500) {
+        setError('Le service est momentanément indisponible. Votre demande n’a pas été enregistrée, réessayez dans quelques instants.')
+      } else {
+        setError('Impossible d’envoyer votre demande. Réessayez dans quelques instants.')
+      }
       return
     }
 

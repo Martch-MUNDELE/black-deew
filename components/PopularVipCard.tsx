@@ -15,7 +15,7 @@ export default function PopularVipCard() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('products').select('*').eq('is_vip', true).eq('active', true).then(async ({ data: rawData }) => {
+    fetch('/api/vip/products', { credentials: 'same-origin', cache: 'no-store' }).then(async (r) => ({ data: (r.ok ? ((await r.json()).products ?? []) : []) as Product[] })).catch(() => ({ data: [] as Product[] })).then(async ({ data: rawData }) => {
       const { data: stockRow } = await supabase.from('settings').select('value').eq('key', 'stock_enabled').single()
       const stockEnabled = stockRow?.value === 'true'
       const products = (rawData || []) as Product[]

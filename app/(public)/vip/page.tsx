@@ -88,7 +88,7 @@ export default function VipPage() {
     async function load() {
       const cartIds = items.map(i => i.product.id)
       const [{ data }, { data: stockRow }, { data: classicData }, { data: menuCategories }] = await Promise.all([
-        supabase.from('products').select('*').eq('is_vip', true).eq('active', true).order('name'),
+        fetch('/api/vip/products', { credentials: 'same-origin', cache: 'no-store' }).then(async (r) => ({ data: (r.ok ? ((await r.json()).products ?? []) : []) as ProductWithStock[] })).catch(() => ({ data: [] as ProductWithStock[] })),
         supabase.from('settings').select('value').eq('key', 'stock_enabled').single(),
         supabase.from('products').select('*').eq('is_vip', false).eq('active', true).order('name'),
         supabase.from('menu_categories').select('id, slug, parent_id, level, active, is_visible').eq('active', true),
@@ -167,7 +167,9 @@ export default function VipPage() {
   }
 
   const handleUpdate = (productId: string, qty: number) => {
-    update(productId, qty)
+    // Ligne la plus recente du produit (celle affichee dans quantities) : on conserve ses variantes
+    const line = [...items].reverse().find(i => i.product.id === productId)
+    update(productId, qty, line?.selectedVariants)
   }
 
   const cartCount = items.reduce((s, i) => s + i.quantity, 0)
