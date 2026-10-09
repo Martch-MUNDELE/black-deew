@@ -31,3 +31,20 @@ export function decideAdminAccess(input: {
   if (input.hasUser === undefined) return 'check-session'
   return input.hasUser ? 'allow' : 'redirect-login'
 }
+/**
+ * Valide le parametre ?next= de la page de connexion admin.
+ * Retourne next s'il est sur : chemin interne /admin..., hors page de connexion.
+ * Sinon retourne /admin. Aucune redirection vers un site externe possible.
+ */
+export function sanitizeAdminNext(next: string | null | undefined): string {
+  const fallback = '/admin'
+  if (typeof next !== 'string' || next.length === 0) return fallback
+  if (/[\u0000-\u001f\u007f]/.test(next)) return fallback
+  if (next.includes('\\') || next.includes('//')) return fallback
+  if (!/^\/admin(?:[/?#]|$)/.test(next)) return fallback
+  const pathOnly = next.split(/[?#]/, 1)[0]
+  if (pathOnly.includes(':')) return fallback
+  if (pathOnly.split('/').some((s) => s === '..' || s === '.')) return fallback
+  if (isAdminLoginPath(pathOnly)) return fallback
+  return next
+}

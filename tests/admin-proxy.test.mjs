@@ -39,3 +39,35 @@ test('chemins exclus : toujours allow, avec ou sans cookie', () => {
     assert.equal(decideAdminAccess({ path: p, hasSessionCookie: true, hasUser: false }), 'allow', p)
   }
 })
+const { sanitizeAdminNext } = await import('@/lib/supabase/proxy')
+test('sanitizeAdminNext : next valide accepte', () => {
+  assert.equal(sanitizeAdminNext('/admin/commandes?tab=nouvelle'), '/admin/commandes?tab=nouvelle')
+  assert.equal(sanitizeAdminNext('/admin/commandes'), '/admin/commandes')
+  assert.equal(sanitizeAdminNext('/admin'), '/admin')
+})
+test('sanitizeAdminNext : rejets => /admin', () => {
+  for (const bad of [
+    '//evil.com',
+    'https://evil.com',
+    '/\\evil.com',
+    'javascript:alert(1)',
+    '/vip',
+    '',
+    null,
+    undefined,
+    '/administrateur',
+    '/admin//evil.com',
+    '/admin/..//vip',
+    '/admin/../vip',
+    '/admin/commandes\r\nX: y',
+    '/admin/\u0000x',
+    '/admin/javascript:alert(1)',
+  ]) {
+    assert.equal(sanitizeAdminNext(bad), '/admin', String(bad))
+  }
+})
+test('sanitizeAdminNext : boucle evitee (/admin/login)', () => {
+  assert.equal(sanitizeAdminNext('/admin/login'), '/admin')
+  assert.equal(sanitizeAdminNext('/admin/login/'), '/admin')
+  assert.equal(sanitizeAdminNext('/admin/login?next=/admin/commandes'), '/admin')
+})

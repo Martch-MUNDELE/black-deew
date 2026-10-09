@@ -3,10 +3,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import { sanitizeAdminNext } from '@/lib/supabase/proxy'
 
 type AdminLoginSettingRow = {
   key: string
   value: string | null
+}
+
+// Destination apres connexion : parametre ?next= valide, sinon /admin.
+function nextTarget(): string {
+  return sanitizeAdminNext(new URLSearchParams(window.location.search).get('next'))
 }
 
 export default function AdminLogin() {
@@ -34,7 +40,7 @@ export default function AdminLogin() {
       const refresh_token = params.get('refresh_token') || ''
       if (access_token) {
         supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
-          if (!error) router.push('/admin')
+          if (!error) { router.push(nextTarget()); router.refresh() }
         })
       }
     }
@@ -44,7 +50,7 @@ export default function AdminLogin() {
     setLoading(true); setError('')
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) setError('Email ou mot de passe incorrect')
-    else router.push('/admin')
+    else { router.push(nextTarget()); router.refresh() }
     setLoading(false)
   }
 

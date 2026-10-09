@@ -1,15 +1,21 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { decideAdminAccess, hasSupabaseSessionCookie, isAdminProtectedPath } from '@/lib/supabase/proxy'
+import {
+  decideAdminAccess,
+  hasSupabaseSessionCookie,
+  isAdminProtectedPath,
+  sanitizeAdminNext,
+} from '@/lib/supabase/proxy'
 function toLogin(request: NextRequest) {
-  return NextResponse.redirect(new URL('/admin/login', request.url))
+  const url = new URL('/admin/login', request.url)
+  // Memorise la page demandee (avec sa query) pour y revenir apres connexion.
+  const target = sanitizeAdminNext(request.nextUrl.pathname + request.nextUrl.search)
+  if (target !== '/admin') url.searchParams.set('next', target)
+  return NextResponse.redirect(url)
 }
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
-  // Transmet le chemin au layout serveur (masquage du menu sur /admin/login).
-  const requestHeaders = new Headers(request.headers)
-  requestHeaders.set('x-pathname', path)
-  let response = NextResponse.next({ request: { headers: requestHeaders } })
+  let response = NextResponse.next({ request })
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -29,7 +35,7 @@ export async function proxy(request: NextRequest) {
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-        response = NextResponse.next({ request: { headers: requestHeaders } })
+        response = NextResponse.next({ request })
         cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
       },
     },

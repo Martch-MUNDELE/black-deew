@@ -1,20 +1,10 @@
-import { headers } from 'next/headers'
 import AdminNav from '@/components/admin/AdminNav'
+import AdminShell from '@/components/admin/AdminShell'
 import PushNotificationManager from '@/components/pwa/PushNotificationManager'
-import { isAdminLoginPath } from '@/lib/supabase/proxy'
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const path = (await headers()).get('x-pathname') ?? ''
-  // Page de connexion : ni menu lateral ni gestionnaire de notifications.
-  if (isAdminLoginPath(path)) {
-    return <>{children}</>
-  }
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bd-admin-shell">
-      <AdminNav />
-      <PushNotificationManager />
-      <main className="bd-admin-main">
-        {children}
-      </main>
-    </div>
+    <AdminShell nav={<AdminNav />} push={<PushNotificationManager />}>
+      {children}
+    </AdminShell>
   )
 }
