@@ -293,54 +293,34 @@ function SettingsContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
-  const approveVipRequest = async (request: VipAccessRequest) => {
+  const vipWhatsAppHref = (request: VipAccessRequest) =>
+    buildWhatsAppHref(
+      request.phone,
+      `Bonjour ${request.pseudo}, votre accès VIP a été validé. Mot de passe : ${request.requested_password || vipAccessPassword}`,
+      { defaultCountryCode: 'CD' }
+    ) || ''
+  // A12 / A13 : approbation exécutée côté serveur (/api/admin/vip-approve), échecs partiels signalés
+  const approveVipRequest = async (request: VipAccessRequest): Promise<boolean> => {
     setVipRequestActionError('')
-    const phone = normalizeVipPhone(request.phone)
-    const digits = phone.replace(/[^\d]/g, '')
-
-    if (!phone || digits.length < 7) {
-      setVipRequestActionError('Numéro de la demande invalide, impossible de valider automatiquement.')
-      return
-    }
-
-    const { error: updateError } = await supabase
-      .from('vip_access_requests')
-      .update({ status: 'approved', reviewed_at: new Date().toISOString() })
-      .eq('id', request.id)
-
-    if (updateError) {
-      setVipRequestActionError('Impossible de valider cette demande. Réessayez.')
-      return
-    }
-
-    if (request.requested_password) {
-      const { error: passwordError } = await supabase
-        .from('vip_individual_passwords')
-        .upsert(
-          { phone, password: request.requested_password, updated_at: new Date().toISOString() },
-          { onConflict: 'phone' }
-        )
-
-      if (passwordError) {
-        setVipRequestActionError('Numéro autorisé, mais le mot de passe individuel n’a pas pu être enregistré.')
+    try {
+      const res = await fetch('/api/admin/vip-approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: request.id }),
+      })
+      const payload = await res.json().catch(() => null)
+      if (!res.ok || !payload?.ok) {
+        setVipRequestActionError(payload?.error || 'Impossible de valider cette demande. Réessayez.')
+        return false
       }
+      if (Array.isArray(payload.allowedPhones)) setVipAllowedPhones(JSON.stringify(payload.allowedPhones))
+      setApprovedRequestIds((prev) => new Set(prev).add(request.id))
+      return true
+    } catch {
+      setVipRequestActionError('Erreur réseau : la demande n’a pas pu être validée. Réessayez.')
+      return false
     }
-
-    const nextAllowedPhones = uniqueVipPhones([...vipAllowedPhoneList, phone])
-    setVipAllowedPhones(JSON.stringify(nextAllowedPhones))
-
-    const { error: allowedPhonesError } = await supabase
-      .from('settings')
-      .upsert({ key: 'vip_allowed_phones', value: JSON.stringify(nextAllowedPhones) })
-
-    if (allowedPhonesError) {
-      setVipRequestActionError('Mot de passe enregistré, mais le numéro n’a pas pu être activé. Réessayez.')
-      return
-    }
-
-    setApprovedRequestIds((prev) => new Set(prev).add(request.id))
   }
-
   const rejectVipRequest = async (request: VipAccessRequest) => {
     setVipRequestActionError('')
 
@@ -367,25 +347,23 @@ function SettingsContent() {
   }
 
   const generateResetLink = async (request: VipPasswordResetRequest) => {
-    const { data: tokenRow, error: insertError } = await supabase
-      .from('vip_password_reset_tokens')
-      .insert({ phone: request.phone })
-      .select('token')
-      .single()
-
-    if (insertError || !tokenRow) {
-      return
-    }
-
+    // A9 : jeton cree cote serveur (route reservee aux admins), expiration fixee par le serveur
+    let token = ''
+    try {
+      const res = await fetch('/api/admin/vip-reset-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: request.id }),
+      })
+      const data = (await res.json().catch(() => null)) as { token?: string } | null
+      if (res.ok && data?.token) token = data.token
+    } catch {}
+    if (!token) return
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-    const resetUrl = `${baseUrl}/vip/reset?token=${tokenRow.token}`
+    const resetUrl = `${baseUrl}/vip/reset?token=${token}`
 
     setGeneratedResetLinks((prev) => ({ ...prev, [request.id]: resetUrl }))
 
-    await supabase
-      .from('vip_password_reset_requests')
-      .update({ status: 'sent', sent_at: new Date().toISOString() })
-      .eq('id', request.id)
   }
 
   const dismissVipResetRequest = (requestId: string) => {
@@ -853,14 +831,18 @@ function SettingsContent() {
 
                   {!approvedRequestIds.has(request.id) ? (
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <a href={buildWhatsAppHref(request.phone, `Bonjour ${request.pseudo}, votre accès VIP a été validé. Mot de passe : ${request.requested_password || vipAccessPassword}`, { defaultCountryCode: 'CD' }) || '#'}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={() => approveVipRequest(request)}
-                        style={{ flex: 1, textAlign: 'center', textDecoration: 'none', padding: '8px 10px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.4)', background: 'rgba(91,197,122,0.1)', color: '#5BC57A', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const ok = await approveVipRequest(request)
+                          if (!ok) return
+                          const href = vipWhatsAppHref(request)
+                          if (href) window.open(href, '_blank', 'noopener,noreferrer')
+                        }}
+                        style={{ flex: 1, textAlign: 'center', padding: '8px 10px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.4)', background: 'rgba(91,197,122,0.1)', color: '#5BC57A', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
                       >
                         Valider par WhatsApp
-                      </a>
+                      </button>
                       <button
                         type="button"
                         onClick={() => rejectVipRequest(request)}
@@ -869,7 +851,14 @@ function SettingsContent() {
                         Refuser
                       </button>
                     </div>
-                  ) : null}
+                  ) : (
+                    vipWhatsAppHref(request) ? (
+                      <a href={vipWhatsAppHref(request)} target="_blank" rel="noreferrer"
+                        style={{ display: 'block', textAlign: 'center', textDecoration: 'none', padding: '8px 10px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.4)', color: '#5BC57A', fontSize: 12, fontWeight: 700, fontFamily: 'DM Sans, sans-serif' }}>
+                        Envoyer le message WhatsApp
+                      </a>
+                    ) : null
+                  )}
                 </div>
               ))}
             </div>

@@ -7,7 +7,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-export async function GET() {
+export async function GET(req: Request) {
+  // Finition VIP : si CRON_SECRET est defini, seul le cron Vercel (Authorization: Bearer) est accepte
+  const cronSecret = process.env.CRON_SECRET
+  if (cronSecret && req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Non autorise' }, { status: 401 })
+  }
   const { data: settings } = await supabase.from('settings').select('*')
   const get = (key: string) => settings?.find((s: {key: string, value: string}) => s.key === key)?.value ?? ''
 

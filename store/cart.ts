@@ -17,12 +17,16 @@ interface CartStore {
   hydrated: boolean
   setHydrated: () => void
   add: (product: Product, isVip?: boolean, selectedVariants?: Record<string, string>) => void
-  remove: (productId: string) => void
-  update: (productId: string, quantity: number) => void
+  remove: (productId: string, selectedVariants?: Record<string, string>) => void
+  update: (productId: string, quantity: number, selectedVariants?: Record<string, string>) => void
   clear: () => void
   total: () => number
   count: () => number
 }
+
+// A16 : une ligne du panier = produit + variantes choisies
+const sameLine = (i: CartItem, productId: string, selectedVariants?: Record<string, string>) =>
+  i.product.id === productId && JSON.stringify(i.selectedVariants) === JSON.stringify(selectedVariants)
 
 export const useCart = create<CartStore>()(
   persist(
@@ -39,10 +43,10 @@ export const useCart = create<CartStore>()(
           set({ items: [...items, { product, quantity: 1, isVip, selectedVariants }] })
         }
       },
-      remove: (productId) => set({ items: get().items.filter(i => i.product.id !== productId) }),
-      update: (productId, quantity) => {
-        if (quantity <= 0) get().remove(productId)
-        else set({ items: get().items.map(i => i.product.id === productId ? { ...i, quantity } : i) })
+      remove: (productId, selectedVariants) => set({ items: get().items.filter(i => !sameLine(i, productId, selectedVariants)) }),
+      update: (productId, quantity, selectedVariants) => {
+        if (quantity <= 0) get().remove(productId, selectedVariants)
+        else set({ items: get().items.map(i => sameLine(i, productId, selectedVariants) ? { ...i, quantity } : i) })
       },
       clear: () => set({ items: [] }),
       total: () => get().items.reduce((sum, i) => {

@@ -6,7 +6,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY as string
 )
 
-export async function GET() {
+export async function GET(req: Request) {
+  // Finition VIP : si CRON_SECRET est defini, seul le cron Vercel (Authorization: Bearer) est accepte
+  const cronSecret = process.env.CRON_SECRET
+  if (cronSecret && req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Non autorise' }, { status: 401 })
+  }
   // Chercher périodes facturées depuis plus de 5 jours non payées
   const fiveDaysAgo = new Date()
   fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5)

@@ -6,7 +6,9 @@ import type { Product } from '@/lib/types'
 export default function FeaturedCardButton({ product }: { product: Product }) {
   const { add, items, update } = useCart()
   const [added, setAdded] = useState(false)
-  const quantity = items.find(i => i.product.id === product.id)?.quantity || 0
+  // Ligne la plus recente du produit ; update/remove ciblent produit + variantes de cette ligne
+  const line = [...items].reverse().find(i => i.product.id === product.id)
+  const quantity = line?.quantity || 0
 
   const handleAdd = () => {
     add(product)
@@ -15,7 +17,7 @@ export default function FeaturedCardButton({ product }: { product: Product }) {
   }
 
   const handleRemove = () => {
-    if (quantity > 0) update(product.id, quantity - 1)
+    if (quantity > 0) update(product.id, quantity - 1, line?.selectedVariants)
   }
 
   return (

@@ -421,9 +421,9 @@ function getVipPrefillPhone() {
         const { data: prod } = await supabase.from('products').select('stock').eq('id', item.product.id).single()
         if (prod && prod.stock !== null) {
           if (prod.stock === 0) {
-            update(item.product.id, 0)
+            update(item.product.id, 0, item.selectedVariants)
           } else if (item.quantity > prod.stock) {
-            update(item.product.id, prod.stock)
+            update(item.product.id, prod.stock, item.selectedVariants)
             warnings[item.product.id] = prod.stock
           }
         }
@@ -743,7 +743,7 @@ function getVipPrefillPhone() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 0, background: 'rgba(255,255,255,0.04)', borderRadius: 50, border: '1px solid rgba(232,160,32,0.15)', flexShrink: 0 }}>
-                  <button onClick={() => update(item.product.id, item.quantity - 1)} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'transparent', color: item.quantity === 1 ? '#FF6B6B' : '#C8B890', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, lineHeight: 1 }}>
+                  <button onClick={() => update(item.product.id, item.quantity - 1, item.selectedVariants)} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'transparent', color: item.quantity === 1 ? '#FF6B6B' : '#C8B890', cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, lineHeight: 1 }}>
                     {item.quantity === 1 ? '×' : '−'}
                   </button>
                   <span style={{ fontWeight: 800, fontSize: 14, color: '#F5EDD6', minWidth: 20, textAlign: 'center', fontFamily: 'DM Sans, sans-serif' }}>{item.quantity}</span>
@@ -752,7 +752,7 @@ function getVipPrefillPhone() {
                     const atMax = maxStock !== undefined && item.quantity >= maxStock
                     return (
                       <button
-                        onClick={() => { if (!atMax) update(item.product.id, item.quantity + 1) }}
+                        onClick={() => { if (!atMax) update(item.product.id, item.quantity + 1, item.selectedVariants) }}
                         style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: atMax ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#F5C842,#FF6B20)', color: atMax ? '#555' : '#0A0804', cursor: atMax ? 'not-allowed' : 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, lineHeight: 1 }}
                       >+</button>
                     )
