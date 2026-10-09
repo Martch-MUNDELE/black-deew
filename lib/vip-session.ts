@@ -2,7 +2,11 @@ import { createHmac, timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 // Session VIP signee cote serveur (HMAC-SHA256). Helpers serveur uniquement.
 export const VIP_COOKIE_NAME = 'vip_session'
-export const VIP_SESSION_MAX_AGE_S = 30 * 24 * 60 * 60
+// Duree unique de la session VIP : 12 h, appliquee cote serveur (valeur signee).
+// Le cookie de login n'a volontairement pas de Max-Age (cookie de session du navigateur).
+export const VIP_SESSION_MAX_AGE_S = 12 * 60 * 60
+// Anciennes valeurs (sans horodatage d'emission) : elles etaient emises pour 30 jours.
+const LEGACY_SESSION_MAX_AGE_S = 30 * 24 * 60 * 60
 function getSecret(): string {
   const explicit = process.env.VIP_SESSION_SECRET
   if (explicit && explicit.length >= 16) return explicit
@@ -18,7 +22,7 @@ function sign(payloadB64: string): string {
   return createHmac('sha256', getSecret()).update(payloadB64).digest('base64url')
 }
 export function createVipSessionValue(phone: string, now = Date.now()): string {
-  const payload = b64url(JSON.stringify({ p: phone, e: now + VIP_SESSION_MAX_AGE_S * 1000 }))
+  const payload = b64url(JSON.stringify({ p: phone, i: now, e: now + VIP_SESSION_MAX_AGE_S * 1000 }))
   return `${payload}.${sign(payload)}`
 }
 export function verifyVipSessionValue(value: string | undefined | null, now = Date.now()): string | null {
@@ -36,9 +40,12 @@ export function verifyVipSessionValue(value: string | undefined | null, now = Da
   const b = Buffer.from(expected)
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null
   try {
-    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { p?: unknown; e?: unknown }
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { p?: unknown; e?: unknown; i?: unknown }
     if (typeof data.p !== 'string' || !data.p) return null
     if (typeof data.e !== 'number' || data.e <= now) return null
+    // Retrocompatibilite : sans horodatage d'emission (i), on le deduit de l'ancienne duree de 30 jours.
+    const issuedAt = typeof data.i === 'number' ? data.i : data.e - LEGACY_SESSION_MAX_AGE_S * 1000
+    if (now - issuedAt >= VIP_SESSION_MAX_AGE_S * 1000) return null
     return data.p
   } catch {
     return null
@@ -55,7 +62,7 @@ export function setVipSessionCookie(res: NextResponse, phone: string): void {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
-    maxAge: VIP_SESSION_MAX_AGE_S,
+    // Pas de maxAge : cookie de session du navigateur, supprime a la fermeture.
   })
 }
 export function clearVipSessionCookie(res: NextResponse): void {
