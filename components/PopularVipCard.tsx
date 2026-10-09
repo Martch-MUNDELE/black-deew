@@ -2,6 +2,7 @@
 import React from 'react'
 import { useEffect, useState } from 'react'
 import { useCurrency } from '@/lib/currency'
+import { fetchVipCatalogue } from '@/components/vip-catalogue-fetch'
 import { createClient } from '@/lib/supabase/client'
 import type { Product } from '@/lib/types'
 import FeaturedCardButton from '@/components/FeaturedCardButton'
@@ -15,7 +16,8 @@ export default function PopularVipCard() {
 
   useEffect(() => {
     const supabase = createClient()
-    fetch('/api/vip/products', { credentials: 'same-origin', cache: 'no-store' }).then(async (r) => ({ data: (r.ok ? ((await r.json()).products ?? []) : []) as Product[] })).catch(() => ({ data: [] as Product[] })).then(async ({ data: rawData }) => {
+    fetchVipCatalogue<Product>().then(async (catalogue) => {
+      const rawData = catalogue.status === 'ok' ? catalogue.products : []
       const { data: stockRow } = await supabase.from('settings').select('value').eq('key', 'stock_enabled').single()
       const stockEnabled = stockRow?.value === 'true'
       const products = (rawData || []) as Product[]

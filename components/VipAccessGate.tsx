@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Logo from '@/components/Logo'
 import PhoneInput from '@/components/PhoneInput'
 import VipAccessRequestForm from '@/components/VipAccessRequestForm'
@@ -15,6 +15,10 @@ type SettingRow = {
 type VipAccessGateProps = {
   children: React.ReactNode
   storageKey?: string
+  /** Appele des que l'acces VIP est accorde (connexion, session existante, changement de mot de passe). */
+  onGranted?: () => void
+  /** Incremente par le parent quand le serveur refuse la session (401) : la porte se referme et affiche la connexion. */
+  revokeToken?: number
 }
 
 const DEFAULT_SITE_NAME = 'VIP'
@@ -72,6 +76,8 @@ async function checkVipSession(): Promise<boolean | null> {
 export default function VipAccessGate({
   children,
   storageKey = 'base_food_vip_access_granted',
+  onGranted,
+  revokeToken = 0,
 }: VipAccessGateProps) {
   const supabase = useMemo(() => createClient(), [])
   const [settingsLoaded, setSettingsLoaded] = useState(false)
@@ -94,6 +100,19 @@ export default function VipAccessGate({
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [passwordChangeError, setPasswordChangeError] = useState('')
   const [passwordChangeLoading, setPasswordChangeLoading] = useState(false)
+
+  const onGrantedRef = useRef(onGranted)
+  useEffect(() => {
+    onGrantedRef.current = onGranted
+  })
+  useEffect(() => {
+    if (granted) onGrantedRef.current?.()
+  }, [granted])
+  useEffect(() => {
+    if (!revokeToken) return
+    clearVipSession(storageKey)
+    Promise.resolve().then(() => setGranted(false))
+  }, [revokeToken, storageKey])
 
   useEffect(() => {
     // Au chargement, le serveur decide (cookie signe) : le localStorage ne donne plus aucun acces

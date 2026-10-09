@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCart } from '@/store/cart'
 import { useCurrency } from '@/lib/currency'
+import { fetchVipCatalogue } from '@/components/vip-catalogue-fetch'
 import type { Product } from '@/lib/types'
 
 type ProductWithStock = Product & {
@@ -78,17 +79,23 @@ export default function VipPage() {
   const [products, setProducts] = useState<ProductWithStock[]>([])
   const [classicSuggestions, setClassicSuggestions] = useState<ProductWithStock[]>([])
   const [loading, setLoading] = useState(true)
+  const [grantedOk, setGrantedOk] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
+  const [revokeToken, setRevokeToken] = useState(0)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const { add, update, items } = useCart()
   const currency = useCurrency()
   const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
+    // Le catalogue n'est charge qu'une fois la session VIP obtenue (sinon 401 au montage)
+    if (!grantedOk) return
     let cancelled = false
 
     async function load() {
       const cartIds = items.map(i => i.product.id)
-      const [{ data }, { data: stockRow }, { data: classicData }, { data: menuCategories }] = await Promise.all([
-        fetch('/api/vip/products', { credentials: 'same-origin', cache: 'no-store' }).then(async (r) => ({ data: (r.ok ? ((await r.json()).products ?? []) : []) as ProductWithStock[] })).catch(() => ({ data: [] as ProductWithStock[] })),
+      const [catalogue, { data: stockRow }, { data: classicData }, { data: menuCategories }] = await Promise.all([
+        fetchVipCatalogue<ProductWithStock>(),
         supabase.from('settings').select('value').eq('key', 'stock_enabled').single(),
         supabase.from('products').select('*').eq('is_vip', false).eq('active', true).order('name'),
         supabase.from('menu_categories').select('id, slug, parent_id, level, active, is_visible').eq('active', true),
@@ -96,8 +103,24 @@ export default function VipPage() {
 
       if (cancelled) return
 
+      if (catalogue.status === 'unauthorized') {
+        // Session expiree ou refusee : retour au portail de connexion
+        setProducts([])
+        setGrantedOk(false)
+        setRevokeToken((t) => t + 1)
+        setLoading(true)
+        return
+      }
+      if (catalogue.status === 'error') {
+        setProducts([])
+        setLoadError(catalogue.message)
+        setLoading(false)
+        return
+      }
+      setLoadError(null)
+
       const stockEnabled = stockRow?.value === 'true'
-      const rawProducts = (data ?? []) as ProductWithStock[]
+      const rawProducts = catalogue.products
       const filtered = stockEnabled
         ? rawProducts.filter((p) => p.stock === null || p.stock === undefined || p.stock > 0)
         : rawProducts
@@ -152,7 +175,7 @@ export default function VipPage() {
     return () => {
       cancelled = true
     }
-  }, [items, supabase])
+  }, [items, supabase, grantedOk, reloadKey])
 
   const quantities = useMemo(() => {
     const q: Record<string, number> = {}
@@ -180,7 +203,7 @@ export default function VipPage() {
   }, 0)
 
   return (
-    <VipAccessGate storageKey="black_deew_vip_access_granted_v4">
+    <VipAccessGate storageKey="black_deew_vip_access_granted_v4" onGranted={() => setGrantedOk(true)} revokeToken={revokeToken}>
       <div style={{
       minHeight: '100vh',
       background: '#080603',
@@ -238,7 +261,20 @@ export default function VipPage() {
           </div>
         )}
 
-        {!loading && products.length === 0 && (
+        {!loading && loadError && (
+          <div role="alert" style={{ textAlign: 'center', color: '#FF6B6B', padding: '60px 0', fontSize: 14 }}>
+            <div style={{ marginBottom: 12 }}>{loadError}</div>
+            <button
+              type="button"
+              onClick={() => { setLoadError(null); setLoading(true); setReloadKey((k) => k + 1) }}
+              style={{ background: 'linear-gradient(135deg,#F5C842,#E8A020)', color: '#0A0804', border: 'none', borderRadius: 50, padding: '10px 22px', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
+            >
+              Réessayer
+            </button>
+          </div>
+        )}
+
+        {!loading && !loadError && products.length === 0 && (
           <div style={{ textAlign: 'center', color: '#7A6E58', padding: '60px 0', fontSize: 14 }}>
             Aucun produit disponible pour le moment.
           </div>
