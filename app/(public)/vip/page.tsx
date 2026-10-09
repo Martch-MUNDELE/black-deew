@@ -7,7 +7,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCart } from '@/store/cart'
 import { useCurrency } from '@/lib/currency'
-import { fetchVipCatalogue } from '@/components/vip-catalogue-fetch'
 import type { Product } from '@/lib/types'
 
 type ProductWithStock = Product & {
@@ -73,6 +72,23 @@ function isClassicProductSellableForVipSuggestion(product: ProductVisibilityCand
   return true
 }
 
+type VipCatalogueResult<T> =
+  | { status: 'ok'; products: T[] }
+  | { status: 'unauthorized' }
+  | { status: 'error'; message: string }
+// 401/403 = session absente ou expiree ; 500, reseau, JSON invalide = erreur ; 200 + [] = liste reellement vide
+async function fetchVipCatalogue<T>(): Promise<VipCatalogueResult<T>> {
+  try {
+    const res = await fetch('/api/vip/products', { credentials: 'same-origin', cache: 'no-store' })
+    if (res.status === 401 || res.status === 403) return { status: 'unauthorized' }
+    if (!res.ok) return { status: 'error', message: 'Le catalogue VIP est momentanément indisponible.' }
+    const json = (await res.json()) as { products?: unknown }
+    if (!json || !Array.isArray(json.products)) return { status: 'error', message: 'Réponse du catalogue VIP invalide.' }
+    return { status: 'ok', products: json.products as T[] }
+  } catch {
+    return { status: 'error', message: 'Connexion impossible. Vérifiez votre réseau.' }
+  }
+}
 const productImageLoader = ({ src }: ImageLoaderProps) => src
 
 export default function VipPage() {
