@@ -9,6 +9,7 @@ const MAP = {
   '@supabase/supabase-js': helper('fake-supabase.mjs'),
   'next/server': helper('next-server-shim.mjs'),
   '@/lib/notifications': helper('notifications-stub.mjs'),
+  '@/lib/supabase/server': helper('fake-supabase-server.mjs'),
 }
 const isFile = (p) => { try { return statSync(p).isFile() } catch { return false } }
 export async function resolve(specifier, context, nextResolve) {

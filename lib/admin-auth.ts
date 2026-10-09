@@ -6,8 +6,12 @@ export type AdminCheck =
 // Verifie cote serveur : session Supabase valide (cookies) + ligne active dans la table admins.
 export async function requireAdmin(): Promise<AdminCheck> {
   const supabase = await createServerSupabase()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user?.email) return { ok: false, status: 401, error: 'Authentification requise' }
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (!user?.email) {
+    // Diagnostic serveur : raison du refus (message seulement, aucune valeur de cookie ni de jeton)
+    console.warn('[requireAdmin] 401 :', authError?.message ?? 'aucune session dans les cookies')
+    return { ok: false, status: 401, error: 'Authentification requise' }
+  }
   const service = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
