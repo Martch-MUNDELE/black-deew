@@ -1,3 +1,4 @@
+import { requireAdmin } from '@/lib/admin-auth'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -9,6 +10,11 @@ const supabase = createClient(
 )
 
 export async function POST(req: NextRequest) {
+  // Finition VIP : action reservee aux administrateurs (verifiee cote serveur)
+  const adminCheck = await requireAdmin()
+  if (!adminCheck.ok) {
+    return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status })
+  }
   try {
     const formData = await req.formData()
     const file = formData.get('file') as File

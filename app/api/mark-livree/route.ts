@@ -1,3 +1,4 @@
+import { requireAdmin } from '@/lib/admin-auth'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { recalculatePeriodCore } from '@/app/actions/billing'
@@ -19,6 +20,11 @@ const supabase = createClient(
 )
 
 export async function POST(req: NextRequest) {
+  // Finition VIP : action reservee aux administrateurs (verifiee cote serveur)
+  const adminCheck = await requireAdmin()
+  if (!adminCheck.ok) {
+    return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status })
+  }
   const { orderId, total } = (await req.json()) as MarkLivreeRequestBody
   if (!orderId || typeof total !== 'number') {
     return NextResponse.json({ error: 'invalid params' }, { status: 400 })

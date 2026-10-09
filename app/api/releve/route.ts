@@ -1,3 +1,4 @@
+import { requireAdmin } from '@/lib/admin-auth'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
@@ -16,6 +17,11 @@ const supabase = createClient(
 )
 
 export async function GET(req: NextRequest) {
+  // Finition VIP : action reservee aux administrateurs (verifiee cote serveur)
+  const adminCheck = await requireAdmin()
+  if (!adminCheck.ok) {
+    return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status })
+  }
   const { searchParams } = new URL(req.url)
   const period_id = searchParams.get('period_id')
   if (!period_id) return NextResponse.json({ error: 'period_id requis' }, { status: 400 })

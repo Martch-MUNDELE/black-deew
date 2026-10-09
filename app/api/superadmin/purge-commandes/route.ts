@@ -1,3 +1,4 @@
+import { requireAdmin } from '@/lib/admin-auth'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
@@ -6,6 +7,14 @@ function jsonError(step: string, message: string, status = 500) {
 }
 
 export async function POST() {
+  // Finition VIP : action reservee aux administrateurs (verifiee cote serveur)
+  const adminCheck = await requireAdmin()
+  if (!adminCheck.ok) {
+    return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status })
+  }
+  if (adminCheck.role !== 'superadmin') {
+    return NextResponse.json({ error: 'Acces reserve au superadmin' }, { status: 403 })
+  }
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!

@@ -1,3 +1,4 @@
+import { requireAdmin } from '@/lib/admin-auth'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -6,6 +7,14 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 export async function POST(req: NextRequest) {
+  // Finition VIP : action reservee aux administrateurs (verifiee cote serveur)
+  const adminCheck = await requireAdmin()
+  if (!adminCheck.ok) {
+    return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status })
+  }
+  if (adminCheck.role !== 'superadmin') {
+    return NextResponse.json({ error: 'Acces reserve au superadmin' }, { status: 403 })
+  }
   const { email, password, performedBy } = await req.json()
   if (password.length < 8) return NextResponse.json({ error: 'Mot de passe trop court' }, { status: 400 })
 

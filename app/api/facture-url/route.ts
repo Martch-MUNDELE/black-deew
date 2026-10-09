@@ -1,3 +1,4 @@
+import { requireAdmin } from '@/lib/admin-auth'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { generateFactureToken } from '@/lib/facture-token'
@@ -71,6 +72,11 @@ export const dynamic = 'force-dynamic'
 type OrderItemRow = { is_vip?: boolean | null }
 
 export async function GET(req: NextRequest) {
+  // Finition VIP : action reservee aux administrateurs (verifiee cote serveur)
+  const adminCheck = await requireAdmin()
+  if (!adminCheck.ok) {
+    return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status })
+  }
   const order_id = req.nextUrl.searchParams.get('order_id')
   if (!order_id) return NextResponse.json({ error: 'Missing order_id' }, { status: 400 })
 

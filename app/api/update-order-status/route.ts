@@ -7,6 +7,7 @@ import {
 } from '@/lib/order-status'
 import { recalculatePeriodCore } from '@/app/actions/billing'
 import { isTestPhone } from '@/lib/test-orders'
+import { requireAdmin } from '@/lib/admin-auth'
 
 type OrderRow = {
   id: string
@@ -23,6 +24,11 @@ function twoHoursFromNowIso() {
 }
 
 export async function POST(req: NextRequest) {
+  // A14 : identite + role admin verifies cote serveur avant toute ecriture
+  const adminCheck = await requireAdmin()
+  if (!adminCheck.ok) {
+    return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status })
+  }
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
