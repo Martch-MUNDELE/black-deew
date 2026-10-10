@@ -486,7 +486,8 @@ input[type=number]::-webkit-inner-spin-button {
   transition: color 100ms, background 100ms;
 }
 
-.bd-drawer-sub-link:hover {
+.bd-drawer-sub-link:hover,
+.bd-drawer-sub-link.is-active {
   color: var(--bd-gold);
   background: var(--bd-gold-dim);
 }

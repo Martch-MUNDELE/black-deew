@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import AdminNavClient from "@/components/admin/AdminNavClient";
 import AdminLogoutButton from "@/components/admin/AdminLogoutButton";
@@ -80,8 +81,9 @@ const NAV_GROUPS = [
     label: "SUPER ADMIN",
     links: [
       { href: "/admin/superadmin", label: "Super Admin", icon: "star", sub: [
-        { label: "Administrateurs", url: "/admin/superadmin" },
+        { label: "Administrateurs", url: "/admin/superadmin?tab=admins" },
         { label: "Journal", url: "/admin/superadmin?tab=journal" },
+        { label: "Facturation plateforme", url: "/admin/superadmin?tab=facturation" },
       ]},
       { href: "/admin/superadmin/facturation/contrats", label: "Facturation", icon: "clock", sub: [
         { label: "Clients & Contrats", url: "/admin/superadmin/facturation/contrats" },
@@ -111,8 +113,10 @@ export default async function AdminNav() {
   }
 
   return (
-    <AdminNavClient groups={NAV_GROUPS} siteName={siteName} siteLogo={siteLogo}>
-      <AdminLogoutButton />
-    </AdminNavClient>
+    <Suspense fallback={null}>
+      <AdminNavClient groups={NAV_GROUPS} siteName={siteName} siteLogo={siteLogo}>
+        <AdminLogoutButton />
+      </AdminNavClient>
+    </Suspense>
   );
 }

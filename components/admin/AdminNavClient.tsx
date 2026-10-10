@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
@@ -64,6 +64,14 @@ export default function AdminNavClient({
   children?: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentSearch = searchParams.toString();
+  let currentUrl = pathname;
+  if (currentSearch) {
+    try { currentUrl = pathname + "?" + decodeURIComponent(currentSearch); } catch { currentUrl = pathname + "?" + currentSearch; }
+  }
+  const isSuperAdminDefault = pathname === "/admin/superadmin" && !searchParams.get("tab");
+  const activeUrl = isSuperAdminDefault ? "/admin/superadmin?tab=admins" : currentUrl;
   const [menuOpen, setMenuOpen] = useState(false);
   const [superAdmin, setSuperAdmin] = useState(false);
 
@@ -225,7 +233,7 @@ export default function AdminNavClient({
                           <Link
                             key={sub.label}
                             href={sub.url}
-                            className={`bd-sidebar-sub-link${pathname + (typeof window !== "undefined" ? window.location.search : "") === sub.url ? " is-active" : ""}`}
+                            className={`bd-sidebar-sub-link${activeUrl === sub.url ? " is-active" : ""}`}
                           >
                             {sub.label}
                           </Link>
@@ -296,7 +304,7 @@ export default function AdminNavClient({
                           <Link
                             key={sub.label}
                             href={sub.url}
-                            className="bd-drawer-sub-link"
+                            className={`bd-drawer-sub-link${activeUrl === sub.url ? " is-active" : ""}`}
                             onClick={close}
                           >
                             {sub.label}

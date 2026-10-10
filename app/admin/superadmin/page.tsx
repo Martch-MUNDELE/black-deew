@@ -132,10 +132,16 @@ function SuperAdminPageInner() {
     const t = window.setTimeout(() => {
       if (tabParam === 'journal') setTab('logs')
       else if (tabParam === 'facturation') setTab('facturation')
-      else if (tabParam === 'admins') setTab('admins')
+      else setTab('admins')
     }, 0)
     return () => window.clearTimeout(t)
   }, [tabParam])
+
+  const selectTab = useCallback((key: 'admins' | 'logs' | 'facturation') => {
+    setTab(key)
+    const param = key === 'logs' ? 'journal' : key
+    router.replace(`/admin/superadmin?tab=${param}`, { scroll: false })
+  }, [router])
 
   const load = useCallback(async () => {
     const [{ data: a }, { data: l, error: logsErr }, { data: c }] = await Promise.all([
@@ -423,7 +429,7 @@ const createAdmin = async () => {
           { key: 'logs', label: 'Journal' },
           { key: 'facturation', label: 'Facturation plateforme' },
         ] as const).map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{ padding: '7px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === t.key ? 'rgba(232,160,32,0.4)' : 'rgba(232,160,32,0.12)', background: tab === t.key ? 'rgba(232,160,32,0.12)' : 'transparent', color: tab === t.key ? '#E8A020' : '#C8B99A', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
+          <button key={t.key} onClick={() => selectTab(t.key)} style={{ padding: '7px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === t.key ? 'rgba(232,160,32,0.4)' : 'rgba(232,160,32,0.12)', background: tab === t.key ? 'rgba(232,160,32,0.12)' : 'transparent', color: tab === t.key ? '#E8A020' : '#C8B99A', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
             {t.label}
           </button>
         ))}
