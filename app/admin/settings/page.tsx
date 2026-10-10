@@ -413,16 +413,24 @@ function SettingsContent() {
     return { label, isOld: days > 30 }
   }
   // Nombre affiche = demandes d'acces + reinitialisations encore a traiter (lien non genere)
-  // BLAC-P2-010 : les demandes a numero non autorise ne sont pas comptees (aucune action de generation possible)
-  const pendingTotalCount = vipRequests.length + vipResetRequests.filter((r) => !generatedResetLinks[r.id] && isResetPhoneAllowed(r.phone)).length
+  // BLAC-P2-011 : meme compteur que le bandeau et le badge du menu (toutes les demandes pending, numeros non autorises inclus)
+  const pendingTotalCount = vipRequests.length + vipResetRequests.filter((r) => !generatedResetLinks[r.id]).length
   const rejectVipResetRequest = async (request: VipPasswordResetRequest) => {
-    const { error } = await supabase
-      .from('vip_password_reset_requests')
-      .update({ status: 'rejected' })
-      .eq('id', request.id)
-      .eq('status', 'pending')
-    if (error) {
-      setResetErrors((prev) => ({ ...prev, [request.id]: 'Impossible d’archiver la demande. Réessayez.' }))
+    // BLAC-P2-011 : archivage via la route serveur admin ; la demande n'est retiree qu'en cas de succes confirme
+    setResetErrors((prev) => ({ ...prev, [request.id]: '' }))
+    try {
+      const res = await fetch('/api/admin/vip-reset-reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: request.id }),
+      })
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => ({}))) as { error?: string }
+        setResetErrors((prev) => ({ ...prev, [request.id]: payload.error || 'Impossible d’archiver la demande. Réessayez.' }))
+        return
+      }
+    } catch {
+      setResetErrors((prev) => ({ ...prev, [request.id]: 'Erreur réseau : la demande n’a pas pu être archivée. Réessayez.' }))
       return
     }
     dismissVipResetRequest(request.id)

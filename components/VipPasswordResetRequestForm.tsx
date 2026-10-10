@@ -50,6 +50,14 @@ export default function VipPasswordResetRequestForm({
       status = 0
     }
     setLoading(false)
+    if (status === 403) {
+      setError('Numéro non enregistré : faites d’abord une demande d’accès VIP.')
+      return
+    }
+    if (status === 429) {
+      setError('Trop de tentatives. Réessayez dans quelques minutes.')
+      return
+    }
     if (status === 409) {
       setError('Une demande est deja en attente pour ce numero.')
       return
