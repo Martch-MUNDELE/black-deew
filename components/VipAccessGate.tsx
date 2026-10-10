@@ -199,7 +199,11 @@ export default function VipAccessGate({
     }
   }, [storageKey, supabase])
 
+  // BLAC-P2-010 : true uniquement pour la connexion automatique apres reinitialisation (message neutre en cas d'echec)
+  const autoLoginRunRef = useRef(false)
   const login = async () => {
+    const wasAutoLogin = autoLoginRunRef.current
+    autoLoginRunRef.current = false
     setLoading(true)
     setError('')
 
@@ -244,7 +248,9 @@ export default function VipAccessGate({
       return
     }
     if (!result || !result.ok) {
-      setError(result?.error || 'Accès VIP refusé. Vérifiez votre numéro et votre mot de passe.')
+      setError(wasAutoLogin
+        ? 'Votre mot de passe est enregistré. Connectez-vous avec votre numéro.'
+        : (result?.error || 'Accès VIP refusé. Vérifiez votre numéro et votre mot de passe.'))
       setLoading(false)
       return
     }
@@ -302,6 +308,7 @@ export default function VipAccessGate({
     if (!phone || !password) return
     if (granted) return
 
+    autoLoginRunRef.current = true
     login()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoLoginAttempted])

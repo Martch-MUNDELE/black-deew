@@ -222,6 +222,12 @@ function SettingsContent() {
   }, [supabase])
 
   const vipAllowedPhoneList = useMemo(() => parseVipAllowedPhones(vipAllowedPhones), [vipAllowedPhones])
+  // BLAC-P2-010 : indicatif cote admin uniquement (le serveur reste l'autorite : vip-reset-link et consume refusent les numeros non autorises)
+  const isResetPhoneAllowed = (phone: string) => {
+    const last9 = phone.replace(/[^\d]/g, '').slice(-9)
+    if (last9.length < 7) return false
+    return vipAllowedPhoneList.some((item) => item.replace(/[^\d]/g, '').slice(-9) === last9)
+  }
 
   const addVipPhone = () => {
     const phone = normalizeVipPhone(vipPhoneDraft)
@@ -407,7 +413,20 @@ function SettingsContent() {
     return { label, isOld: days > 30 }
   }
   // Nombre affiche = demandes d'acces + reinitialisations encore a traiter (lien non genere)
-  const pendingTotalCount = vipRequests.length + vipResetRequests.filter((r) => !generatedResetLinks[r.id]).length
+  // BLAC-P2-010 : les demandes a numero non autorise ne sont pas comptees (aucune action de generation possible)
+  const pendingTotalCount = vipRequests.length + vipResetRequests.filter((r) => !generatedResetLinks[r.id] && isResetPhoneAllowed(r.phone)).length
+  const rejectVipResetRequest = async (request: VipPasswordResetRequest) => {
+    const { error } = await supabase
+      .from('vip_password_reset_requests')
+      .update({ status: 'rejected' })
+      .eq('id', request.id)
+      .eq('status', 'pending')
+    if (error) {
+      setResetErrors((prev) => ({ ...prev, [request.id]: 'Impossible d’archiver la demande. Réessayez.' }))
+      return
+    }
+    dismissVipResetRequest(request.id)
+  }
   const dismissVipResetRequest = (requestId: string) => {
     retainedResetIdsRef.current.delete(requestId)
     setVipResetRequests((prev) => prev.filter((r) => r.id !== requestId))
@@ -933,13 +952,36 @@ function SettingsContent() {
                             Mot de passe perdu · {createdLabel} ({age.label})
                           </div>
                         </div>
+                        {!isResetPhoneAllowed(resetReq.phone) && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#FF6B6B', background: 'rgba(255,107,107,0.12)', padding: '3px 9px', borderRadius: 50, fontFamily: 'DM Sans, sans-serif' }}>
+                            Numéro non autorisé
+                          </span>
+                        )}
                         {age.isOld && (
                           <span style={{ fontSize: 11, fontWeight: 700, color: '#F5C842', background: 'rgba(245,200,66,0.12)', padding: '3px 9px', borderRadius: 50, fontFamily: 'DM Sans, sans-serif' }}>
                             Ancienne demande
                           </span>
                         )}
                       </div>
-                      {!link ? (
+                      {!link && !isResetPhoneAllowed(resetReq.phone) ? (
+                        <>
+                          <div style={{ marginBottom: 8, color: '#C8B99A', fontSize: 11, fontFamily: 'DM Sans, sans-serif', lineHeight: 1.45 }}>
+                            Ce numéro n’est pas dans la liste VIP. Ajoutez-le à la liste pour pouvoir générer un lien, ou archivez la demande.
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => rejectVipResetRequest(resetReq)}
+                            style={{ padding: '7px 10px', borderRadius: 50, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                          >
+                            Refuser / Archiver la demande
+                          </button>
+                          {resetErrors[resetReq.id] && (
+                            <div role="alert" style={{ marginTop: 8, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: 11, fontFamily: 'DM Sans, sans-serif', lineHeight: 1.45 }}>
+                              {resetErrors[resetReq.id]}
+                            </div>
+                          )}
+                        </>
+                      ) : !link ? (
                         <>
                           <button
                             type="button"

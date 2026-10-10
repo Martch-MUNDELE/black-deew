@@ -29,6 +29,8 @@ class Query {
     return this
   }
   update(patch) { this.op = 'update'; this.patch = patch; return this }
+  insert(row) { this.op = 'insert'; this.patch = row; return this }
+  delete() { this.op = 'delete'; return this }
   upsert(row, opts) { this.op = 'upsert'; this.patch = row; this.opts = opts || {}; return this }
   _run() {
     const d = db()
@@ -41,7 +43,16 @@ class Query {
       else rows.push({ ...this.patch })
       return { data: [this.patch], error: null }
     }
+    if (this.op === 'insert') {
+      const list = Array.isArray(this.patch) ? this.patch : [this.patch]
+      list.forEach((r) => rows.push({ ...r }))
+      return { data: list, error: null }
+    }
     const matched = rows.filter((r) => this.filters.every((f) => f(r)))
+    if (this.op === 'delete') {
+      d.tables[this.table] = rows.filter((r) => !matched.includes(r))
+      return { data: matched.map((r) => ({ ...r })), error: null }
+    }
     if (this.op === 'update') {
       matched.forEach((r) => Object.assign(r, this.patch))
       return { data: matched.map((r) => ({ ...r })), error: null }

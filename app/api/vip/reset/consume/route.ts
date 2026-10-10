@@ -1,7 +1,7 @@
 import { hashPassword } from '@/lib/vip-password'
 import { vipRateLimit } from '@/lib/vip-rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
-import { findIndividualPassword, normalizePhone, vipServiceClient } from '@/lib/vip-server'
+import { findIndividualPassword, loadVipSettings, normalizePhone, phonesMatch, vipServiceClient } from '@/lib/vip-server'
 import { setVipSessionCookie } from '@/lib/vip-session'
 // A9 : consommation du jeton + changement du mot de passe, entierement cote serveur.
 // Le jeton est reserve (used_at) de facon conditionnelle avant l'ecriture du mot de passe : usage unique et expiration garantis.
@@ -23,6 +23,12 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
   if (error) return NextResponse.json({ ok: false, error: 'Vérification impossible. Réessayez.' }, { status: 500 })
   if (!row) return NextResponse.json({ ok: false, error: 'Lien invalide ou introuvable.' }, { status: 404 })
+  // BLAC-P2-010 : le numero doit toujours figurer dans la liste autorisee. Controle fait AVANT la reservation du jeton : jeton non consomme.
+  const settings = await loadVipSettings(db)
+  if (!settings) return NextResponse.json({ ok: false, error: 'Vérification impossible. Réessayez.' }, { status: 500 })
+  if (!phonesMatch(String(row.phone ?? ''), settings.allowedPhones)) {
+    return NextResponse.json({ ok: false, error: 'Ce numéro n’est pas autorisé pour l’accès VIP. Contactez la boutique.' }, { status: 403 })
+  }
   const nowIso = new Date().toISOString()
   const { data: claimed, error: claimErr } = await db
     .from('vip_password_reset_tokens')

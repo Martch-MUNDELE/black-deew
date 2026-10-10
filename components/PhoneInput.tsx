@@ -82,6 +82,7 @@ function parseInitialValue(defaultCountry: Country, initialValue?: string) {
 }
 
 export default function PhoneInput({
+  value,
   onChange,
   initialValue,
   defaultCountryCode = 'MA',
@@ -100,6 +101,18 @@ export default function PhoneInput({
   const [number, setNumber] = useState(parsedInitial.localNumber)
   const [hint, setHint] = useState('')
   const ref = useRef<HTMLDivElement>(null)
+  // BLAC-P2-010 : dernier numero emis, pour resynchroniser le champ si la prop value change depuis l'exterieur.
+  const lastEmitted = useRef<string>('')
+  useEffect(() => {
+    if (value === undefined || value === lastEmitted.current) return
+    if (value === '' && number === '') return
+    const parsed = parseInitialValue(defaultCountry, value)
+    lastEmitted.current = value
+    setCountry(parsed.country)
+    setNumber(parsed.localNumber)
+    setHint('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -116,6 +129,7 @@ export default function PhoneInput({
     setCountry(nextCountry)
     setNumber(cleaned.localNumber)
     setHint(cleaned.hint)
+    lastEmitted.current = cleaned.fullNumber
     onChange(cleaned.fullNumber)
   }
 

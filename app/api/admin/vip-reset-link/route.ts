@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { requireAdmin } from '@/lib/admin-auth'
-import { vipServiceClient } from '@/lib/vip-server'
+import { loadVipSettings, phonesMatch, vipServiceClient } from '@/lib/vip-server'
 // A9 : creation du jeton de reset reservee aux admins authentifies ; expiration (1 h) fixee cote serveur.
 export async function POST(req: NextRequest) {
   const adminCheck = await requireAdmin()
@@ -21,6 +21,12 @@ export async function POST(req: NextRequest) {
   }
   if (!request) return NextResponse.json({ error: 'Demande introuvable' }, { status: 404 })
   if (request.status !== 'pending') return NextResponse.json({ error: 'Demande déjà traitée' }, { status: 409 })
+  // BLAC-P2-010 : pas de lien pour un numero absent de la liste autorisee (message explicite pour l'admin).
+  const settings = await loadVipSettings(db)
+  if (!settings) return NextResponse.json({ error: 'Configuration VIP indisponible, réessayez.' }, { status: 500 })
+  if (!phonesMatch(String(request.phone ?? ''), settings.allowedPhones)) {
+    return NextResponse.json({ error: 'Numéro non autorisé : ajoutez-le à la liste VIP avant de générer un lien, ou refusez la demande.', code: 'PHONE_NOT_ALLOWED' }, { status: 403 })
+  }
   // La colonne token est de type uuid : un jeton hexadecimal de 64 caracteres serait rejete par Postgres (22P02).
   const token = randomUUID()
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString()
