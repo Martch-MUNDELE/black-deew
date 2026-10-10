@@ -1,3 +1,4 @@
+import { hashPassword } from '@/lib/vip-password'
 import { vipRateLimit } from '@/lib/vip-rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyVipCredentials, vipServiceClient } from '@/lib/vip-server'
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
   const { error } = await db
     .from('vip_individual_passwords')
     .upsert(
-      { phone: check.individualPhone ?? check.phone, password: newPassword, updated_at: new Date().toISOString() },
+      { phone: check.individualPhone ?? check.phone, password: hashPassword(newPassword), updated_at: new Date().toISOString() },
       { onConflict: 'phone' }
     )
   if (error) return NextResponse.json({ ok: false, error: 'Impossible d’enregistrer votre nouveau mot de passe. Réessayez.' }, { status: 500 })

@@ -1,3 +1,4 @@
+import { hashPassword } from '@/lib/vip-password'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireAdmin } from '@/lib/admin-auth'
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
   // 1) mot de passe individuel
   if (request.requested_password) {
     const { error } = await db.from('vip_individual_passwords').upsert(
-      { phone, password: request.requested_password, updated_at: new Date().toISOString() },
+      { phone, password: hashPassword(request.requested_password), updated_at: new Date().toISOString() },
       { onConflict: 'phone' }
     )
     if (error) return NextResponse.json({ error: 'Échec : le mot de passe individuel n’a pas pu être enregistré. Rien n’a été activé.' }, { status: 500 })
@@ -97,6 +98,5 @@ export async function POST(req: NextRequest) {
     phone,
     pseudo: request.pseudo,
     allowedPhones: nextAllowed,
-    password: request.requested_password ?? null,
   })
 }

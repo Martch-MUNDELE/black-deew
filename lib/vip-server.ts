@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { timingSafeEqual } from 'crypto'
+import { verifyPassword } from '@/lib/vip-password'
 // A3 / A9 : helpers serveur uniquement (service role). Ne jamais importer depuis un composant client.
 export function vipServiceClient(): SupabaseClient {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -111,7 +112,7 @@ export async function verifyVipCredentials(rawPhone: unknown, rawPassword: unkno
     return { ok: false, status: 403, error: 'Votre numéro est autorisé, mais aucun mot de passe n’a encore été défini pour votre accès. Utilisez « Mot de passe perdu ? » ou contactez la boutique.' }
   }
   const passwordOk = match
-    ? safeEqual(password, String(match.password ?? ''))
+    ? verifyPassword(match.password, password)
     : safeEqual(password, settings.commonPassword)
   if (!passwordOk) return { ok: false, status: 401, error: DENIED }
   return { ok: true, needsPasswordChange: !match, phone, individualPhone: match ? match.phone : null }

@@ -1,3 +1,4 @@
+import { hashPassword } from '@/lib/vip-password'
 import { vipRateLimit } from '@/lib/vip-rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 import { findIndividualPassword, normalizePhone, vipServiceClient } from '@/lib/vip-server'
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     : await db
         .from('vip_individual_passwords')
         .upsert(
-          { phone: existing.row?.phone ?? phone, password: newPassword, updated_at: new Date().toISOString() },
+          { phone: existing.row?.phone ?? phone, password: hashPassword(newPassword), updated_at: new Date().toISOString() },
           { onConflict: 'phone' }
         )
   if (upsertErr) {
