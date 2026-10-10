@@ -145,12 +145,16 @@ function SettingsContent() {
   }
 
   const [vipResetRequests, setVipResetRequests] = useState<VipPasswordResetRequest[]>([])
+  const [resetErrors, setResetErrors] = useState<Record<string, string>>({})
+  const [copiedResetId, setCopiedResetId] = useState<string | null>(null)
   const [generatedResetLinks, setGeneratedResetLinks] = useState<Record<string, string>>({})
   const approvedRequestIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     approvedRequestIdsRef.current = approvedRequestIds
   }, [approvedRequestIds])
+  // Demandes de reinitialisation dont le lien vient d'etre genere : elles restent affichees (lien a copier) meme si le statut passe a 'sent'
+  const retainedResetIdsRef = useRef<Set<string>>(new Set())
   const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
@@ -293,6 +297,15 @@ function SettingsContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
+  // Defilement vers la section des demandes (lien du bandeau : /admin/settings?tab=vip#vip-requests)
+  useEffect(() => {
+    if (activeTab !== 'vip') return
+    if (typeof window === 'undefined' || window.location.hash !== '#vip-requests') return
+    const t = setTimeout(() => {
+      document.getElementById('vip-requests')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 150)
+    return () => clearTimeout(t)
+  }, [activeTab])
   const vipWhatsAppHref = (request: VipAccessRequest) =>
     buildWhatsAppHref(
       request.phone,
@@ -343,22 +356,41 @@ function SettingsContent() {
       .select('id,phone,status,created_at')
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
-    setVipResetRequests((data || []) as VipPasswordResetRequest[])
+    const freshResets = (data || []) as VipPasswordResetRequest[]
+    setVipResetRequests((prev) => {
+      const freshIds = new Set(freshResets.map((r) => r.id))
+      const kept = prev.filter((r) => retainedResetIdsRef.current.has(r.id) && !freshIds.has(r.id))
+      return [...freshResets, ...kept]
+    })
   }
 
   const generateResetLink = async (request: VipPasswordResetRequest) => {
     // A9 : jeton cree cote serveur (route reservee aux admins), expiration fixee par le serveur
     let token = ''
+    let errorMessage = ''
+    retainedResetIdsRef.current.add(request.id)
+    setResetErrors((prev) => {
+      const next = { ...prev }
+      delete next[request.id]
+      return next
+    })
     try {
       const res = await fetch('/api/admin/vip-reset-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requestId: request.id }),
       })
-      const data = (await res.json().catch(() => null)) as { token?: string } | null
+      const data = (await res.json().catch(() => null)) as { token?: string; error?: string } | null
       if (res.ok && data?.token) token = data.token
-    } catch {}
-    if (!token) return
+      else errorMessage = data?.error ? `${data.error} (code ${res.status})` : `Échec de la génération du lien (code ${res.status}).`
+    } catch {
+      errorMessage = 'Connexion au serveur impossible. Vérifiez votre réseau et réessayez.'
+    }
+    if (!token) {
+      retainedResetIdsRef.current.delete(request.id)
+      setResetErrors((prev) => ({ ...prev, [request.id]: errorMessage || 'Échec de la génération du lien.' }))
+      return
+    }
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
     const resetUrl = `${baseUrl}/vip/reset?token=${token}`
 
@@ -366,7 +398,18 @@ function SettingsContent() {
 
   }
 
+  // Demandes de reinitialisation : anciennete (affichage seulement, aucune ecriture en base)
+  const resetAgeInfo = (createdAt: string) => {
+    const ms = Date.now() - new Date(createdAt).getTime()
+    const days = Math.floor(ms / 86400000)
+    const hours = Math.floor(ms / 3600000)
+    const label = days >= 1 ? `il y a ${days} j` : hours >= 1 ? `il y a ${hours} h` : 'il y a moins d’1 h'
+    return { label, isOld: days > 30 }
+  }
+  // Nombre affiche = demandes d'acces + reinitialisations encore a traiter (lien non genere)
+  const pendingTotalCount = vipRequests.length + vipResetRequests.filter((r) => !generatedResetLinks[r.id]).length
   const dismissVipResetRequest = (requestId: string) => {
+    retainedResetIdsRef.current.delete(requestId)
     setVipResetRequests((prev) => prev.filter((r) => r.id !== requestId))
     setGeneratedResetLinks((prev) => {
       const next = { ...prev }
@@ -801,15 +844,15 @@ function SettingsContent() {
             </div>
           )}
 
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10 }}>
-            Demandes en attente ({vipRequests.length})
+          <div id="vip-requests" style={{ scrollMarginTop: 80, fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10 }}>
+            Demandes en attente ({pendingTotalCount})
           </div>
 
           {vipRequestsLoading ? (
             <div style={{ padding: 14, borderRadius: 12, border: '1px dashed rgba(232,160,32,0.18)', color: '#7A6E58', fontSize: 12, fontFamily: 'DM Sans, sans-serif', marginBottom: 20 }}>
               Chargement des demandes...
             </div>
-          ) : vipRequests.length === 0 ? (
+          ) : vipRequests.length === 0 && vipResetRequests.length === 0 ? (
             <div style={{ padding: 14, borderRadius: 12, border: '1px dashed rgba(232,160,32,0.18)', color: '#7A6E58', fontSize: 12, fontFamily: 'DM Sans, sans-serif', marginBottom: 20 }}>
               Aucune demande en attente.
             </div>
@@ -871,6 +914,88 @@ function SettingsContent() {
             </div>
           )}
 
+          {vipResetRequests.length > 0 && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#C8B99A', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 10 }}>
+                Réinitialisations de mot de passe ({vipResetRequests.length})
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                {vipResetRequests.map((resetReq) => {
+                  const link = generatedResetLinks[resetReq.id]
+                  const age = resetAgeInfo(resetReq.created_at)
+                  const createdLabel = new Date(resetReq.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                  return (
+                    <div key={resetReq.id} style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.15)', background: 'rgba(255,255,255,0.025)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                        <div>
+                          <div style={{ color: '#F5EDD6', fontSize: 13, fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>{resetReq.phone}</div>
+                          <div style={{ color: '#C8B99A', fontSize: 12, fontFamily: 'DM Sans, sans-serif' }}>
+                            Mot de passe perdu · {createdLabel} ({age.label})
+                          </div>
+                        </div>
+                        {age.isOld && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#F5C842', background: 'rgba(245,200,66,0.12)', padding: '3px 9px', borderRadius: 50, fontFamily: 'DM Sans, sans-serif' }}>
+                            Ancienne demande
+                          </span>
+                        )}
+                      </div>
+                      {!link ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => generateResetLink(resetReq)}
+                            style={{ padding: '7px 10px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.25)', background: 'rgba(232,160,32,0.08)', color: '#E8A020', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                          >
+                            Mot de passe oublié — Générer mot de passe
+                          </button>
+                          {resetErrors[resetReq.id] && (
+                            <div role="alert" style={{ marginTop: 8, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: 11, fontFamily: 'DM Sans, sans-serif', lineHeight: 1.45 }}>
+                              {resetErrors[resetReq.id]}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(255,255,255,0.03)', color: '#C8B99A', fontSize: 11, fontFamily: 'DM Sans, sans-serif', wordBreak: 'break-all', lineHeight: 1.4 }}>
+                            {link}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(link)
+                                setCopiedResetId(resetReq.id)
+                                setTimeout(() => setCopiedResetId((cur) => (cur === resetReq.id ? null : cur)), 2000)
+                              } catch {
+                                setResetErrors((prev) => ({ ...prev, [resetReq.id]: 'Copie impossible : sélectionnez le lien et copiez-le manuellement.' }))
+                              }
+                            }}
+                            style={{ width: '100%', marginBottom: 8, padding: '7px 10px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.25)', background: 'rgba(232,160,32,0.08)', color: '#E8A020', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                          >
+                            {copiedResetId === resetReq.id ? 'Lien copié ✓' : 'Copier le lien'}
+                          </button>
+                          {resetErrors[resetReq.id] && (
+                            <div role="alert" style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: 11, fontFamily: 'DM Sans, sans-serif', lineHeight: 1.45 }}>
+                              {resetErrors[resetReq.id]}
+                            </div>
+                          )}
+                          <a
+                            href={buildWhatsAppHref(resetReq.phone, `Bonjour, voici votre lien pour redéfinir votre mot de passe VIP (valable 1 heure) : ${link}`, { defaultCountryCode: 'CD' }) || '#'}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => dismissVipResetRequest(resetReq.id)}
+                            style={{ display: 'block', textAlign: 'center', padding: '7px 10px', borderRadius: 50, border: '1px solid rgba(91,197,122,0.4)', background: 'rgba(91,197,122,0.12)', color: '#5BC57A', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'none', boxSizing: 'border-box' }}
+                          >
+                            Envoyer le lien par WhatsApp
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
           <label style={labelStyle}>Activation de l’accès VIP</label>
           <button
             type="button"
@@ -940,6 +1065,7 @@ function SettingsContent() {
 
                     {resetRequest && (
                       !link ? (
+                        <>
                         <button
                           type="button"
                           onClick={() => generateResetLink(resetRequest)}
@@ -947,7 +1073,32 @@ function SettingsContent() {
                         >
                           Mot de passe oublié — Générer mot de passe
                         </button>
+                        {resetErrors[resetRequest.id] && (
+                          <div role="alert" style={{ marginTop: 8, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', fontSize: 11, fontFamily: 'DM Sans, sans-serif', lineHeight: 1.45 }}>
+                            {resetErrors[resetRequest.id]}
+                          </div>
+                        )}
+                        </>
                       ) : (
+                        <>
+                        <div style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(255,255,255,0.03)', color: '#C8B99A', fontSize: 11, fontFamily: 'DM Sans, sans-serif', wordBreak: 'break-all', lineHeight: 1.4 }}>
+                          {link}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(link)
+                              setCopiedResetId(resetRequest.id)
+                              setTimeout(() => setCopiedResetId((cur) => (cur === resetRequest.id ? null : cur)), 2000)
+                            } catch {
+                              setResetErrors((prev) => ({ ...prev, [resetRequest.id]: 'Copie impossible : sélectionnez le lien et copiez-le manuellement.' }))
+                            }
+                          }}
+                          style={{ width: '100%', marginBottom: 8, padding: '7px 10px', borderRadius: 50, border: '1px solid rgba(232,160,32,0.25)', background: 'rgba(232,160,32,0.08)', color: '#E8A020', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                        >
+                          {copiedResetId === resetRequest.id ? 'Lien copié ✓' : 'Copier le lien'}
+                        </button>
                         <a
                           href={buildWhatsAppHref(resetRequest.phone, `Bonjour, voici votre lien pour redéfinir votre mot de passe VIP (valable 1 heure) : ${link}`, { defaultCountryCode: 'CD' }) || '#'}
                           target="_blank"
@@ -957,6 +1108,7 @@ function SettingsContent() {
                         >
                           Envoyer le lien par WhatsApp
                         </a>
+                        </>
                       )
                     )}
                   </div>

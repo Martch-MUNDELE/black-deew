@@ -2,6 +2,7 @@
 import type { ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
 import { isAdminLoginPath } from '@/lib/supabase/proxy'
+import VipPendingBanner from '@/components/admin/VipPendingBanner'
 /**
  * Coquille de l'admin : masque menu et notifications sur les pages de connexion.
  * Le choix se fait cote navigateur (usePathname) : il suit la navigation client,
@@ -25,7 +26,10 @@ export default function AdminShell({
     <div className="bd-admin-shell">
       {nav}
       {push}
-      <main className="bd-admin-main">{children}</main>
+      <main className="bd-admin-main">
+        <VipPendingBanner />
+        {children}
+      </main>
     </div>
   )
 }

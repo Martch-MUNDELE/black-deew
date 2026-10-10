@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useVipPendingCount } from "@/lib/use-vip-pending-count";
 import Link from "next/link";
 import {
   Home, Package, ShoppingBag, Truck, Clock, Settings,
@@ -118,7 +119,7 @@ export default function AdminNavClient({
       if (data?.value) setLogoUrl(data.value);
     });
   }, [logoUrl]);
-  const [pendingVipCount, setPendingVipCount] = useState(0);
+  const pendingVipCount = useVipPendingCount("adminnav-vip");
   const prevOrderIds = useRef<Set<string>>(new Set());
   const isFirstLoad = useRef(true);
 
@@ -140,21 +141,6 @@ export default function AdminNavClient({
       })
       .subscribe();
     return () => { sb.removeChannel(channel); };
-  }, []);
-
-  useEffect(() => {
-    const sb = createClient();
-    sb.from("vip_access_requests").select("id").eq("status", "pending").then(({ data }) => {
-      setPendingVipCount((data || []).length);
-    });
-    const ch = sb.channel("adminnav-vip")
-      .on("postgres_changes", { event: "*", schema: "public", table: "vip_access_requests" }, () => {
-        sb.from("vip_access_requests").select("id").eq("status", "pending").then(({ data }) => {
-          setPendingVipCount((data || []).length);
-        });
-      })
-      .subscribe();
-    return () => { sb.removeChannel(ch); };
   }, []);
 
   function isActive(href: string, exact?: boolean) {
@@ -212,6 +198,9 @@ export default function AdminNavClient({
                       >
                         <NavIcon name={link.icon} className="bd-sidebar-link-icon" />
                         <span className="bd-sidebar-link-label">{link.label}</span>
+                        {link.href === "/admin/settings" && pendingVipCount > 0 && (
+                          <span className="bd-sidebar-badge">{pendingVipCount}</span>
+                        )}
                         <ChevronDown size={14} className={`bd-sidebar-chevron${expanded ? " is-open" : ""}`} />
                       </button>
                     ) : (
@@ -236,6 +225,9 @@ export default function AdminNavClient({
                             className={`bd-sidebar-sub-link${activeUrl === sub.url ? " is-active" : ""}`}
                           >
                             {sub.label}
+                            {sub.url === "/admin/settings?tab=vip" && pendingVipCount > 0 && (
+                              <span className="bd-sidebar-badge">{pendingVipCount}</span>
+                            )}
                           </Link>
                         ))}
                       </div>
