@@ -81,7 +81,7 @@ const NAV_GROUPS = [
     links: [
       { href: "/admin/superadmin", label: "Super Admin", icon: "star", sub: [
         { label: "Administrateurs", url: "/admin/superadmin" },
-        { label: "Journal", url: "/admin/superadmin" },
+        { label: "Journal", url: "/admin/superadmin?tab=journal" },
       ]},
       { href: "/admin/superadmin/facturation/contrats", label: "Facturation", icon: "clock", sub: [
         { label: "Clients & Contrats", url: "/admin/superadmin/facturation/contrats" },

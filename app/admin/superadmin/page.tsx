@@ -1,6 +1,7 @@
 'use client'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { formatLogDetails } from '@/lib/admin-log-details'
 import { createClient } from '@/lib/supabase/client'
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
@@ -29,7 +30,8 @@ type AdminLogRow = {
   action?: string | null
   performed_by?: string | null
   target_email?: string | null
-  details?: string | null
+  admin_email?: string | null
+  details?: unknown
   created_at?: string | null
 }
 
@@ -102,9 +104,10 @@ function FacturationOverview() {
   )
 }
 
-export default function SuperAdminPage() {
+function SuperAdminPageInner() {
   const [admins, setAdmins] = useState<AdminRow[]>([])
   const [logs, setLogs] = useState<AdminLogRow[]>([])
+  const [logsError, setLogsError] = useState('')
   const [credentials, setCredentials] = useState<Record<string, string>>({})
   const [tab, setTab] = useState<'admins' | 'logs' | 'facturation'>('admins')
   const [showNew, setShowNew] = useState(false)
@@ -122,15 +125,27 @@ export default function SuperAdminPage() {
   const [savingModule, setSavingModule] = useState(false)
   const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get('tab')
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      if (tabParam === 'journal') setTab('logs')
+      else if (tabParam === 'facturation') setTab('facturation')
+      else if (tabParam === 'admins') setTab('admins')
+    }, 0)
+    return () => window.clearTimeout(t)
+  }, [tabParam])
 
   const load = useCallback(async () => {
-    const [{ data: a }, { data: l }, { data: c }] = await Promise.all([
+    const [{ data: a }, { data: l, error: logsErr }, { data: c }] = await Promise.all([
       supabase.from('admins').select('*').order('created_at', { ascending: false }),
       supabase.from('admin_logs').select('*').order('created_at', { ascending: false }).limit(50),
       supabase.from('admin_credentials').select('*'),
     ])
     setAdmins((a || []) as AdminRow[])
     setLogs((l || []) as AdminLogRow[])
+    setLogsError(logsErr ? 'Impossible de charger le journal : ' + logsErr.message : '')
     const cmap: Record<string, string> = {}
     ;((c || []) as CredentialRow[]).forEach((x) => { if (x.email && x.temp_password) cmap[x.email] = x.temp_password })
     setCredentials(cmap)
@@ -473,12 +488,14 @@ const createAdmin = async () => {
       {/* JOURNAL */}
       {tab === 'logs' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {logsError && <div style={{ textAlign: 'center', color: '#FF6B6B', padding: '12px 0', fontSize: 13 }}>{logsError}</div>}
           {logs.map(log => (
             <div key={log.id} style={{ background: '#131009', border: '1px solid rgba(232,160,32,0.08)', borderRadius: 12, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 50, background: 'rgba(232,160,32,0.08)', color: '#E8A020', marginRight: 8 }}>{log.action}</span>
-                {log.target_email && <span style={{ fontSize: 12, color: '#C8B890' }}>{log.target_email}</span>}
-                {log.details && <div style={{ fontSize: 11, color: '#C8B99A', marginTop: 4 }}>{log.details}</div>}
+                {(log.performed_by || log.admin_email) && <span style={{ fontSize: 12, color: '#C8B890' }}>{log.performed_by || log.admin_email}</span>}
+                {log.target_email && <span style={{ fontSize: 12, color: '#C8B890', marginLeft: 8 }}>{'→ ' + log.target_email}</span>}
+                {formatLogDetails(log.details) && <div style={{ fontSize: 11, color: '#C8B99A', marginTop: 4 }}>{formatLogDetails(log.details)}</div>}
               </div>
               <div style={{ fontSize: 10, color: '#A89880', textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
                 <div>{log.created_at ? new Date(log.created_at).toLocaleDateString('fr-FR') : 'Date inconnue'}</div>
@@ -486,7 +503,7 @@ const createAdmin = async () => {
               </div>
             </div>
           ))}
-          {logs.length === 0 && <div style={{ textAlign: 'center', color: '#C8B99A', padding: '40px 0', fontSize: 14 }}>Aucune action enregistrée</div>}
+          {logs.length === 0 && !logsError && <div style={{ textAlign: 'center', color: '#C8B99A', padding: '40px 0', fontSize: 14 }}>Aucune action enregistrée</div>}
         </div>
       )}
 
@@ -523,5 +540,12 @@ const createAdmin = async () => {
         </div>
       )}
     </div>
+  )
+}
+export default function SuperAdminPage() {
+  return (
+    <Suspense fallback={null}>
+      <SuperAdminPageInner />
+    </Suspense>
   )
 }
