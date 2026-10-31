@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { validatePromotionRule } from '@/lib/promotion-rules'
 // BLAC-P2-013 : Black Deew n'a pas lib/features.ts ; le VIP est toujours actif ici
 const ENABLE_VIP_FEATURE = true
 import type {
@@ -538,6 +539,23 @@ export default function AdminPromotionsPage() {
       payload.gift_product_ids = []
       payload.discount_percent = null
       payload.customer_message = payload.customer_message || 'Livraison offerte'
+    }
+
+    const ruleValidation = validatePromotionRule({
+      benefit_type: payload.benefit_type as string,
+      discount_percent: payload.discount_percent as number | null,
+      minimum_order_amount: payload.minimum_order_amount as number | null,
+      minimum_quantity: payload.minimum_quantity as number | null,
+      starts_at: (payload.starts_at as string | null | undefined) ?? null,
+      ends_at: (payload.ends_at as string | null | undefined) ?? null,
+      gift_product_ids: payload.gift_product_ids as string[],
+      promotion_mode: (payload.promotion_mode as string | null | undefined) ?? null,
+      code: (payload.code as string | null | undefined) ?? null,
+    })
+    if (!ruleValidation.ok) {
+      setError(ruleValidation.errors.join(' '))
+      setSaving(false)
+      return
     }
 
     const ruleId = editingPromotionId ?? crypto.randomUUID()
