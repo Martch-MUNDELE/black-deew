@@ -4,7 +4,7 @@ import { sendOrderNotification } from '@/lib/notifications'
 import { loadVipSettings, phonesMatch } from '@/lib/vip-server'
 import { readVipSessionPhone } from '@/lib/vip-session'
 import { applyPromotions, filterRulesForPromoCode, findPromoCodeRule, checkPromoCodeUsage } from '@/lib/promotions'
-import { loadActivePromotionRules } from '@/lib/promotion-rules'
+import { loadActivePromotionRules, validatePromotionRule } from '@/lib/promotion-rules'
 import type { PromotionCartLine, PromotionProductCandidate } from '@/lib/types/promotion'
 
 type CommandeItemInput = {
@@ -145,7 +145,8 @@ export async function POST(req: NextRequest) {
   const vipTotal = vipItems.reduce((s, i) => s + i.unit_price * i.quantity, 0)
   // BLAC-P2-013 : promotions recalculees cote serveur (le client ne decide jamais du prix)
   const promoCodeInput = typeof body.promo_code === 'string' ? body.promo_code.trim() : ''
-  const allRules = await loadActivePromotionRules(supabase)
+  // BLAC-P3-008 : une regle aux valeurs invalides est ignoree (defense cote serveur)
+  const allRules = (await loadActivePromotionRules(supabase)).filter((r) => validatePromotionRule(r).ok)
   const filtered = filterRulesForPromoCode(allRules, promoCodeInput)
   if (!filtered.codeValid) {
     return NextResponse.json({ error: 'Code promo invalide ou expiré' }, { status: 400 })
@@ -183,6 +184,33 @@ export async function POST(req: NextRequest) {
     }
   })
   const promoResult = applyPromotions(promoLines, promoCatalog, eligibleRules, { vipEnabled: true })
+  // BLAC-P3-008 : limite d'usage par client (identifiant choisi par la regle, telephone par defaut).
+  // Comptage a partir des lignes de commande deja enregistrees ; si le comptage est impossible
+  // (colonnes de promotion absentes), la commande n'est pas bloquee et le journal ne contient aucune donnee client.
+  const appliedRuleIds = Array.from(new Set(promoResult.applied.map((a) => a.promotion_id).filter(Boolean)))
+  for (const ruleId of appliedRuleIds) {
+    const limitedRule = eligibleRules.find((r) => r.id === ruleId)
+    const perCustomerLimit = limitedRule?.usage_limit_per_customer
+    if (!limitedRule || typeof perCustomerLimit !== 'number' || perCustomerLimit <= 0) continue
+    const identifierColumn = limitedRule.customer_identifier_type === 'email' && email ? 'customer_email' : 'customer_phone'
+    const identifierValue = identifierColumn === 'customer_email' ? String(email).trim() : String(phone).trim()
+    const { data: customerOrders, error: customerOrdersError } = await supabase.from('orders').select('id').eq(identifierColumn, identifierValue)
+    if (customerOrdersError || !customerOrders) {
+      console.error('[commandes] limite par client non appliquee : comptage impossible', { code: (customerOrdersError as { code?: string } | null)?.code ?? null })
+      continue
+    }
+    const orderIds = customerOrders.map((o) => o.id as string)
+    if (orderIds.length === 0) continue
+    const { data: usedLines, error: usedLinesError } = await supabase.from('order_items').select('order_id').eq('promotion_rule_id', limitedRule.id).in('order_id', orderIds)
+    if (usedLinesError || !usedLines) {
+      console.error('[commandes] limite par client non appliquee : colonnes de promotion absentes', { code: (usedLinesError as { code?: string } | null)?.code ?? null })
+      continue
+    }
+    const previousUses = new Set(usedLines.map((l) => l.order_id as string)).size
+    if (previousUses >= perCustomerLimit) {
+      return NextResponse.json({ error: 'Vous avez déjà utilisé cette promotion : la limite par client est atteinte.' }, { status: 409 })
+    }
+  }
   const baseCount = items.length
   items = promoResult.items.map((line, idx): CommandeItemInput => {
     if (idx < baseCount) {
@@ -309,7 +337,28 @@ export async function POST(req: NextRequest) {
   if (usedCodeRule && typeof usedCodeRule.usage_limit_total === 'number') {
     await supabase.from('promotion_rules').update({ usage_count: Number(usedCodeRule.usage_count ?? 0) + 1 }).eq('id', usedCodeRule.id).eq('usage_count', Number(usedCodeRule.usage_count ?? 0))
   }
-  const { error: itemsError } = await supabase.from('order_items').insert(items.map((item) => ({ order_id: order.id, product_id: item.product_id, product_name: item.product_name, quantity: item.quantity, unit_price: item.unit_price, is_vip: item.isVip ?? false, selected_variants: item.selected_variants ?? null, variant_price_extra: item.variant_price_extra ?? 0, variant_name: item.variant_name ?? null, variant_price: item.variant_price ?? null, line_type: item.line_type ?? (item.isVip ? 'vip' : 'classic'), original_unit_price: item.original_unit_price ?? null, discount_percent: item.discount_percent ?? null, discount_amount: item.discount_amount ?? null, is_promotion_gift: item.is_promotion_gift ?? false, promotion_rule_id: item.promotion_rule_id ?? null, promotion_label: item.promotion_label ?? null, can_trigger_promotion: item.can_trigger_promotion ?? true })))
+  // BLAC-P3-006 : compatibilite base de production sans migration promotions.
+  // Les colonnes de promotion ne sont envoyees que si une promotion s'applique reellement a la ligne.
+  const hasPromotionOnLine = (item: CommandeItemInput) =>
+    item.is_promotion_gift === true ||
+    item.line_type === 'promotion_gift' ||
+    item.promotion_rule_id != null ||
+    Number(item.discount_percent ?? 0) > 0 ||
+    Number(item.discount_amount ?? 0) > 0
+  const baseItemRows = items.map((item) => ({ order_id: order.id, product_id: item.product_id, product_name: item.product_name, quantity: item.quantity, unit_price: item.unit_price, is_vip: item.isVip ?? false, selected_variants: item.selected_variants ?? null, variant_price_extra: item.variant_price_extra ?? 0, variant_name: item.variant_name ?? null, variant_price: item.variant_price ?? null }))
+  const itemRows = items.map((item, i) => hasPromotionOnLine(item)
+    ? { ...baseItemRows[i], line_type: item.line_type ?? (item.isVip ? 'vip' : 'classic'), original_unit_price: item.original_unit_price ?? null, discount_percent: item.discount_percent ?? null, discount_amount: item.discount_amount ?? null, is_promotion_gift: item.is_promotion_gift ?? false, promotion_rule_id: item.promotion_rule_id ?? null, promotion_label: item.promotion_label ?? null, can_trigger_promotion: item.can_trigger_promotion ?? true }
+    : baseItemRows[i])
+  let itemsError = (await supabase.from('order_items').insert(itemRows)).error
+  if (itemsError && items.some(hasPromotionOnLine)) {
+    const errInfo = itemsError as { code?: string; message?: string }
+    const unknownColumn = errInfo.code === '42703' || errInfo.code === 'PGRST204' || /column|schema cache/i.test(errInfo.message ?? '')
+    if (unknownColumn) {
+      // Journal sans donnee client : uniquement le code d'erreur
+      console.error('[commandes] colonnes promotion absentes en base, nouvel essai avec les colonnes d\'origine', { code: errInfo.code ?? null })
+      itemsError = (await supabase.from('order_items').insert(baseItemRows)).error
+    }
+  }
   if (itemsError) {
     // A15 : ne jamais laisser une commande sans lignes
     await supabase.from('orders').delete().eq('id', order.id)

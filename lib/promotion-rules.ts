@@ -344,3 +344,90 @@ export function selectPublicPromotions(rules: PromotionRuleWithBenefits[], now =
     .filter((r) => !r.ends_at || new Date(r.ends_at).getTime() >= now)
     .map(toPublicPromotion)
 }
+
+
+// BLAC-P3-008 : validation des valeurs d'une regle de promotion (messages en francais)
+export type PromotionRuleValidationInput = {
+  benefit_type?: string | null
+  discount_percent?: number | string | null
+  minimum_order_amount?: number | string | null
+  minimum_quantity?: number | string | null
+  promotion_mode?: string | null
+  code?: string | null
+  starts_at?: string | null
+  ends_at?: string | null
+  gift_product_ids?: string[] | null
+  benefits?: Array<{
+    benefit_type?: string | null
+    product_id?: string | null
+    quantity?: number | string | null
+    discount_percent?: number | string | null
+    fixed_discount_amount?: number | string | null
+  }> | null
+}
+
+function isBlankValue(value: unknown): boolean {
+  return value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
+}
+
+function parseValue(value: unknown): number {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') return Number(value.trim().replace(',', '.'))
+  return Number.NaN
+}
+
+export function validatePromotionRule(rule: PromotionRuleValidationInput): { ok: boolean; errors: string[] } {
+  const errors: string[] = []
+
+  const checkPercent = (value: unknown, label: string) => {
+    if (isBlankValue(value)) return
+    const n = parseValue(value)
+    if (!Number.isFinite(n) || n < 1 || n > 100) errors.push(`${label} doit etre compris entre 1 et 100.`)
+  }
+  const checkNotNegative = (value: unknown, label: string) => {
+    if (isBlankValue(value)) return
+    const n = parseValue(value)
+    if (!Number.isFinite(n) || n < 0) errors.push(`${label} ne peut pas etre negatif.`)
+  }
+  const checkPositiveQuantity = (value: unknown, label: string) => {
+    if (isBlankValue(value)) return
+    const n = parseValue(value)
+    if (!Number.isFinite(n) || n <= 0) errors.push(`${label} doit etre superieure a zero.`)
+  }
+
+  if (rule.benefit_type === 'percent_discount' && isBlankValue(rule.discount_percent)) {
+    errors.push('Le pourcentage de remise est obligatoire.')
+  }
+  checkPercent(rule.discount_percent, 'Le pourcentage de remise')
+  checkNotNegative(rule.minimum_order_amount, 'Le montant minimum de commande')
+  checkPositiveQuantity(rule.minimum_quantity, 'La quantite minimum')
+
+  if (rule.promotion_mode === 'promo_code') {
+    const code = typeof rule.code === 'string' ? rule.code : ''
+    if (code.trim() === '') errors.push('Le code promo est obligatoire.')
+    else if (/\s/.test(code)) errors.push('Le code promo ne doit pas contenir d\'espaces.')
+  }
+
+  if (!isBlankValue(rule.starts_at) && !isBlankValue(rule.ends_at)) {
+    const start = new Date(String(rule.starts_at)).getTime()
+    const end = new Date(String(rule.ends_at)).getTime()
+    if (Number.isFinite(start) && Number.isFinite(end) && end < start) {
+      errors.push('La date de fin ne peut pas etre avant la date de debut.')
+    }
+  }
+
+  const benefits = Array.isArray(rule.benefits) ? rule.benefits : []
+  for (const benefit of benefits) {
+    checkPercent(benefit.discount_percent, 'Le pourcentage de remise de l\'avantage')
+    checkNotNegative(benefit.fixed_discount_amount, 'Le montant de remise de l\'avantage')
+    checkPositiveQuantity(benefit.quantity, 'La quantite de l\'avantage')
+  }
+
+  if (rule.benefit_type === 'gift_product') {
+    const hasGiftIds = Array.isArray(rule.gift_product_ids) && rule.gift_product_ids.some((id) => typeof id === 'string' && id.trim() !== '')
+    const hasGiftBenefit = benefits.some((b) => b.benefit_type === 'gift_product' && typeof b.product_id === 'string' && b.product_id.trim() !== '')
+    if (!hasGiftIds && !hasGiftBenefit) errors.push('Un cadeau doit avoir un produit.')
+  }
+
+  return { ok: errors.length === 0, errors }
+}
