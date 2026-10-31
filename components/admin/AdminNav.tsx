@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import AdminNavClient from "@/components/admin/AdminNavClient";
 import AdminLogoutButton from "@/components/admin/AdminLogoutButton";
+import { getRolePermissions } from "@/lib/admin/roles";
+import { hasAdminPermission, type AdminSectionKey, type AdminPermissionMap } from "@/lib/admin/permissions";
 
 const NAV_GROUPS = [
   {
@@ -36,6 +38,7 @@ const NAV_GROUPS = [
     label: "CONFIGURATION",
     links: [
       { href: "/admin/menu",     label: "Menu",     icon: "utensils" },
+      { href: "/admin/promotions", label: "Promotions", icon: "tag", permission: "promotions" },
       { href: "/admin/livreurs", label: "Livreurs", icon: "users" },
       {
         href: "/admin/livraison", label: "Livraison", icon: "truck",
@@ -94,18 +97,37 @@ const NAV_GROUPS = [
   },
 ];
 
+// Un lien portant "permission" n'est visible que si le role a la permission "view" sur cette section.
+export function filterNavGroups(groups: typeof NAV_GROUPS, permissions: AdminPermissionMap | null) {
+  return groups.map((group) => ({
+    ...group,
+    links: group.links
+      .filter((link) => {
+        const key = (link as { permission?: string }).permission as AdminSectionKey | undefined;
+        return !key || hasAdminPermission(permissions, key, "view");
+      })
+      .map((link) => {
+        const { permission: _permission, ...rest } = link as typeof link & { permission?: string };
+        return rest;
+      }),
+  }));
+}
+
 export default async function AdminNav() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   let siteName = "Black Deew";
   let siteLogo = "";
+  let permissions: AdminPermissionMap | null = null;
 
   if (user?.email) {
-    const [, settingsData] = await Promise.all([
+    const [adminRes, settingsData] = await Promise.all([
       supabase.from("admins").select("role, status").eq("email", user.email).maybeSingle(),
       supabase.from("settings").select("key, value").in("key", ["site_name", "site_logo"]),
     ]);
+    const adminRow = adminRes.data as { role?: string; status?: string } | null;
+    if (adminRow && adminRow.status === "active") permissions = getRolePermissions(adminRow.role) as AdminPermissionMap;
     const nameRow = (settingsData.data || []).find(s => s.key === "site_name");
     if (nameRow?.value) siteName = nameRow.value;
     const logoRow = (settingsData.data || []).find(s => s.key === "site_logo");
@@ -114,7 +136,7 @@ export default async function AdminNav() {
 
   return (
     <Suspense fallback={null}>
-      <AdminNavClient groups={NAV_GROUPS} siteName={siteName} siteLogo={siteLogo}>
+      <AdminNavClient groups={filterNavGroups(NAV_GROUPS, permissions)} siteName={siteName} siteLogo={siteLogo}>
         <AdminLogoutButton />
       </AdminNavClient>
     </Suspense>

@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Image, { type ImageLoaderProps } from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useCart } from '@/store/cart'
+import { previewPublicPromotions } from '@/lib/promotions'
+import type { PublicPromotion } from '@/lib/promotion-rules'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/lib/currency'
 import FeaturesBar from '@/components/FeaturesBar'
@@ -167,10 +169,19 @@ function isProductSellableForSuggestion(product: ProductVisibilityCandidate, opt
 }
 
 export default function PanierPage() {
-  const { items, update, total, add } = useCart()
+  const { items, update, total, add, promoCode, setPromoCode } = useCart()
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const currency = useCurrency()
+  const [publicPromos, setPublicPromos] = useState<PublicPromotion[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/promotions', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d && Array.isArray(d.promotions)) setPublicPromos(d.promotions) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   const [step, setStep] = useState<'cart' | 'info' | 'slot'>('cart')
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
@@ -540,6 +551,7 @@ function getVipPrefillPhone() {
               }
             }),
           total: total() + fee,
+          promo_code: promoCode || null,
           delivery_mode: chosenMode,
           delivery_fee: fee,
           distance_km: distance,
@@ -565,6 +577,24 @@ function getVipPrefillPhone() {
 
   const deliveryFee = isPickup ? 0 : step === 'cart' ? 0 : (deliveryResult?.fee ?? 0)
   const grandTotal = total() + deliveryFee
+  const promoPreview = previewPublicPromotions(publicPromos, total(), items.reduce((n, i) => n + i.quantity, 0))
+  const promoPreviewBlock = promoPreview.length > 0 ? (
+    <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.05)', fontFamily: 'DM Sans, sans-serif' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#F5C842', marginBottom: 6 }}>Promotions</div>
+      {promoPreview.map((p) => (
+        <div key={p.id} style={{ fontSize: 12, color: '#C8B99A', marginBottom: 4 }}>
+          <strong style={{ color: '#F5EDD6' }}>{p.name}</strong>{p.message ? ` — ${p.message}` : ''}
+          {p.eligible && p.discount > 0 && (
+            <div style={{ color: '#7DD87A' }}>-{p.discount.toFixed(2)} {currency} · prix final indicatif : {p.finalPrice.toFixed(2)} {currency}</div>
+          )}
+          {!p.eligible && p.missingAmount > 0 && (
+            <div>Encore {p.missingAmount.toFixed(2)} {currency} pour en profiter</div>
+          )}
+        </div>
+      ))}
+      <div style={{ fontSize: 11, color: '#7A6E58' }}>Aperçu indicatif : le prix final est calculé par le serveur à la validation.</div>
+    </div>
+  ) : null
 
   // ── Récapitulatif TVA (prix front = TTC, TVA extraite ; VIP facturable mais non taxable) ────
   const isVipCartItem = (item: (typeof items)[number]) => {
@@ -1051,6 +1081,22 @@ function getVipPrefillPhone() {
             <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.3)', fontSize: 13, color: '#FF6B6B' }}>{orderError}</div>
           )}
 
+          {promoPreviewBlock}
+
+          {/* BLAC-P2-013 : code promo (valide cote serveur, le client ne decide jamais du prix) */}
+          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 12, color: '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>Code promo (optionnel)</label>
+            <input
+              type="text"
+              value={promoCode}
+              onChange={e => setPromoCode(e.target.value)}
+              placeholder="Entrez votre code"
+              autoCapitalize="characters"
+              style={{ width: '100%', padding: '11px 14px', borderRadius: 10, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(255,255,255,0.03)', color: '#F5EDD6', fontSize: 14, fontFamily: 'DM Sans, sans-serif', boxSizing: 'border-box' }}
+            />
+            <span style={{ fontSize: 11, color: '#7A6E58', fontFamily: 'DM Sans, sans-serif' }}>Les remises sont confirmées et calculées à la validation de la commande.</span>
+          </div>
+
           {/* Récap livraison en step 3 */}
           <div style={{ marginTop: 20, borderRadius: 12, border: '1px solid rgba(232,160,32,0.12)', background: 'rgba(255,255,255,0.02)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#C8B99A' }}>
@@ -1070,6 +1116,8 @@ function getVipPrefillPhone() {
           <p style={{ textAlign: 'center', color: '#C8B99A', fontSize: 11, marginTop: 16, letterSpacing: '0.3px' }}>Paiement en cash à la {isPickup ? 'récupération' : 'livraison'} uniquement</p>
         </div>
       )}
+
+      {step === 'cart' && promoPreviewBlock && <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 20px' }}>{promoPreviewBlock}</div>}
 
       {step === 'cart' && !showSuggestions && <FeaturesBar alwaysShow />}
 

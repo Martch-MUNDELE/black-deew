@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sendOrderNotification } from '@/lib/notifications'
 import { loadVipSettings, phonesMatch } from '@/lib/vip-server'
 import { readVipSessionPhone } from '@/lib/vip-session'
+import { applyPromotions, filterRulesForPromoCode, findPromoCodeRule, checkPromoCodeUsage } from '@/lib/promotions'
+import { loadActivePromotionRules } from '@/lib/promotion-rules'
+import type { PromotionCartLine, PromotionProductCandidate } from '@/lib/types/promotion'
 
 type CommandeItemInput = {
   product_id: string
@@ -14,6 +17,14 @@ type CommandeItemInput = {
   variant_price_extra?: number
   variant_name?: string | null
   variant_price?: number | null
+  line_type?: 'classic' | 'vip' | 'promotion_gift'
+  original_unit_price?: number | null
+  discount_percent?: number | null
+  discount_amount?: number | null
+  is_promotion_gift?: boolean
+  promotion_rule_id?: string | null
+  promotion_label?: string | null
+  can_trigger_promotion?: boolean
 }
 
 type CommandeRequestBody = {
@@ -31,6 +42,7 @@ type CommandeRequestBody = {
   delivery_mode?: string | null
   delivery_fee?: number | null
   distance_km?: number | null
+  promo_code?: string | null
 }
 
 const supabase = createClient(
@@ -86,7 +98,7 @@ export async function POST(req: NextRequest) {
   const productById = new Map<string, { id: string; name: string; price: number; discount: number | null; variants: { type: string; prices?: Record<string, number> }[] | null; is_vip: boolean | null; active: boolean | null }>(
     dbProducts.map((p) => [p.id as string, p as never])
   )
-  const items: CommandeItemInput[] = []
+  let items: CommandeItemInput[] = []
   for (const raw of rawItems) {
     const prod = productById.get(raw.product_id)
     if (!prod || prod.active === false) {
@@ -131,6 +143,80 @@ export async function POST(req: NextRequest) {
     }
   }
   const vipTotal = vipItems.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+  // BLAC-P2-013 : promotions recalculees cote serveur (le client ne decide jamais du prix)
+  const promoCodeInput = typeof body.promo_code === 'string' ? body.promo_code.trim() : ''
+  const allRules = await loadActivePromotionRules(supabase)
+  const filtered = filterRulesForPromoCode(allRules, promoCodeInput)
+  if (!filtered.codeValid) {
+    return NextResponse.json({ error: 'Code promo invalide ou expiré' }, { status: 400 })
+  }
+  const usedCodeRule = findPromoCodeRule(allRules, promoCodeInput)
+  const usageCheck = checkPromoCodeUsage(usedCodeRule)
+  if (!usageCheck.ok) {
+    return NextResponse.json({ error: usageCheck.error }, { status: 409 })
+  }
+  const eligibleRules = filtered.rules as typeof allRules
+  const giftIds = new Set<string>()
+  for (const r of eligibleRules) {
+    ;(r.gift_product_ids ?? []).forEach((id) => giftIds.add(id))
+    ;(r.benefits ?? []).forEach((b) => { if (b.benefit_type === 'gift_product' && b.product_id) giftIds.add(b.product_id) })
+  }
+  const missingGiftIds = Array.from(giftIds).filter((id) => !productById.has(id))
+  let giftProducts: unknown[] = []
+  if (missingGiftIds.length > 0) {
+    const { data: gp } = await supabase.from('products').select('id, name, price, discount, is_vip, active, stock').in('id', missingGiftIds)
+    giftProducts = gp ?? []
+  }
+  const promoCatalog = [...dbProducts, ...giftProducts] as unknown as PromotionProductCandidate[]
+  const promoLines: PromotionCartLine[] = items.map((i) => {
+    const prod = productById.get(i.product_id)!
+    return {
+      product_id: i.product_id,
+      product_name: i.product_name,
+      quantity: i.quantity,
+      unit_price: i.unit_price,
+      original_unit_price: i.unit_price,
+      product: { id: prod.id, name: prod.name, price: prod.price, discount: prod.discount, active: prod.active, is_vip: prod.is_vip },
+      is_vip: i.isVip === true,
+      line_type: i.isVip ? 'vip' : 'classic',
+      can_trigger_promotion: true,
+    }
+  })
+  const promoResult = applyPromotions(promoLines, promoCatalog, eligibleRules, { vipEnabled: true })
+  const baseCount = items.length
+  items = promoResult.items.map((line, idx): CommandeItemInput => {
+    if (idx < baseCount) {
+      return {
+        ...items[idx],
+        unit_price: line.unit_price,
+        line_type: items[idx].isVip ? 'vip' : 'classic',
+        original_unit_price: line.original_unit_price ?? items[idx].unit_price,
+        discount_percent: line.discount_percent ?? null,
+        discount_amount: line.discount_amount ?? null,
+        is_promotion_gift: false,
+        promotion_rule_id: line.promotion_rule_id ?? null,
+        promotion_label: line.promotion_label ?? null,
+        can_trigger_promotion: true,
+      }
+    }
+    return {
+      product_id: line.product_id,
+      product_name: line.product_name,
+      quantity: line.quantity,
+      unit_price: 0,
+      isVip: false,
+      line_type: 'promotion_gift',
+      original_unit_price: line.original_unit_price ?? 0,
+      is_promotion_gift: true,
+      promotion_rule_id: line.promotion_rule_id ?? null,
+      promotion_label: line.promotion_label ?? null,
+      can_trigger_promotion: false,
+    }
+  })
+  const fixedDiscountTotal = promoResult.applied
+    .filter((a) => a.benefit_type === 'fixed_discount')
+    .reduce((sum, a) => sum + a.amount, 0)
+  const promoFreeDelivery = promoResult.free_delivery_applied === true
   // A15 : frais de livraison recalcules cote serveur (meme logique que le panier : retrait, zones, distance, gratuite au-dessus d'un seuil)
   const { data: deliverySettingRows } = await supabase.from('settings').select('key, value').like('key', 'delivery_%')
   const dset: Record<string, string> = {}
@@ -159,6 +245,8 @@ export async function POST(req: NextRequest) {
     if (matched && !(freeAbove > 0 && itemsSubtotal >= freeAbove)) safeDeliveryFee = Number(matched.price) || 0
   }
 
+  if (promoFreeDelivery) safeDeliveryFee = 0
+
   const { data: slot } = await supabase.from('delivery_slots').select('*').eq('id', slot_id).single()
   if (!slot || slot.blocked || slot.booked >= slot.capacity) {
     return NextResponse.json({ error: 'Créneau non disponible' }, { status: 400 })
@@ -181,7 +269,7 @@ export async function POST(req: NextRequest) {
   }
 
   const subtotal = items.reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
-  const calculatedTotal = subtotal + safeDeliveryFee
+  const calculatedTotal = Math.max(0, subtotal - fixedDiscountTotal) + safeDeliveryFee
 
   const today = new Date().toISOString().split('T')[0]
   const dateKey = today.replace(/-/g, '')
@@ -217,7 +305,11 @@ export async function POST(req: NextRequest) {
     to_status: 'nouvelle',
   }).then(() => {}, () => {})
 
-  const { error: itemsError } = await supabase.from('order_items').insert(items.map((item) => ({ order_id: order.id, product_id: item.product_id, product_name: item.product_name, quantity: item.quantity, unit_price: item.unit_price, is_vip: item.isVip ?? false, selected_variants: item.selected_variants ?? null, variant_price_extra: item.variant_price_extra ?? 0, variant_name: item.variant_name ?? null, variant_price: item.variant_price ?? null })))
+  // BLAC-P2-014 : compteur d'usage du code (concurrence optimiste, best effort)
+  if (usedCodeRule && typeof usedCodeRule.usage_limit_total === 'number') {
+    await supabase.from('promotion_rules').update({ usage_count: Number(usedCodeRule.usage_count ?? 0) + 1 }).eq('id', usedCodeRule.id).eq('usage_count', Number(usedCodeRule.usage_count ?? 0))
+  }
+  const { error: itemsError } = await supabase.from('order_items').insert(items.map((item) => ({ order_id: order.id, product_id: item.product_id, product_name: item.product_name, quantity: item.quantity, unit_price: item.unit_price, is_vip: item.isVip ?? false, selected_variants: item.selected_variants ?? null, variant_price_extra: item.variant_price_extra ?? 0, variant_name: item.variant_name ?? null, variant_price: item.variant_price ?? null, line_type: item.line_type ?? (item.isVip ? 'vip' : 'classic'), original_unit_price: item.original_unit_price ?? null, discount_percent: item.discount_percent ?? null, discount_amount: item.discount_amount ?? null, is_promotion_gift: item.is_promotion_gift ?? false, promotion_rule_id: item.promotion_rule_id ?? null, promotion_label: item.promotion_label ?? null, can_trigger_promotion: item.can_trigger_promotion ?? true })))
   if (itemsError) {
     // A15 : ne jamais laisser une commande sans lignes
     await supabase.from('orders').delete().eq('id', order.id)

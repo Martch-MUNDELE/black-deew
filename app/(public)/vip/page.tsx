@@ -6,6 +6,8 @@ import VipAccessGate from '@/components/VipAccessGate'
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCart } from '@/store/cart'
+import { previewPublicPromotions } from '@/lib/promotions'
+import type { PublicPromotion } from '@/lib/promotion-rules'
 import { useCurrency } from '@/lib/currency'
 import type { Product } from '@/lib/types'
 
@@ -101,6 +103,15 @@ export default function VipPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const { add, update, items } = useCart()
   const currency = useCurrency()
+  const [publicPromos, setPublicPromos] = useState<PublicPromotion[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/promotions', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d && Array.isArray(d.promotions)) setPublicPromos(d.promotions) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
   const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
@@ -214,9 +225,28 @@ export default function VipPage() {
   const cartCount = items.reduce((s, i) => s + i.quantity, 0)
   const cartTotal = items.reduce((s, i) => {
     const discount = i.product.discount ?? 0
-    const price = discount > 0 ? i.product.price * (1 - discount / 100) : i.product.price
+    const price = discount > 0 ? Math.ceil(i.product.price * (1 - discount / 100)) : i.product.price
     return s + price * i.quantity
   }, 0)
+
+  const promoPreview = previewPublicPromotions(publicPromos, cartTotal, cartCount)
+  const promoPreviewBlock = promoPreview.length > 0 ? (
+    <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.05)', fontFamily: 'DM Sans, sans-serif' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#F5C842', marginBottom: 6 }}>Promotions</div>
+      {promoPreview.map((p) => (
+        <div key={p.id} style={{ fontSize: 12, color: '#C8B99A', marginBottom: 4 }}>
+          <strong style={{ color: '#F5EDD6' }}>{p.name}</strong>{p.message ? ` — ${p.message}` : ''}
+          {p.eligible && p.discount > 0 && (
+            <div style={{ color: '#7DD87A' }}>-{p.discount.toFixed(2)} {currency} · prix final indicatif : {p.finalPrice.toFixed(2)} {currency}</div>
+          )}
+          {!p.eligible && p.missingAmount > 0 && (
+            <div>Encore {p.missingAmount.toFixed(2)} {currency} pour en profiter</div>
+          )}
+        </div>
+      ))}
+      <div style={{ fontSize: 11, color: '#7A6E58' }}>Aperçu indicatif : le prix final est calculé par le serveur à la validation.</div>
+    </div>
+  ) : null
 
   return (
     <VipAccessGate storageKey="black_deew_vip_access_granted_v4" onGranted={() => setGrantedOk(true)} revokeToken={revokeToken}>
@@ -226,6 +256,7 @@ export default function VipPage() {
       fontFamily: 'DM Sans, sans-serif',
       paddingBottom: 120,
     }}>
+      {promoPreviewBlock && <div style={{ maxWidth: 600, margin: '0 auto', padding: '16px 20px 0' }}>{promoPreviewBlock}</div>}
       <div style={{
         background: 'linear-gradient(180deg, #131009 0%, #080603 100%)',
         borderBottom: '1px solid rgba(245,200,66,0.12)',
@@ -304,7 +335,7 @@ export default function VipPage() {
               const atMax = stockMax !== null && qty >= stockMax
               const epuise = stockMax !== null && stockMax <= 0
               const discount = product.discount ?? 0
-              const finalPrice = discount > 0 ? product.price * (1 - discount / 100) : product.price
+              const finalPrice = discount > 0 ? Math.ceil(product.price * (1 - discount / 100)) : product.price
 
               return (
                 <div key={product.id} style={{
@@ -380,7 +411,7 @@ export default function VipPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
               {classicSuggestions.map(product => {
                 const discount = product.discount ?? 0
-                const finalPrice = discount > 0 ? product.price * (1 - discount / 100) : product.price
+                const finalPrice = discount > 0 ? Math.ceil(product.price * (1 - discount / 100)) : product.price
 
                 return (
                   <div key={product.id} style={{

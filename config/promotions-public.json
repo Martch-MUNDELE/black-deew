@@ -1,0 +1,9 @@
+{
+  "_comment": "BLAC-P2-014 : configuration de la route publique /api/promotions (liste blanche de champs exposes au client).",
+  "route": "/api/promotions",
+  "publicFields": ["id", "name", "customer_message", "benefit_type", "discount_percent", "minimum_order_amount", "minimum_quantity", "scope"],
+  "forbiddenFields": ["admin_note", "code", "promo_code", "promotion_mode", "usage_limit_total", "usage_limit_per_customer", "usage_count"],
+  "excludedRules": ["status != active", "starts_at dans le futur", "ends_at depasse", "promotion_mode = promo_code"],
+  "usageLimit": { "column": "usage_limit_total", "counter": "usage_count", "httpStatusWhenExhausted": 409 },
+  "adminNav": { "href": "/admin/promotions", "group": "CONFIGURATION", "icon": "tag", "permission": "promotions", "action": "view" }
+}

@@ -15,6 +15,8 @@ export function getVariantPriceExtra(product: Product, selectedVariants?: Record
 interface CartStore {
   items: CartItem[]
   hydrated: boolean
+  promoCode: string
+  setPromoCode: (code: string) => void
   setHydrated: () => void
   add: (product: Product, isVip?: boolean, selectedVariants?: Record<string, string>) => void
   remove: (productId: string, selectedVariants?: Record<string, string>) => void
@@ -33,6 +35,8 @@ export const useCart = create<CartStore>()(
     (set, get) => ({
       items: [],
       hydrated: false,
+      promoCode: '',
+      setPromoCode: (code) => set({ promoCode: code.trim() }),
       setHydrated: () => set({ hydrated: true }),
       add: (product, isVip = false, selectedVariants?) => {
         const items = get().items
@@ -48,7 +52,7 @@ export const useCart = create<CartStore>()(
         if (quantity <= 0) get().remove(productId, selectedVariants)
         else set({ items: get().items.map(i => sameLine(i, productId, selectedVariants) ? { ...i, quantity } : i) })
       },
-      clear: () => set({ items: [] }),
+      clear: () => set({ items: [], promoCode: '' }),
       total: () => get().items.reduce((sum, i) => {
         const basePrice = (i.product.discount ?? 0) > 0
           ? Math.ceil(i.product.price * (1 - (i.product.discount ?? 0) / 100))

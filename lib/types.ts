@@ -75,6 +75,14 @@ export interface OrderItem {
   product_name: string
   quantity: number
   unit_price: number
+  line_type?: 'classic' | 'vip' | 'promotion_gift'
+  original_unit_price?: number | null
+  discount_percent?: number | null
+  discount_amount?: number | null
+  is_promotion_gift?: boolean
+  promotion_rule_id?: string | null
+  promotion_label?: string | null
+  can_trigger_promotion?: boolean
 }
 
 export interface CartItem {
