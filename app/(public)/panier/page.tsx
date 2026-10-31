@@ -824,6 +824,9 @@ function getVipPrefillPhone() {
             </div>
           )}
 
+          {/* Aperçu des promotions : juste sous les totaux, visible sans descendre */}
+          {promoPreviewBlock}
+
           {/* Message livraison gratuite */}
           {deliverySettings.freeAbove > 0 && subTotal >= deliverySettings.minOrder && subTotal < deliverySettings.freeAbove && deliverySettings.mode !== 'pickup_only' && (
             <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(91,197,122,0.06)', border: '1px solid rgba(91,197,122,0.25)', fontSize: 13, color: '#5BC57A', lineHeight: 1.5, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1117,7 +1120,6 @@ function getVipPrefillPhone() {
         </div>
       )}
 
-      {step === 'cart' && promoPreviewBlock && <div style={{ maxWidth: 600, margin: '0 auto', padding: '0 20px' }}>{promoPreviewBlock}</div>}
 
       {step === 'cart' && !showSuggestions && <FeaturesBar alwaysShow />}
 
