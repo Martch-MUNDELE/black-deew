@@ -168,6 +168,9 @@ function isProductSellableForSuggestion(product: ProductVisibilityCandidate, opt
   return true
 }
 
+type ServerPromo = { discount_total: number; gifts: { product_id: string; product_name: string; quantity: number }[]; labels: string[] }
+const NO_SERVER_PROMO: ServerPromo = { discount_total: 0, gifts: [], labels: [] }
+
 export default function PanierPage() {
   const { items, update, total, add, promoCode, setPromoCode } = useCart()
   const router = useRouter()
@@ -182,6 +185,37 @@ export default function PanierPage() {
       .catch(() => {})
     return () => { cancelled = true }
   }, [])
+
+  // BLAC-P3-009 : apercu serveur de la remise (le serveur reste seul juge du prix final)
+  const [serverPromo, setServerPromo] = useState<ServerPromo>(NO_SERVER_PROMO)
+  useEffect(() => {
+    if (items.length === 0) { setServerPromo(NO_SERVER_PROMO); return }
+    let cancelled = false
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => {
+      fetch('/api/promotions/preview', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        cache: 'no-store',
+        signal: ctrl.signal,
+        body: JSON.stringify({
+          items: items.map((i) => ({ product_id: i.product.id, quantity: i.quantity, selected_variants: i.selectedVariants ?? null })),
+          promo_code: promoCode || null,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (cancelled) return
+          if (d && typeof d.discount_total === 'number' && Array.isArray(d.gifts) && Array.isArray(d.labels)) {
+            setServerPromo({ discount_total: d.discount_total, gifts: d.gifts, labels: d.labels })
+          } else {
+            setServerPromo(NO_SERVER_PROMO)
+          }
+        })
+        .catch(() => {})
+    }, 400)
+    return () => { cancelled = true; clearTimeout(timer); ctrl.abort() }
+  }, [items, promoCode])
 
   const [step, setStep] = useState<'cart' | 'info' | 'slot'>('cart')
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
@@ -576,8 +610,12 @@ function getVipPrefillPhone() {
   const step1FeeColor = isPickup ? '#7DD87A' : '#C8B99A'
 
   const deliveryFee = isPickup ? 0 : step === 'cart' ? 0 : (deliveryResult?.fee ?? 0)
-  const grandTotal = total() + deliveryFee
+  const serverDiscount = Math.min(Math.max(serverPromo.discount_total, 0), total())
+  const totalAfterPromo = total() - serverDiscount
+  const grandTotal = totalAfterPromo + deliveryFee
+  // BLAC-P3-009 : une remise n'est annoncee comme gagnee que si le serveur l'applique reellement (portee VIP/classique/tous)
   const promoPreview = previewPublicPromotions(publicPromos, total(), items.reduce((n, i) => n + i.quantity, 0))
+    .map((p) => (p.eligible && p.discount > 0 && !serverPromo.labels.includes(p.name) ? { ...p, eligible: false, discount: 0, missingAmount: 0 } : p))
   const promoPreviewBlock = promoPreview.length > 0 ? (
     <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.05)', fontFamily: 'DM Sans, sans-serif' }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: '#F5C842', marginBottom: 6 }}>Promotions</div>
@@ -593,6 +631,30 @@ function getVipPrefillPhone() {
         </div>
       ))}
       <div style={{ fontSize: 11, color: '#7A6E58' }}>Aperçu indicatif : le prix final est calculé par le serveur à la validation.</div>
+    </div>
+  ) : null
+
+  const promoServerBlock = serverDiscount > 0 || serverPromo.gifts.length > 0 ? (
+    <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(125,216,122,0.25)', background: 'rgba(125,216,122,0.05)', fontFamily: 'DM Sans, sans-serif' }}>
+      {serverDiscount > 0 && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#C8B99A' }}>
+            <span>Sous-total avant remise</span>
+            <span style={{ color: '#F5EDD6', fontWeight: 600 }}>{total().toFixed(2)} {currency}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#7DD87A', fontWeight: 700, marginTop: 4 }}>
+            <span>Promotion{serverPromo.labels.length > 0 ? ` (${serverPromo.labels.join(', ')})` : ''}</span>
+            <span>-{serverDiscount.toFixed(2)} {currency}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#C8B99A', marginTop: 4 }}>
+            <span>Total provisoire après remise</span>
+            <span style={{ color: '#F5C842', fontWeight: 700 }}>{totalAfterPromo.toFixed(2)} {currency}</span>
+          </div>
+        </>
+      )}
+      {serverPromo.gifts.map((g) => (
+        <div key={g.product_id} style={{ fontSize: 12, color: '#7DD87A', marginTop: 4 }}>Offert : {g.quantity} × {g.product_name}</div>
+      ))}
     </div>
   ) : null
 
@@ -799,7 +861,7 @@ function getVipPrefillPhone() {
               deliveryFee={0}
               deliveryLabel={step1FeeText}
               deliveryTextColor={step1FeeColor}
-              grandTotal={total()}
+              grandTotal={totalAfterPromo}
               showTaxBreakdown={false}
               taxRate={taxSettings.taxRate}
               taxSummary={taxSummary}
@@ -825,6 +887,7 @@ function getVipPrefillPhone() {
           )}
 
           {/* Aperçu des promotions : juste sous les totaux, visible sans descendre */}
+          {promoServerBlock}
           {promoPreviewBlock}
 
           {/* Message livraison gratuite */}
@@ -1084,6 +1147,7 @@ function getVipPrefillPhone() {
             <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.3)', fontSize: 13, color: '#FF6B6B' }}>{orderError}</div>
           )}
 
+          {promoServerBlock}
           {promoPreviewBlock}
 
           {/* BLAC-P2-013 : code promo (valide cote serveur, le client ne decide jamais du prix) */}
@@ -1106,6 +1170,12 @@ function getVipPrefillPhone() {
               <span>Sous-total</span>
               <span style={{ color: '#F5EDD6', fontWeight: 600 }}>{total().toFixed(2)} {currency}</span>
             </div>
+            {serverDiscount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#7DD87A', fontWeight: 700 }}>
+                <span>Promotion</span>
+                <span>-{serverDiscount.toFixed(2)} {currency}</span>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#C8B99A' }}>
               <span>{isPickup ? 'Retrait sur place' : 'Frais de livraison'}</span>
               <span style={{ color: '#7DD87A', fontWeight: 600 }}>{isPickup ? 'Gratuit' : deliveryFee === 0 ? 'Gratuit' : `${deliveryFee} ${currency}`}</span>
