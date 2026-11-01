@@ -2,7 +2,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import Image, { type ImageLoaderProps } from 'next/image'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useCurrency } from '@/lib/currency'
 import type { Product } from '@/lib/types'
 
@@ -31,18 +31,29 @@ type Cat = { slug: string; name: string }
 function ProduitsAdminInner() {
   const supabase = createClient()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const currency = useCurrency()
 
   // État principal
   const [allProducts, setAllProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<Tab>('actifs')
+  const urlTab = searchParams.get('tab')
+  const [tab, setTab] = useState<Tab>(urlTab === 'vip' || urlTab === 'inactifs' ? urlTab : 'actifs')
   const [search, setSearch] = useState('')
   const [filterCat, setFilterCat] = useState('')
   const [cats, setCats] = useState<Cat[]>([])
   const [openCatDropdown, setOpenCatDropdown] = useState(false)
   const [stockEnabled, setStockEnabled] = useState(false)
   const [editingStock, setEditingStock] = useState<{id: string; value: string} | null>(null)
+
+  // Le menu de gauche envoie ?tab=actifs|inactifs|vip : l'onglet suit l'adresse
+  useEffect(() => {
+    const t = searchParams.get('tab')
+    if (t === 'actifs' || t === 'inactifs' || t === 'vip') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTab(t); setSearch(''); setFilterCat('')
+    }
+  }, [searchParams])
 
   // ── Chargement initial ─────────────────────────────────────────────────
   useEffect(() => {
@@ -208,7 +219,7 @@ function ProduitsAdminInner() {
       {/* Onglets */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         {([['actifs', countActifs], ['inactifs', countInactifs], ['vip', countVip]] as [Tab, number][]).map(([t, count]) => (
-          <button key={t} onClick={() => { setTab(t); setSearch(''); setFilterCat('') }} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === t ? (t === 'inactifs' ? 'rgba(255,107,107,0.4)' : 'rgba(245,200,66,0.4)') : 'rgba(255,255,255,0.06)', background: tab === t ? (t === 'inactifs' ? 'rgba(255,107,107,0.08)' : 'rgba(245,200,66,0.12)') : 'transparent', color: tab === t ? (t === 'inactifs' ? '#FF6B6B' : '#F5C842') : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' as const }}>
+          <button key={t} onClick={() => { setTab(t); setSearch(''); setFilterCat(''); router.replace('/admin/produits?tab=' + t) }} style={{ padding: '6px 16px', borderRadius: 50, border: '1px solid', borderColor: tab === t ? (t === 'inactifs' ? 'rgba(255,107,107,0.4)' : 'rgba(245,200,66,0.4)') : 'rgba(255,255,255,0.06)', background: tab === t ? (t === 'inactifs' ? 'rgba(255,107,107,0.08)' : 'rgba(245,200,66,0.12)') : 'transparent', color: tab === t ? (t === 'inactifs' ? '#FF6B6B' : '#F5C842') : '#C8B99A', fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' as const }}>
             {t} <span style={{ marginLeft: 4, background: tab === t ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)', padding: '1px 7px', borderRadius: 50, fontSize: 10 }}>{count}</span>
           </button>
         ))}
