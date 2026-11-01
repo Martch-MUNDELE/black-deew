@@ -41,7 +41,7 @@ function prefersReducedMotion(): boolean {
 
 const CSS = `
 .pov-backdrop{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(5,3,1,0.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);animation:pov-fade .45s ease both}
-.pov-card{position:relative;width:100%;max-width:420px;max-height:calc(100dvh - 32px);overflow:visible;border-radius:22px;padding:2px;background:linear-gradient(135deg,#FFD060 0%,#E8A020 40%,#8a5a10 100%);box-shadow:0 24px 80px rgba(0,0,0,.7),0 0 60px rgba(232,160,32,.18);animation:pov-in .55s cubic-bezier(.2,.8,.2,1) both}
+.pov-card{position:relative;width:100%;max-width:420px;max-height:calc(100dvh - 32px);overflow:visible;border-radius:22px;padding:2px;background:linear-gradient(135deg,#FFD060 0%,#E8A020 40%,#8a5a10 100%);box-shadow:0 24px 80px rgba(0,0,0,.7),0 0 60px rgba(232,160,32,.18);animation:pov-in .85s cubic-bezier(.3,.7,.3,1) both}
 .pov-inner{position:relative;border-radius:20px;background:linear-gradient(180deg,#17110a 0%,#0c0804 100%);padding:28px 22px 22px;overflow:visible;font-family:'DM Sans',sans-serif;color:#fff}
 .pov-clip{position:absolute;inset:0;border-radius:20px;overflow:hidden;pointer-events:none}
 .pov-glow{position:absolute;right:-40px;bottom:-40px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(255,150,40,.45) 0%,rgba(255,110,20,.18) 45%,transparent 70%)}
@@ -61,17 +61,23 @@ const CSS = `
 .pov-char{position:absolute;right:-14px;bottom:-22px;width:clamp(90px,27vw,135px);height:auto;z-index:2;pointer-events:none;filter:drop-shadow(0 8px 18px rgba(0,0,0,.6));animation:pov-float 4s ease-in-out infinite}
 @media (max-width:520px){
   .pov-backdrop{align-items:flex-end;padding:0}
-  .pov-card{max-width:none;border-radius:22px 22px 0 0;max-height:92dvh;animation:pov-sheet .5s cubic-bezier(.2,.8,.2,1) both}
+  .pov-card{max-width:none;border-radius:22px 22px 0 0;max-height:92dvh;animation:pov-sheet .95s cubic-bezier(.3,.7,.3,1) both}
   .pov-inner{border-radius:20px 20px 0 0;padding-bottom:calc(22px + env(safe-area-inset-bottom))}
   .pov-clip{border-radius:20px 20px 0 0}
   .pov-char{right:-6px}
 }
 @keyframes pov-fade{from{opacity:0}to{opacity:1}}
-@keyframes pov-in{from{opacity:0;transform:translateY(18px) scale(.96)}to{opacity:1;transform:none}}
-@keyframes pov-sheet{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:none}}
+@keyframes pov-in{0%{opacity:0;transform:translateY(40px) scale(.86)}45%{opacity:1;transform:translateY(-10px) scale(1.03)}65%{transform:translateY(4px) scale(.99)}82%{transform:translateY(-3px) scale(1.01)}100%{opacity:1;transform:none}}
+@keyframes pov-sheet{0%{transform:translateY(105%)}50%{transform:translateY(-16px)}66%{transform:translateY(7px)}80%{transform:translateY(-4px)}90%{transform:translateY(2px)}100%{transform:none}}
+@keyframes pov-out{0%{opacity:1;transform:none}20%{transform:translateY(-12px) scale(1.02)}36%{transform:translateY(3px)}52%{transform:translateY(-7px)}100%{opacity:0;transform:translateY(46px) scale(.9)}}
+@keyframes pov-sheet-out{0%{transform:none}18%{transform:translateY(-14px)}32%{transform:translateY(2px)}46%{transform:translateY(-8px)}100%{transform:translateY(110%)}}
+@keyframes pov-fade-out{from{opacity:1}to{opacity:0}}
+.pov-backdrop.pov-leaving{animation:pov-fade-out .8s ease both;pointer-events:none}
+.pov-card.pov-leaving{animation:pov-out .8s cubic-bezier(.4,0,.6,1) both}
+@media (max-width:520px){.pov-card.pov-leaving{animation:pov-sheet-out .8s cubic-bezier(.4,0,.6,1) both}}
 @keyframes pov-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 @media (prefers-reduced-motion:reduce){
-  .pov-backdrop,.pov-card,.pov-char{animation:none!important}
+  .pov-backdrop,.pov-card,.pov-char,.pov-backdrop.pov-leaving,.pov-card.pov-leaving{animation:none!important}
 }
 `
 
@@ -83,6 +89,9 @@ export default function PromoOverlay() {
   const [imgOk, setImgOk] = useState(true)
   const [open, setOpen] = useState(false)
   const [shown, setShown] = useState<number | null>(null)
+  const [leaving, setLeaving] = useState(false)
+  const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dismissedRef = useRef<string[]>([])
   const cardRef = useRef<HTMLDivElement>(null)
   const lastFocusRef = useRef<HTMLElement | null>(null)
@@ -150,6 +159,7 @@ export default function PromoOverlay() {
       dismissedRef.current = addDismissedId(dismissedRef.current, promo.id)
       writeDismissed(addDismissedId(readDismissed(), promo.id))
     }
+    setLeaving(false)
     setOpen(false)
     try {
       lastFocusRef.current?.focus?.()
@@ -158,8 +168,36 @@ export default function PromoOverlay() {
     }
   }, [promo])
 
+  // Fermeture animee (petits rebonds puis sortie) ; instantanee si mouvement reduit
+  const requestClose = useCallback(() => {
+    if (autoTimerRef.current) { clearTimeout(autoTimerRef.current); autoTimerRef.current = null }
+    if (prefersReducedMotion()) { close(); return }
+    if (leaveTimerRef.current) return
+    setLeaving(true)
+    leaveTimerRef.current = setTimeout(() => {
+      leaveTimerRef.current = null
+      close()
+    }, 800)
+  }, [close])
+
+  // Masquage automatique 5 secondes apres l'arrivee de la carte ; annule des que le visiteur interagit
+  useEffect(() => {
+    if (!open || prefersReducedMotion()) return
+    autoTimerRef.current = setTimeout(() => {
+      autoTimerRef.current = null
+      requestClose()
+    }, 5900)
+    return () => {
+      if (autoTimerRef.current) { clearTimeout(autoTimerRef.current); autoTimerRef.current = null }
+    }
+  }, [open, requestClose])
+  useEffect(() => () => { if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current) }, [])
+  const cancelAutoHide = useCallback(() => {
+    if (autoTimerRef.current) { clearTimeout(autoTimerRef.current); autoTimerRef.current = null }
+  }, [])
+
   const enjoy = useCallback(() => {
-    close()
+    requestClose()
     try {
       window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
     } catch {
@@ -232,10 +270,14 @@ export default function PromoOverlay() {
   return (
     <>
       <style>{CSS}</style>
-      <div className="pov-backdrop" onClick={close}>
+      <div className={`pov-backdrop${leaving ? ' pov-leaving' : ''}`} onClick={requestClose}>
         <div
           ref={cardRef}
-          className="pov-card"
+          className={`pov-card${leaving ? ' pov-leaving' : ''}`}
+          onPointerEnter={cancelAutoHide}
+          onPointerDown={cancelAutoHide}
+          onTouchStart={cancelAutoHide}
+          onKeyDown={cancelAutoHide}
           role="dialog"
           aria-modal="true"
           aria-labelledby="pov-title"
@@ -246,7 +288,7 @@ export default function PromoOverlay() {
             <div className="pov-clip" aria-hidden="true">
               <div className="pov-glow" />
             </div>
-            <button type="button" className="pov-close" aria-label="Fermer" onClick={close}>
+            <button type="button" className="pov-close" aria-label="Fermer" onClick={requestClose}>
               ×
             </button>
             <div className="pov-body">
@@ -264,7 +306,7 @@ export default function PromoOverlay() {
                 <button type="button" className="pov-cta" data-pov-cta onClick={enjoy}>
                   J&apos;en profite
                 </button>
-                <button type="button" className="pov-later" onClick={close}>
+                <button type="button" className="pov-later" onClick={requestClose}>
                   Plus tard
                 </button>
               </div>
