@@ -15,6 +15,16 @@ export type OverlayPromotion = {
   ends_at?: string | null
   promotion_mode?: string | null
   code?: string | null
+  // BLAC-P3-011 : produits offerts exposes par la route publique
+  gifts?: OverlayGift[] | null
+}
+
+// BLAC-P3-011 : produit offert (identifiant, nom, photo, quantite)
+export type OverlayGift = {
+  product_id: string
+  name: string
+  image_url: string | null
+  quantity: number
 }
 
 export const PROMO_OVERLAY_STORAGE_KEY = 'black-deew:promo-overlay:dismissed'
@@ -137,4 +147,57 @@ export function formatPromotionBadge(promo: OverlayPromotion): { value: number |
   if (promo.benefit_type === 'free_delivery') return { value: null, text: 'LIVRAISON OFFERTE', suffix: '' }
   if (promo.benefit_type === 'gift_product') return { value: null, text: 'CADEAU OFFERT', suffix: '' }
   return { value: null, text: 'OFFRE SPECIALE', suffix: '' }
+}
+
+
+// BLAC-P3-011 : cadeaux valides d'une promotion (entrees mal formees ignorees, jamais d'erreur)
+export function getOverlayGifts(promo: OverlayPromotion | null | undefined): OverlayGift[] {
+  try {
+    const list: unknown = promo?.gifts
+    if (!Array.isArray(list)) return []
+    const out: OverlayGift[] = []
+    for (const item of list) {
+      if (!isRecord(item)) continue
+      if (typeof item.product_id !== 'string' || item.product_id === '') continue
+      if (typeof item.name !== 'string' || item.name.trim() === '') continue
+      const q = toNum(item.quantity)
+      const image = typeof item.image_url === 'string' && item.image_url.trim() !== '' ? item.image_url.trim() : null
+      out.push({
+        product_id: item.product_id,
+        name: item.name.trim(),
+        image_url: image,
+        quantity: q !== null && q >= 1 ? Math.floor(q) : 1,
+      })
+    }
+    return out
+  } catch {
+    return []
+  }
+}
+
+export type OverlayPresentation = {
+  mode: 'gift' | 'default'
+  primary: OverlayGift | null
+  othersCount: number
+  label: string
+}
+
+// Presentation "cadeau" seulement si la promotion offre au moins un produit avec photo ; sinon presentation actuelle.
+// Le cadeau mis en avant est le premier de la liste qui a une photo ; le compteur compte tous les autres cadeaux.
+export function selectOverlayPresentation(promo: OverlayPromotion | null | undefined): OverlayPresentation {
+  const none: OverlayPresentation = { mode: 'default', primary: null, othersCount: 0, label: '' }
+  try {
+    if (!promo || promo.benefit_type !== 'gift_product') return none
+    const gifts = getOverlayGifts(promo)
+    const primary = gifts.find((g) => g.image_url !== null)
+    if (!primary) return none
+    return {
+      mode: 'gift',
+      primary,
+      othersCount: gifts.length - 1,
+      label: `${primary.quantity} x ${primary.name}`,
+    }
+  } catch {
+    return none
+  }
 }

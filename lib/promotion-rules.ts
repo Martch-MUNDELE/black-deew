@@ -321,6 +321,16 @@ export type PublicPromotion = {
   minimum_order_amount: number | null
   minimum_quantity: number | null
   scope: string
+  // BLAC-P3-011 : present uniquement pour une regle a produit offert
+  gifts?: PublicGift[]
+}
+
+// BLAC-P3-011 : produit offert expose au public (liste blanche : jamais prix de revient, stock ni champ interne)
+export type PublicGift = {
+  product_id: string
+  name: string
+  image_url: string | null
+  quantity: number
 }
 
 export function toPublicPromotion(rule: PromotionRuleWithBenefits): PublicPromotion {
@@ -430,4 +440,69 @@ export function validatePromotionRule(rule: PromotionRuleValidationInput): { ok:
   }
 
   return { ok: errors.length === 0, errors }
+}
+
+
+// BLAC-P3-011 : ajoute la liste des cadeaux aux promotions publiques de type produit offert.
+// Sources : avantages lies a la regle (promotion_benefits) puis identifiants de produits cadeaux de la regle.
+// Produit introuvable ou inactif : ignore (la promotion reste valide, sans cadeau). Produit VIP : seulement si portee VIP.
+export async function attachPublicGifts(
+  supabaseClient: unknown,
+  rules: PromotionRuleWithBenefits[],
+  promotions: PublicPromotion[],
+): Promise<PublicPromotion[]> {
+  try {
+    const ruleById = new Map(rules.map((rule) => [rule.id, rule]))
+    const wanted = new Map<string, { productId: string; quantity: number }[]>()
+    const allIds = new Set<string>()
+
+    for (const promo of promotions) {
+      if (promo.benefit_type !== 'gift_product') continue
+      const rule = ruleById.get(promo.id)
+      if (!rule) continue
+      const list: { productId: string; quantity: number }[] = []
+      const seen = new Set<string>()
+      const push = (productId: unknown, quantity: unknown) => {
+        if (typeof productId !== 'string' || productId === '' || seen.has(productId)) return
+        seen.add(productId)
+        const q = typeof quantity === 'number' && Number.isFinite(quantity) && quantity >= 1 ? Math.floor(quantity) : 1
+        list.push({ productId, quantity: q })
+        allIds.add(productId)
+      }
+      for (const benefit of rule.benefits ?? []) {
+        if (benefit.benefit_type === 'gift_product') push(benefit.product_id, benefit.quantity)
+      }
+      for (const id of rule.gift_product_ids ?? []) push(id, 1)
+      wanted.set(promo.id, list)
+    }
+
+    if (wanted.size === 0) return promotions
+
+    type ProductRow = { id: string; name?: string | null; image_url?: string | null; is_vip?: boolean | null; active?: boolean | null }
+    const client = supabaseClient as {
+      from: (table: string) => {
+        select: (columns: string) => { in: (column: string, values: string[]) => PromiseLike<QueryResult<ProductRow[]>> }
+      }
+    }
+    const { data, error } = await client.from('products').select('id, name, image_url, is_vip, active').in('id', [...allIds])
+    const products = new Map<string, ProductRow>()
+    if (!error && Array.isArray(data)) data.forEach((row) => products.set(row.id, row))
+
+    return promotions.map((promo) => {
+      const list = wanted.get(promo.id)
+      if (!list) return promo
+      const gifts: PublicGift[] = []
+      for (const entry of list) {
+        const product = products.get(entry.productId)
+        if (!product || product.active !== true) continue
+        if (product.is_vip === true && promo.scope !== 'vip') continue
+        if (typeof product.name !== 'string' || product.name.trim() === '') continue
+        const image = typeof product.image_url === 'string' && product.image_url.trim() !== '' ? product.image_url.trim() : null
+        gifts.push({ product_id: product.id, name: product.name, image_url: image, quantity: entry.quantity })
+      }
+      return { ...promo, gifts }
+    })
+  } catch {
+    return promotions
+  }
 }
