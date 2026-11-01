@@ -7,7 +7,7 @@ import { useVipPendingCount } from "@/lib/use-vip-pending-count";
 import Link from "next/link";
 import {
   Home, Package, ShoppingBag, Truck, Clock, Settings,
-  Users, Star, UtensilsCrossed, ChevronDown, X, Menu, Lock, BarChart3,
+  Users, Star, UtensilsCrossed, ChevronDown, X, Menu, Lock, BarChart3, Percent,
   type LucideProps,
 } from "lucide-react";
 
@@ -44,6 +44,7 @@ const ICON_MAP: Record<string, IconComponent> = {
   "utensils": UtensilsCrossed,
   "lock": Lock,
   "bar-chart": BarChart3,
+  "percent": Percent,
 };
 
 function NavIcon({ name, className }: { name: string; className?: string }) {

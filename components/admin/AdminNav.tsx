@@ -38,7 +38,7 @@ const NAV_GROUPS = [
     label: "CONFIGURATION",
     links: [
       { href: "/admin/menu",     label: "Menu",     icon: "utensils" },
-      { href: "/admin/promotions", label: "Promotions", icon: "tag", permission: "promotions" },
+      { href: "/admin/promotions", label: "Promotions", icon: "percent", permission: "promotions" },
       { href: "/admin/livreurs", label: "Livreurs", icon: "users" },
       {
         href: "/admin/livraison", label: "Livraison", icon: "truck",
