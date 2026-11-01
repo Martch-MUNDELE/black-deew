@@ -51,9 +51,9 @@ test('limite d\'usage non atteinte ou absente : code accepté', () => {
   assert.equal(checkPromoCodeUsage(null).ok, true)
 })
 
-test('lien admin Promotions : présent dans le groupe CONFIGURATION, icône tag, filtré par permission', () => {
+test('lien admin Promotions : présent dans le groupe CONFIGURATION, icône pourcentage, filtré par permission', () => {
   const src = readFileSync(new URL('../components/admin/AdminNav.tsx', import.meta.url), 'utf8')
-  assert.match(src, /href: "\/admin\/promotions", label: "Promotions", icon: "tag", permission: "promotions"/)
+  assert.match(src, /href: "\/admin\/promotions", label: "Promotions", icon: "percent", permission: "promotions"/)
   assert.ok(src.indexOf('label: "CONFIGURATION"') < src.indexOf('/admin/promotions'))
   assert.ok(src.indexOf('/admin/promotions') < src.indexOf('label: "FACTURATION"'))
   assert.match(src, /hasAdminPermission\(permissions, key, "view"\)/)
