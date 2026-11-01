@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { validatePromotionRule } from '@/lib/promotion-rules'
+import {
+  describeTriggerScopeMismatch,
+  getDefaultTriggerForScope,
+  isTriggerAllowedForScope,
+} from '@/lib/promotion-triggers'
 // BLAC-P2-013 : Black Deew n'a pas lib/features.ts ; le VIP est toujours actif ici
 const ENABLE_VIP_FEATURE = true
 import type {
@@ -388,6 +393,8 @@ export default function AdminPromotionsPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // BLAC-P3-012 : message visible quand le declencheur est remis sur le defaut apres un changement de perimetre
+  const [triggerResetMessage, setTriggerResetMessage] = useState<string | null>(null)
 
   // BF-P2-001 LOT8J-C4-S TARGETED SYNC STORE REMOTE WRITE GUARD
   const remoteWriteBlocked = useSyncExternalStore(
@@ -542,6 +549,8 @@ export default function AdminPromotionsPage() {
     }
 
     const ruleValidation = validatePromotionRule({
+      scope: payload.scope as string,
+      trigger_type: payload.trigger_type as string,
       benefit_type: payload.benefit_type as string,
       discount_percent: payload.discount_percent as number | null,
       minimum_order_amount: payload.minimum_order_amount as number | null,
@@ -611,7 +620,32 @@ export default function AdminPromotionsPage() {
     setSaving(false)
   }
 
+  // BLAC-P3-012 : changement de perimetre, remise du declencheur sur le defaut si l ancien n existe plus
+  function handleScopeChange(nextScope: PromotionScope) {
+    if (isTriggerAllowedForScope(nextScope, form.trigger_type)) {
+      setTriggerResetMessage(null)
+      setForm((current) => ({ ...current, scope: nextScope }))
+      return
+    }
+
+    const fallbackTrigger = getDefaultTriggerForScope(nextScope)
+    setTriggerResetMessage('Déclencheur remis sur Panier à partir d’un montant : l’ancien choix n’existe pas pour ce périmètre')
+    setForm((current) => ({
+      ...current,
+      scope: nextScope,
+      trigger_type: fallbackTrigger,
+      minimum_order_amount: '',
+      minimum_quantity: '',
+      trigger_category_parent_slug: '',
+      trigger_category_id: '',
+      trigger_product_parent_slug: '',
+      trigger_product_category_slug: '',
+      trigger_product_id: '',
+    }))
+  }
+
   function cancelPromotionEdit() {
+    setTriggerResetMessage(null)
     setEditingPromotionId(null)
     setError(null)
     setNotice(null)
@@ -650,6 +684,7 @@ export default function AdminPromotionsPage() {
     const triggerProductCategorySlug = getProductCategorySlug(triggerProductId)
     const giftProductCategorySlug = getProductCategorySlug(giftProductId)
 
+    setTriggerResetMessage(null)
     setEditingPromotionId(promotion.id)
     setForm({
       name: promotion.name ?? '',
@@ -682,6 +717,18 @@ export default function AdminPromotionsPage() {
   async function updateStatus(id: string, status: PromotionStatus) {
     setError(null)
     setNotice(null)
+
+    // BLAC-P3-012 : une promotion au perimetre et declencheur incoherents ne peut pas etre activee
+    if (status === 'active') {
+      const target = promotions.find((promotion) => promotion.id === id)
+      const mismatch = target && target.trigger_type !== 'promo_code'
+        ? describeTriggerScopeMismatch(target.scope, target.trigger_type)
+        : null
+      if (mismatch) {
+        setError(`Activation refusee : ${mismatch} Modifiez la promotion pour choisir un declencheur permis.`)
+        return
+      }
+    }
 
     const result = await db()
       .from('promotion_rules')
@@ -725,9 +772,20 @@ export default function AdminPromotionsPage() {
   const isProductTrigger = form.trigger_type === 'product'
   const scopeEnabled = ENABLE_VIP_FEATURE
   const effectiveScope: PromotionScope = scopeEnabled ? form.scope : 'classic'
-  const triggerOptionsForSite = ENABLE_VIP_FEATURE
+  // BLAC-P3-012 : la liste n affiche que les declencheurs permis pour le perimetre (le choix actuel incoherent d une promotion enregistree reste visible, marque)
+  const triggerMismatchWarning = form.trigger_type === 'promo_code'
+    ? null
+    : describeTriggerScopeMismatch(effectiveScope, form.trigger_type)
+  const triggerOptionsBase = (ENABLE_VIP_FEATURE
     ? triggerOptions
     : triggerOptions.filter((option) => !['classic_purchase', 'vip_purchase', 'mixed_purchase'].includes(option.value))
+  ).filter((option) => isTriggerAllowedForScope(effectiveScope, option.value))
+  const currentIncompatibleOption = triggerMismatchWarning
+    ? triggerOptions.find((option) => option.value === form.trigger_type)
+    : undefined
+  const triggerOptionsForSite = currentIncompatibleOption
+    ? [...triggerOptionsBase, { ...currentIncompatibleOption, label: `${currentIncompatibleOption.label} (incompatible avec ce périmètre)` }]
+    : triggerOptionsBase
   const selectableProductCategorySlugs = new Set(
     selectableProducts
       .flatMap((product) => [product.category, product.category_slug, product.subcategory])
@@ -891,7 +949,7 @@ export default function AdminPromotionsPage() {
                   <select
                     className="rounded-xl border border-amber-500/20 bg-black/40 px-4 py-3 text-white"
                     value={form.scope}
-                    onChange={(event) => setForm((current) => ({ ...current, scope: event.target.value as PromotionScope }))}
+                    onChange={(event) => handleScopeChange(event.target.value as PromotionScope)}
                   >
                     {scopeOptions.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
@@ -956,6 +1014,7 @@ export default function AdminPromotionsPage() {
                     onChange={(event) => {
                       const triggerType = event.target.value as PromotionTriggerType
 
+                      setTriggerResetMessage(null)
                       setForm((current) => ({
                         ...current,
                         trigger_type: triggerType,
@@ -972,6 +1031,18 @@ export default function AdminPromotionsPage() {
                     ))}
                   </select>
                 </label>
+
+                {triggerResetMessage && (
+                  <div className="rounded-xl border border-amber-400/40 bg-amber-950/30 p-3 text-sm text-amber-100 md:col-span-2">
+                    {triggerResetMessage}
+                  </div>
+                )}
+
+                {triggerMismatchWarning && (
+                  <div className="rounded-xl border border-red-500/40 bg-red-950/30 p-3 text-sm text-red-100 md:col-span-2">
+                    Attention : {triggerMismatchWarning} Choisissez un déclencheur permis pour enregistrer.
+                  </div>
+                )}
 
                 {isCategoryTrigger && (
                   <div className="space-y-5 md:col-span-2">
@@ -1446,6 +1517,11 @@ export default function AdminPromotionsPage() {
                   <div>
                     <h3 className="text-lg font-semibold">{promotion.name}</h3>
                     <p className="mt-1 text-sm text-white/50">{formatPromotionSummary(promotion)}</p>
+                    {promotion.trigger_type !== 'promo_code' && describeTriggerScopeMismatch(promotion.scope, promotion.trigger_type) && (
+                      <p className="mt-2 rounded-lg border border-red-500/40 bg-red-950/30 px-3 py-2 text-xs text-red-100">
+                        Attention : {describeTriggerScopeMismatch(promotion.scope, promotion.trigger_type)} Modifiez cette promotion pour la rendre utilisable.
+                      </p>
+                    )}
                   </div>
                   <span className="rounded-full border border-amber-400/30 px-3 py-1 text-xs uppercase text-amber-200">
                     {getPromotionStatusLabel(promotion.status)}

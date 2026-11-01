@@ -4,6 +4,7 @@ import type {
   PromotionRule,
   PromotionRuleWithBenefits,
 } from './types/promotion'
+import { describeTriggerScopeMismatch } from '@/lib/promotion-triggers'
 
 type DbError = {
   message?: string
@@ -358,6 +359,8 @@ export function selectPublicPromotions(rules: PromotionRuleWithBenefits[], now =
 
 // BLAC-P3-008 : validation des valeurs d'une regle de promotion (messages en francais)
 export type PromotionRuleValidationInput = {
+  scope?: string | null
+  trigger_type?: string | null
   benefit_type?: string | null
   discount_percent?: number | string | null
   minimum_order_amount?: number | string | null
@@ -437,6 +440,12 @@ export function validatePromotionRule(rule: PromotionRuleValidationInput): { ok:
     const hasGiftIds = Array.isArray(rule.gift_product_ids) && rule.gift_product_ids.some((id) => typeof id === 'string' && id.trim() !== '')
     const hasGiftBenefit = benefits.some((b) => b.benefit_type === 'gift_product' && typeof b.product_id === 'string' && b.product_id.trim() !== '')
     if (!hasGiftIds && !hasGiftBenefit) errors.push('Un cadeau doit avoir un produit.')
+  }
+
+  // BLAC-P3-012 : coherence perimetre / declencheur (le declencheur promo_code est hors table, non controle ici)
+  if (!isBlankValue(rule.scope) && !isBlankValue(rule.trigger_type) && rule.trigger_type !== 'promo_code') {
+    const mismatch = describeTriggerScopeMismatch(rule.scope, rule.trigger_type)
+    if (mismatch) errors.push(mismatch)
   }
 
   return { ok: errors.length === 0, errors }
