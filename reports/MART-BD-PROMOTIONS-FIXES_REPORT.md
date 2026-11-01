@@ -13,7 +13,7 @@ Portée : correction des 3 défauts relevés par BLAC-P3-007. Aucun script SQL a
 
 ## Commandes exécutées et résultats réels
 - `node --import ./tests/helpers/register.mjs --test tests/promotions-journey.test.mjs` : 32 tests, 32 pass, 0 fail, 0 todo, exit 0
-- `npm test` : 182 tests, 182 pass, 0 fail, 0 todo, exit 0
+- `npm test` : 187 tests, 187 pass, 0 fail, 0 todo, exit 0 (chiffre corrigé après contrôle ; le fichier tests/promotions-fixes-p3-008.test.mjs fait partie des tests de ce ticket)
 - `npx tsc --noEmit` : exit 0, aucune erreur
 
 ## Livrables
