@@ -616,10 +616,11 @@ function getVipPrefillPhone() {
   // BLAC-P3-009 : une remise n'est annoncee comme gagnee que si le serveur l'applique reellement (portee VIP/classique/tous)
   const promoPreview = previewPublicPromotions(publicPromos, total(), items.reduce((n, i) => n + i.quantity, 0))
     .map((p) => (p.eligible && p.discount > 0 && !serverPromo.labels.includes(p.name) ? { ...p, eligible: false, discount: 0, missingAmount: 0 } : p))
-  const promoPreviewBlock = promoPreview.length > 0 ? (
+  const promoTeasers = promoPreview.filter((p) => !serverPromo.labels.includes(p.name) && !p.eligible && p.missingAmount > 0)
+  const promoPreviewBlock = promoTeasers.length > 0 ? (
     <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.05)', fontFamily: 'DM Sans, sans-serif' }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: '#F5C842', marginBottom: 6 }}>Promotions</div>
-      {promoPreview.map((p) => (
+      {promoTeasers.map((p) => (
         <div key={p.id} style={{ fontSize: 12, color: '#C8B99A', marginBottom: 4 }}>
           <strong style={{ color: '#F5EDD6' }}>{p.name}</strong>{p.message ? ` — ${p.message}` : ''}
           {p.eligible && p.discount > 0 && (
@@ -634,29 +635,6 @@ function getVipPrefillPhone() {
     </div>
   ) : null
 
-  const promoServerBlock = serverDiscount > 0 || serverPromo.gifts.length > 0 ? (
-    <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(125,216,122,0.25)', background: 'rgba(125,216,122,0.05)', fontFamily: 'DM Sans, sans-serif' }}>
-      {serverDiscount > 0 && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#C8B99A' }}>
-            <span>Sous-total avant remise</span>
-            <span style={{ color: '#F5EDD6', fontWeight: 600 }}>{total().toFixed(2)} {currency}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#7DD87A', fontWeight: 700, marginTop: 4 }}>
-            <span>Promotion{serverPromo.labels.length > 0 ? ` (${serverPromo.labels.join(', ')})` : ''}</span>
-            <span>-{serverDiscount.toFixed(2)} {currency}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#C8B99A', marginTop: 4 }}>
-            <span>Total provisoire après remise</span>
-            <span style={{ color: '#F5C842', fontWeight: 700 }}>{totalAfterPromo.toFixed(2)} {currency}</span>
-          </div>
-        </>
-      )}
-      {serverPromo.gifts.map((g) => (
-        <div key={g.product_id} style={{ fontSize: 12, color: '#7DD87A', marginTop: 4 }}>Offert : {g.quantity} × {g.product_name}</div>
-      ))}
-    </div>
-  ) : null
 
   // ── Récapitulatif TVA (prix front = TTC, TVA extraite ; VIP facturable mais non taxable) ────
   const isVipCartItem = (item: (typeof items)[number]) => {
@@ -862,6 +840,9 @@ function getVipPrefillPhone() {
               deliveryLabel={step1FeeText}
               deliveryTextColor={step1FeeColor}
               grandTotal={totalAfterPromo}
+              promoDiscount={serverDiscount}
+              promoLabel={serverPromo.labels.join(', ')}
+              promoGifts={serverPromo.gifts}
               showTaxBreakdown={false}
               taxRate={taxSettings.taxRate}
               taxSummary={taxSummary}
@@ -886,8 +867,6 @@ function getVipPrefillPhone() {
             </div>
           )}
 
-          {/* Aperçu des promotions : juste sous les totaux, visible sans descendre */}
-          {promoServerBlock}
           {promoPreviewBlock}
 
           {/* Message livraison gratuite */}
@@ -1101,6 +1080,9 @@ function getVipPrefillPhone() {
               deliveryLabel={step1FeeText}
               deliveryTextColor={step1FeeColor}
               grandTotal={grandTotal}
+              promoDiscount={serverDiscount}
+              promoLabel={serverPromo.labels.join(', ')}
+              promoGifts={serverPromo.gifts}
               showTaxBreakdown={showTaxBreakdown}
               taxRate={taxSettings.taxRate}
               taxSummary={taxSummary}
@@ -1147,7 +1129,6 @@ function getVipPrefillPhone() {
             <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.3)', fontSize: 13, color: '#FF6B6B' }}>{orderError}</div>
           )}
 
-          {promoServerBlock}
           {promoPreviewBlock}
 
           {/* BLAC-P2-013 : code promo (valide cote serveur, le client ne decide jamais du prix) */}

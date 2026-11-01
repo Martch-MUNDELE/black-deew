@@ -23,6 +23,9 @@ type CartInvoiceSummaryProps = {
   showNonInvoiceableTotal?: boolean
   nonInvoiceableProductsTotal?: number
   showVipBreakdown?: boolean
+  promoDiscount?: number
+  promoLabel?: string
+  promoGifts?: { product_id: string; product_name: string; quantity: number }[]
 }
 
 const rowStyle: React.CSSProperties = {
@@ -55,11 +58,15 @@ export default function CartInvoiceSummary({
   showNonInvoiceableTotal = false,
   nonInvoiceableProductsTotal = 0,
   showVipBreakdown = false,
+  promoDiscount = 0,
+  promoLabel = '',
+  promoGifts = [],
 }: CartInvoiceSummaryProps) {
   const isCart = mode === 'cart'
   const deliveryText = isCart ? deliveryLabel : `${deliveryFee.toFixed(2)} ${currency}`
   const totalLabel = isCart ? 'Total provisoire' : 'Total final à payer'
-  const totalAmount = isCart ? totalProductsTtc : grandTotal
+  const hasPromo = promoDiscount > 0
+  const totalAmount = isCart ? totalProductsTtc - (hasPromo ? promoDiscount : 0) : grandTotal
 
   return (
     <div style={{ marginTop: 4 }}>
@@ -67,6 +74,19 @@ export default function CartInvoiceSummary({
         <span>Sous-total produits</span>
         <span style={amountStyle}>{totalProductsTtc.toFixed(2)} {currency}</span>
       </div>
+
+      {hasPromo && (
+        <div style={{ ...rowStyle, color: '#7DD87A', fontWeight: 700 }}>
+          <span>Promotion{promoLabel ? ` (${promoLabel})` : ''}</span>
+          <span>-{promoDiscount.toFixed(2)} {currency}</span>
+        </div>
+      )}
+      {promoGifts.map((g) => (
+        <div key={g.product_id} style={{ ...rowStyle, color: '#7DD87A' }}>
+          <span>Offert : {g.quantity} × {g.product_name}</span>
+          <span>0.00 {currency}</span>
+        </div>
+      ))}
 
       <div style={rowStyle}>
         <span>Frais de livraison</span>
