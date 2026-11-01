@@ -94,6 +94,7 @@ export default function PromoOverlay() {
     if (!surface) return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
+    let removeGrantedListener: (() => void) | null = null
     ;(async () => {
       try {
         const [promoRes, cmsRes] = await Promise.all([
@@ -109,15 +110,30 @@ export default function PromoOverlay() {
         setHeroImage(typeof hero === 'string' ? hero : '')
         setImgOk(true)
         setPromo(chosen)
-        timer = setTimeout(() => {
-          if (cancelled) return
-          try {
-            lastFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-          } catch {
-            lastFocusRef.current = null
+        const startTimer = (delayMs: number) => {
+          timer = setTimeout(() => {
+            if (cancelled) return
+            try {
+              lastFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+            } catch {
+              lastFocusRef.current = null
+            }
+            setOpen(true)
+          }, delayMs)
+        }
+        // Site VIP : l'annonce apparait 3 secondes apres la connexion VIP reussie (pas sur l'ecran de connexion)
+        const vipGranted = (window as unknown as { __bdVipGranted?: boolean }).__bdVipGranted === true
+        if (surface === 'vip' && !vipGranted) {
+          const onGranted = () => {
+            window.removeEventListener('bd:vip-access-granted', onGranted)
+            removeGrantedListener = null
+            if (!cancelled) startTimer(3000)
           }
-          setOpen(true)
-        }, 1000)
+          removeGrantedListener = () => window.removeEventListener('bd:vip-access-granted', onGranted)
+          window.addEventListener('bd:vip-access-granted', onGranted)
+        } else {
+          startTimer(surface === 'vip' ? 3000 : 1000)
+        }
       } catch {
         /* aucune erreur visible pour le visiteur */
       }
@@ -125,6 +141,7 @@ export default function PromoOverlay() {
     return () => {
       cancelled = true
       if (timer) clearTimeout(timer)
+      if (removeGrantedListener) removeGrantedListener()
     }
   }, [surface])
 

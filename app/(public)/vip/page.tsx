@@ -99,6 +99,17 @@ export default function VipPage() {
   const [loading, setLoading] = useState(true)
   const [grantedOk, setGrantedOk] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+
+  // Signale l'acces VIP valide (l'overlay promotion VIP s'affiche apres la connexion, pas sur l'ecran de connexion)
+  useEffect(() => {
+    if (!grantedOk) return
+    try {
+      ;(window as unknown as { __bdVipGranted?: boolean }).__bdVipGranted = true
+      window.dispatchEvent(new Event('bd:vip-access-granted'))
+    } catch {
+      /* sans effet pour le visiteur */
+    }
+  }, [grantedOk])
   const [revokeToken, setRevokeToken] = useState(0)
   const [loadError, setLoadError] = useState<string | null>(null)
   const { add, update, items } = useCart()
