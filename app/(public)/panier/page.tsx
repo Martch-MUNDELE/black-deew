@@ -616,6 +616,20 @@ function getVipPrefillPhone() {
   // BLAC-P3-009 : une remise n'est annoncee comme gagnee que si le serveur l'applique reellement (portee VIP/classique/tous)
   const promoPreview = previewPublicPromotions(publicPromos, total(), items.reduce((n, i) => n + i.quantity, 0))
     .map((p) => (p.eligible && p.discount > 0 && !serverPromo.labels.includes(p.name) ? { ...p, eligible: false, discount: 0, missingAmount: 0 } : p))
+  // Cartouche marketing : la remise gagnee, bien en vue au-dessus du resume (message de la promotion, sinon texte par defaut)
+  const wonPromos = publicPromos.filter((p) => serverPromo.labels.includes(p.name))
+  const promoWinBlock = serverDiscount > 0 ? (
+    <div style={{ marginTop: 14, marginBottom: 6, padding: '16px 18px', borderRadius: 16, border: '1px solid rgba(245,200,66,0.55)', background: 'linear-gradient(135deg, rgba(245,200,66,0.18), rgba(125,216,122,0.14))', boxShadow: '0 0 24px rgba(245,200,66,0.18)', fontFamily: 'DM Sans, sans-serif', textAlign: 'center' }}>
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', color: '#F5C842', marginBottom: 6 }}>🎉 Promotion gagnée</div>
+      {(wonPromos.length > 0 ? wonPromos : [{ id: 'won', name: serverPromo.labels.join(', '), customer_message: null as string | null }]).map((p) => (
+        <div key={p.id} style={{ fontSize: 17, fontWeight: 800, color: '#F5EDD6', lineHeight: 1.3 }}>
+          {p.customer_message ? p.customer_message : `${p.name} : ta remise est appliquée`}
+        </div>
+      ))}
+      <div style={{ marginTop: 6, fontSize: 14, fontWeight: 700, color: '#7DD87A' }}>Tu économises {serverDiscount.toFixed(2)} {currency}</div>
+    </div>
+  ) : null
+
   const promoTeasers = promoPreview.filter((p) => !serverPromo.labels.includes(p.name) && !p.eligible && p.missingAmount > 0)
   const promoPreviewBlock = promoTeasers.length > 0 ? (
     <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(232,160,32,0.2)', background: 'rgba(232,160,32,0.05)', fontFamily: 'DM Sans, sans-serif' }}>
@@ -831,6 +845,8 @@ function getVipPrefillPhone() {
               </div>
             ))}
           </div>
+
+          {promoWinBlock}
 
             <CartInvoiceSummary
               mode="cart"
@@ -1072,6 +1088,8 @@ function getVipPrefillPhone() {
           )}
 
           {(isPickup || (deliveryResult && deliveryResult.reason !== 'out_of_zone')) && (
+            <>
+            {promoWinBlock}
             <CartInvoiceSummary
               mode="delivery"
               currency={currency}
@@ -1092,6 +1110,7 @@ function getVipPrefillPhone() {
               nonInvoiceableProductsTotal={nonInvoiceableProductsTotal}
               showVipBreakdown
             />
+            </>
           )}
           {/* Note */}
           <div>
