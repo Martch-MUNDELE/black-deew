@@ -1,6 +1,7 @@
 import Navbar from '@/components/Navbar'
 import BackgroundSmoke from '@/components/BackgroundSmoke'
 import FooterHero from '@/components/FooterHero'
+import PromoOverlay from '@/components/PromoOverlay'
 import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -53,6 +54,8 @@ export default async function PublicLayout({
       <FooterHero
         initialSettings={initialSettings}
       />
+
+      <PromoOverlay />
     </>
   )
 }
