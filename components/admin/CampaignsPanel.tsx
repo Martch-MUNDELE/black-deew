@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { buildCampaignMessage } from '@/lib/campaigns'
+import { buildCampaignPublicUrl } from '@/lib/campaign-public'
+import CampaignSendQueue from '@/components/admin/CampaignSendQueue'
 
 type Campaign = {
   id: string
@@ -64,6 +66,8 @@ export default function CampaignsPanel({
   const [startsAt, setStartsAt] = useState('')
   const [endsAt, setEndsAt] = useState('')
   const [audience, setAudience] = useState('all_consenting')
+  const [openQueueId, setOpenQueueId] = useState<string | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -252,6 +256,21 @@ export default function CampaignsPanel({
                       <div style={{ fontSize: 12, color: '#6A5A40' }}>
                         Du {formatDate(c.starts_at)} au {formatDate(c.ends_at)}
                       </div>
+                      {c.status === 'ready' && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 6 }}>
+                          <span style={{ fontSize: 12, color: '#8A7A5C', wordBreak: 'break-all' }}>{buildCampaignPublicUrl(c.id)}</span>
+                          <button type="button"
+                            onClick={() => {
+                              navigator.clipboard?.writeText(buildCampaignPublicUrl(c.id))
+                                .then(() => setCopiedId(c.id))
+                                .catch(() => setNotice("Copie impossible : sélectionne l'adresse à la main."))
+                            }}
+                            style={{ minHeight: 36, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(232,160,32,0.4)',
+                              background: 'transparent', color: '#E8A020', fontSize: 12, cursor: 'pointer' }}>
+                            {copiedId === c.id ? 'Adresse copiée' : "Copier l'adresse de l'offre"}
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                       <span style={{ fontSize: 12, color: '#8A7A5C' }}>{STATUS_LABELS[c.status ?? 'draft'] ?? c.status}</span>
@@ -260,6 +279,13 @@ export default function CampaignsPanel({
                           style={{ minHeight: 36, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(232,160,32,0.4)',
                             background: 'transparent', color: '#E8A020', fontSize: 12, cursor: 'pointer' }}>
                           Marquer prête
+                        </button>
+                      )}
+                      {c.status === 'ready' && (
+                        <button type="button" onClick={() => setOpenQueueId(openQueueId === c.id ? null : c.id)}
+                          style={{ minHeight: 36, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(232,160,32,0.4)',
+                            background: 'transparent', color: '#E8A020', fontSize: 12, cursor: 'pointer' }}>
+                          {openQueueId === c.id ? 'Fermer la file' : "Ouvrir la file d'envoi"}
                         </button>
                       )}
                       {(c.status === 'draft' || c.status === 'ready') && (
@@ -275,6 +301,9 @@ export default function CampaignsPanel({
               </div>
             )}
           </div>
+          {openQueueId && campaigns.some((c) => c.id === openQueueId && c.status === 'ready') && (
+            <CampaignSendQueue campaignId={openQueueId} campaignName={campaigns.find((c) => c.id === openQueueId)?.name} />
+          )}
         </>
       )}
     </section>

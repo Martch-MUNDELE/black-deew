@@ -1,4 +1,5 @@
 import CampaignsPanel from '@/components/admin/CampaignsPanel'
+import CampaignResults from '@/components/admin/CampaignResults'
 import ClientOffersPanel from '@/components/admin/ClientOffersPanel'
 
 // Message affiché quand il n'y a aucune campagne (transmis au panneau).
@@ -14,6 +15,8 @@ export default function MarketingPage() {
       </p>
 
       <CampaignsPanel emptyTitle={EMPTY_TITLE} emptyText={EMPTY_TEXT} />
+
+      <CampaignResults />
 
       <ClientOffersPanel />
     </div>
