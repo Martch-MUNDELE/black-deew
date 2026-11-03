@@ -1,7 +1,7 @@
 // BLAC-P2-027 : page publique d'une offre de campagne (apercu WhatsApp via Open Graph).
 // Logique pure (sans next/server). N'expose que le contenu de la campagne et le nom de sa promotion.
 // Table absente ou en erreur : null, jamais d'exception.
-import { STOP_LINE } from '@/lib/campaigns'
+import { STOP_LINE, isValidCampaignImageUrl } from '@/lib/campaigns'
 import { isRuleActiveAt } from '@/lib/promotion-rules'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -13,6 +13,12 @@ export type PublicCampaign = {
   promotionName: string | null
   startsAt: string | null
   endsAt: string | null
+  imageUrl?: string | null
+}
+
+// BLAC-P3-015 : image d'apercu (Open Graph / WhatsApp). Image de la campagne si https, sinon repli.
+export function resolveCampaignOgImage(imageUrl: unknown, fallback: string): string {
+  return isValidCampaignImageUrl(imageUrl) ? imageUrl.trim() : fallback
 }
 
 // Adresse de base du site (meme regle que app/actions/facture.ts), sans barre finale.
@@ -40,11 +46,21 @@ export async function loadPublicCampaign(
   const id = typeof campaignId === 'string' ? campaignId.trim() : ''
   if (!id) return null
   try {
-    const { data, error } = await db
+    let { data, error } = await db
       .from('campaigns')
-      .select('id, name, promotion_id, message, starts_at, ends_at, status')
+      .select('id, name, promotion_id, message, starts_at, ends_at, status, image_url')
       .eq('id', id)
       .maybeSingle()
+    if (error) {
+      // Colonne image absente (ou autre erreur) : relecture sans image_url, image vide.
+      const retry = await db
+        .from('campaigns')
+        .select('id, name, promotion_id, message, starts_at, ends_at, status')
+        .eq('id', id)
+        .maybeSingle()
+      data = retry.data
+      error = retry.error
+    }
     if (error || !data) return null
     if (data.status !== 'ready') return null
     if (!isRuleActiveAt({ starts_at: data.starts_at ?? null, ends_at: data.ends_at ?? null }, now)) return null
@@ -65,6 +81,8 @@ export async function loadPublicCampaign(
       promotionName,
       startsAt: data.starts_at ?? null,
       endsAt: data.ends_at ?? null,
+      // Cle presente seulement si une image https valide existe (forme de retour inchangee sinon).
+      ...(isValidCampaignImageUrl(data.image_url) ? { imageUrl: data.image_url.trim() } : {}),
     }
   } catch {
     return null

@@ -15,6 +15,7 @@ type Campaign = {
   status?: string | null
   audience_mode?: string | null
   created_at?: string | null
+  image_url?: string | null
 }
 
 type RuleOption = { id: string; name: string }
@@ -68,6 +69,69 @@ export default function CampaignsPanel({
   const [audience, setAudience] = useState('all_consenting')
   const [openQueueId, setOpenQueueId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [imageUrl, setImageUrl] = useState('')
+  const [uploadingImage, setUploadingImage] = useState<string | null>(null)
+
+  // BLAC-P3-015 : televersement via la route existante /api/upload-image (seau public products).
+  async function uploadImageFile(file: File): Promise<string | null> {
+    if (!file.type.startsWith('image/')) {
+      setError("Ce fichier n'est pas une image")
+      return null
+    }
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('bucket', 'products')
+      const res = await fetch('/api/upload-image', { method: 'POST', body: fd })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || typeof data?.url !== 'string') {
+        setError(data?.error ?? 'Téléversement impossible')
+        return null
+      }
+      return data.url
+    } catch {
+      setError('Téléversement impossible')
+      return null
+    }
+  }
+
+  async function onFormImage(file: File | undefined) {
+    if (!file) return
+    setError(null)
+    setUploadingImage('form')
+    const url = await uploadImageFile(file)
+    if (url) setImageUrl(url)
+    setUploadingImage(null)
+  }
+
+  async function setCampaignImage(id: string, url: string | null) {
+    setError(null)
+    setNotice(null)
+    try {
+      const res = await fetch('/api/admin/campaigns', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, image_url: url }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) setError(data?.error ?? 'Modification impossible')
+      else {
+        setNotice(url ? "Image de la campagne enregistrée." : "Image de la campagne retirée.")
+        await load()
+      }
+    } catch {
+      setError('Modification impossible')
+    }
+  }
+
+  async function onCampaignImage(id: string, file: File | undefined) {
+    if (!file) return
+    setError(null)
+    setUploadingImage(id)
+    const url = await uploadImageFile(file)
+    setUploadingImage(null)
+    if (url) await setCampaignImage(id, url)
+  }
 
   const load = useCallback(async () => {
     try {
@@ -114,6 +178,7 @@ export default function CampaignsPanel({
           audience_mode: audience,
           starts_at: startsAt ? new Date(startsAt).toISOString() : null,
           ends_at: endsAt ? new Date(endsAt).toISOString() : null,
+          image_url: imageUrl || undefined,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -128,6 +193,7 @@ export default function CampaignsPanel({
         setMessage('')
         setStartsAt('')
         setEndsAt('')
+        setImageUrl('')
         setAudience('all_consenting')
         await load()
       }
@@ -200,6 +266,30 @@ export default function CampaignsPanel({
                 La ligne de désinscription STOP est ajoutée automatiquement, une seule fois.
               </div>
             </div>
+            <div>
+              <div style={LABEL_STYLE}>Image de l'aperçu WhatsApp (facultatif)</div>
+              {imageUrl ? (
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imageUrl} alt="Image de la campagne" data-testid="campaign-image-preview"
+                    style={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(232,160,32,0.25)' }} />
+                  <button type="button" onClick={() => setImageUrl('')}
+                    style={{ minHeight: 36, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(229,115,115,0.4)',
+                      background: 'transparent', color: '#E57373', fontSize: 12, cursor: 'pointer' }}>
+                    Retirer l'image
+                  </button>
+                </div>
+              ) : (
+                <label style={{ ...INPUT_STYLE, display: 'flex', alignItems: 'center', cursor: 'pointer', color: '#E8A020' }}>
+                  {uploadingImage === 'form' ? 'Téléversement…' : "Téléverser une image"}
+                  <input type="file" accept="image/*" style={{ display: 'none' }}
+                    onChange={(e) => { void onFormImage(e.target.files?.[0]); e.target.value = '' }} />
+                </label>
+              )}
+              <div style={{ fontSize: 12, color: '#6A5A40', marginTop: 4 }}>
+                Sans image, l'aperçu garde l'image de la marque.
+              </div>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
               <div>
                 <label style={LABEL_STYLE} htmlFor="camp-start">Début (facultatif)</label>
@@ -256,6 +346,28 @@ export default function CampaignsPanel({
                       <div style={{ fontSize: 12, color: '#6A5A40' }}>
                         Du {formatDate(c.starts_at)} au {formatDate(c.ends_at)}
                       </div>
+                      {(c.status === 'draft' || c.status === 'ready') && (
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
+                          {c.image_url && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={c.image_url} alt="Image de la campagne"
+                              style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 6 }} />
+                          )}
+                          <label style={{ minHeight: 36, padding: '0 12px', display: 'inline-flex', alignItems: 'center', borderRadius: 8,
+                            border: '1px solid rgba(232,160,32,0.4)', color: '#E8A020', fontSize: 12, cursor: 'pointer' }}>
+                            {uploadingImage === c.id ? 'Téléversement…' : c.image_url ? "Changer l'image" : "Ajouter une image"}
+                            <input type="file" accept="image/*" style={{ display: 'none' }}
+                              onChange={(e) => { void onCampaignImage(c.id, e.target.files?.[0]); e.target.value = '' }} />
+                          </label>
+                          {c.image_url && (
+                            <button type="button" onClick={() => void setCampaignImage(c.id, null)}
+                              style={{ minHeight: 36, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(229,115,115,0.4)',
+                                background: 'transparent', color: '#E57373', fontSize: 12, cursor: 'pointer' }}>
+                              Retirer l'image
+                            </button>
+                          )}
+                        </div>
+                      )}
                       {c.status === 'ready' && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 6 }}>
                           <span style={{ fontSize: 12, color: '#8A7A5C', wordBreak: 'break-all' }}>{buildCampaignPublicUrl(c.id)}</span>
