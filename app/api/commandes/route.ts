@@ -5,6 +5,7 @@ import { loadVipSettings, phonesMatch } from '@/lib/vip-server'
 import { readVipSessionPhone } from '@/lib/vip-session'
 import { applyPromotions, filterRulesForPromoCode, findPromoCodeRule, checkPromoCodeUsage } from '@/lib/promotions'
 import { loadActivePromotionRules, validatePromotionRule } from '@/lib/promotion-rules'
+import { applyClientOffersToRules, markClientOffersUsed } from '@/lib/client-offers'
 import type { PromotionCartLine, PromotionProductCandidate } from '@/lib/types/promotion'
 
 type CommandeItemInput = {
@@ -146,7 +147,9 @@ export async function POST(req: NextRequest) {
   // BLAC-P2-013 : promotions recalculees cote serveur (le client ne decide jamais du prix)
   const promoCodeInput = typeof body.promo_code === 'string' ? body.promo_code.trim() : ''
   // BLAC-P3-008 : une regle aux valeurs invalides est ignoree (defense cote serveur)
-  const allRules = (await loadActivePromotionRules(supabase)).filter((r) => validatePromotionRule(r).ok)
+  const loadedRules = (await loadActivePromotionRules(supabase)).filter((r) => validatePromotionRule(r).ok)
+  // BLAC-P2-023 : offres personnelles du client (telephone de la commande)
+  const { rules: allRules, offers: clientOffers } = await applyClientOffersToRules(supabase, loadedRules, String(phone))
   const filtered = filterRulesForPromoCode(allRules, promoCodeInput)
   if (!filtered.codeValid) {
     return NextResponse.json({ error: 'Code promo invalide ou expiré' }, { status: 400 })
@@ -318,6 +321,13 @@ export async function POST(req: NextRequest) {
   }).select().single()
 
   if (error || !order) { return NextResponse.json({ error: 'Erreur création commande' }, { status: 500 }) }
+
+  // BLAC-P2-023 : marque utilisees les offres client effectivement appliquees (une seule fois) ; n'echoue jamais la commande
+  try {
+    const usedRuleIds = new Set(promoResult.applied.map((x) => x.promotion_id).filter(Boolean))
+    const offerIdsToMark = clientOffers.filter((o) => usedRuleIds.has(o.promotion_id)).map((o) => o.id)
+    if (offerIdsToMark.length > 0) await markClientOffersUsed(supabase, offerIdsToMark, String(order.id))
+  } catch { console.error('[commandes] marquage des offres client impossible') }
 
   // BF-P2-013 : tracking connexion - commande classique
   supabase.from('platform_connexions').insert({
