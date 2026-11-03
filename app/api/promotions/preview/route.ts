@@ -4,6 +4,7 @@ import { loadVipSettings, phonesMatch } from '@/lib/vip-server'
 import { readVipSessionPhone } from '@/lib/vip-session'
 import { applyPromotions, filterRulesForPromoCode } from '@/lib/promotions'
 import { loadActivePromotionRules, validatePromotionRule } from '@/lib/promotion-rules'
+import { applyClientOffersToRules } from '@/lib/client-offers'
 import type { PromotionCartLine, PromotionProductCandidate } from '@/lib/types/promotion'
 
 // BLAC-P3-009 : apercu serveur, lecture seule. Aucune ecriture, aucun compteur d'usage modifie.
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
     if (!url || !key) return empty()
     const supabase = createClient(url, key)
 
-    const body = (await req.json().catch(() => null)) as { items?: PreviewItemInput[]; promo_code?: string | null } | null
+    const body = (await req.json().catch(() => null)) as { items?: PreviewItemInput[]; promo_code?: string | null; phone?: string | null } | null
     const rawItems = Array.isArray(body?.items) ? body!.items! : []
     if (rawItems.length === 0) return empty()
     if (rawItems.some((i) => !i || typeof i.product_id !== 'string' || !Number.isInteger(i.quantity) || i.quantity < 1 || i.quantity > 99)) return empty()
@@ -79,7 +80,10 @@ export async function POST(req: NextRequest) {
     }
 
     const promoCodeInput = typeof body?.promo_code === 'string' ? body.promo_code.trim() : ''
-    const allRules = (await loadActivePromotionRules(supabase)).filter((r) => validatePromotionRule(r).ok)
+    const loadedRules = (await loadActivePromotionRules(supabase)).filter((r) => validatePromotionRule(r).ok)
+    // BLAC-P2-023 : offres personnelles du telephone (facultatif), lecture seule
+    const offerPhone = typeof body?.phone === 'string' ? body.phone.trim() : ''
+    const { rules: allRules } = await applyClientOffersToRules(supabase, loadedRules, offerPhone)
     const filtered = filterRulesForPromoCode(allRules, promoCodeInput)
     if (!filtered.codeValid) return empty()
     const eligibleRules = filtered.rules as typeof allRules

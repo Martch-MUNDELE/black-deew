@@ -186,36 +186,6 @@ export default function PanierPage() {
     return () => { cancelled = true }
   }, [])
 
-  // BLAC-P3-009 : apercu serveur de la remise (le serveur reste seul juge du prix final)
-  const [serverPromo, setServerPromo] = useState<ServerPromo>(NO_SERVER_PROMO)
-  useEffect(() => {
-    if (items.length === 0) { setServerPromo(NO_SERVER_PROMO); return }
-    let cancelled = false
-    const ctrl = new AbortController()
-    const timer = setTimeout(() => {
-      fetch('/api/promotions/preview', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        cache: 'no-store',
-        signal: ctrl.signal,
-        body: JSON.stringify({
-          items: items.map((i) => ({ product_id: i.product.id, quantity: i.quantity, selected_variants: i.selectedVariants ?? null })),
-          promo_code: promoCode || null,
-        }),
-      })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (cancelled) return
-          if (d && typeof d.discount_total === 'number' && Array.isArray(d.gifts) && Array.isArray(d.labels)) {
-            setServerPromo({ discount_total: d.discount_total, gifts: d.gifts, labels: d.labels })
-          } else {
-            setServerPromo(NO_SERVER_PROMO)
-          }
-        })
-        .catch(() => {})
-    }, 400)
-    return () => { cancelled = true; clearTimeout(timer); ctrl.abort() }
-  }, [items, promoCode])
 
   const [step, setStep] = useState<'cart' | 'info' | 'slot'>('cart')
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
@@ -285,6 +255,39 @@ function getVipPrefillPhone() {
   })
   const [geoLoading, setGeoLoading] = useState(false)
   const [geoError, setGeoError] = useState('')
+
+  // BLAC-P3-009 : apercu serveur de la remise (le serveur reste seul juge du prix final)
+  const [serverPromo, setServerPromo] = useState<ServerPromo>(NO_SERVER_PROMO)
+  useEffect(() => {
+    if (items.length === 0) { setServerPromo(NO_SERVER_PROMO); return }
+    let cancelled = false
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => {
+      fetch('/api/promotions/preview', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        cache: 'no-store',
+        signal: ctrl.signal,
+        body: JSON.stringify({
+          items: items.map((i) => ({ product_id: i.product.id, quantity: i.quantity, selected_variants: i.selectedVariants ?? null })),
+          promo_code: promoCode || null,
+          // BLAC-P2-023 : offres personnelles reconnues par le telephone saisi (facultatif)
+          ...(typeof form.phone === 'string' && form.phone.trim() ? { phone: form.phone.trim() } : {}),
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (cancelled) return
+          if (d && typeof d.discount_total === 'number' && Array.isArray(d.gifts) && Array.isArray(d.labels)) {
+            setServerPromo({ discount_total: d.discount_total, gifts: d.gifts, labels: d.labels })
+          } else {
+            setServerPromo(NO_SERVER_PROMO)
+          }
+        })
+        .catch(() => {})
+    }, 400)
+    return () => { cancelled = true; clearTimeout(timer); ctrl.abort() }
+  }, [items, promoCode, form.phone])
 
   // ── Fetch delivery settings ────────────────────────────────────────────────
 
