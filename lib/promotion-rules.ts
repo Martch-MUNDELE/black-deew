@@ -270,12 +270,17 @@ function attachBenefitsToRules(
   })
 }
 
-function isRuleCurrentlyValid(rule: PromotionRuleWithBenefits, now: number): boolean {
-  const startsAt = rule.starts_at ? new Date(rule.starts_at).getTime() : null
-  const endsAt = rule.ends_at ? new Date(rule.ends_at).getTime() : null
+// BLAC-P2-016 : regle unique des bornes de dates, utilisee par le panier et par la commande.
+// Debut inclus, fin incluse jusqu'a la milliseconde indiquee, date absente ou invalide = pas de limite.
+export function isRuleActiveAt(
+  rule: { starts_at?: string | null; ends_at?: string | null },
+  now: number = Date.now(),
+): boolean {
+  const startsAt = rule.starts_at ? new Date(rule.starts_at).getTime() : Number.NaN
+  const endsAt = rule.ends_at ? new Date(rule.ends_at).getTime() : Number.NaN
 
-  if (startsAt && startsAt > now) return false
-  if (endsAt && endsAt < now) return false
+  if (Number.isFinite(startsAt) && startsAt > now) return false
+  if (Number.isFinite(endsAt) && endsAt < now) return false
 
   return true
 }
@@ -298,7 +303,7 @@ export async function loadActivePromotionRules(
     const now = Date.now()
     const rules = data
       .map(mapPromotionRuleRow)
-      .filter((rule) => isRuleCurrentlyValid(rule, now))
+      .filter((rule) => isRuleActiveAt(rule, now))
 
     const benefits = await loadPromotionBenefits(
       supabase,
@@ -351,8 +356,7 @@ export function selectPublicPromotions(rules: PromotionRuleWithBenefits[], now =
   return rules
     .filter((r) => r.status === 'active')
     .filter((r) => r.promotion_mode !== 'promo_code' && !r.code)
-    .filter((r) => !r.starts_at || new Date(r.starts_at).getTime() <= now)
-    .filter((r) => !r.ends_at || new Date(r.ends_at).getTime() >= now)
+    .filter((r) => isRuleActiveAt(r, now))
     .map(toPublicPromotion)
 }
 
