@@ -39,6 +39,7 @@ const NAV_GROUPS = [
     links: [
       { href: "/admin/menu",     label: "Menu",     icon: "utensils" },
       { href: "/admin/promotions", label: "Promotions", icon: "percent", permission: "promotions" },
+      { href: "/admin/marketing", label: "Marketing", icon: "star", permission: "marketing" },
       { href: "/admin/livreurs", label: "Livreurs", icon: "users" },
       {
         href: "/admin/livraison", label: "Livraison", icon: "truck",

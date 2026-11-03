@@ -15,6 +15,7 @@ export const ADMIN_SECTIONS = [
   { key: 'slots', label: 'Créneaux', path: '/admin/creneaux', group: 'Opérations' },
   { key: 'settings', label: 'Paramètres', path: '/admin/settings', group: 'Configuration' },
   { key: 'promotions', label: 'Promotions', path: '/admin/promotions', group: 'Configuration' },
+  { key: 'marketing', label: 'Marketing', path: '/admin/marketing', group: 'Configuration' },
   { key: 'billing', label: 'Abonnement', path: '/admin/abonnement', group: 'Facturation' },
   { key: 'users', label: 'Utilisateurs', path: '/admin/utilisateurs', group: 'Accès' },
   { key: 'superadmin', label: 'Super Admin', path: '/admin/superadmin', group: 'Plateforme' },
