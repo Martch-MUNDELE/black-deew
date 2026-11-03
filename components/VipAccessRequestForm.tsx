@@ -20,6 +20,7 @@ export default function VipAccessRequestForm({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [marketingOptIn, setMarketingOptIn] = useState(true)
 
   const submit = async () => {
     setError('')
@@ -88,7 +89,8 @@ export default function VipAccessRequestForm({
       body: JSON.stringify({
         phone,
         pseudo: cleanPseudo,
-        requested_password: requestedPassword.trim()
+        requested_password: requestedPassword.trim(),
+        marketing_opt_in: marketingOptIn,
       })
     })
 
@@ -318,6 +320,67 @@ export default function VipAccessRequestForm({
         />
       </div>
 
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 14,
+          background: 'rgba(255,255,255,0.03)',
+          border: `1px solid ${marketingOptIn ? 'rgba(232,160,32,0.35)' : 'rgba(232,160,32,0.12)'}`,
+          borderRadius: 14,
+          padding: '14px 16px',
+          marginBottom: 18,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            id="vip-marketing-label"
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: '#F5EDD6',
+              fontFamily: 'DM Sans, sans-serif',
+              marginBottom: 4,
+            }}
+          >
+            Recevoir les nouvelles offres
+          </div>
+          <div
+            id="vip-marketing-help"
+            style={{ fontSize: 12, color: '#C8B99A', lineHeight: 1.45, fontFamily: 'DM Sans, sans-serif' }}
+          >
+            {marketingOptIn
+              ? 'Offres réservées aux VIP, envoyées par WhatsApp. Pas plus d’une par semaine.'
+              : 'Tu ne recevras aucune offre. Tu garderas ton accès VIP.'}
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={marketingOptIn}
+          aria-labelledby="vip-marketing-label"
+          aria-describedby="vip-marketing-help"
+          onClick={() => setMarketingOptIn((v) => !v)}
+          style={{
+            flexShrink: 0,
+            minWidth: 64,
+            minHeight: 44,
+            padding: '0 14px',
+            borderRadius: 50,
+            border: 'none',
+            cursor: 'pointer',
+            fontFamily: 'DM Sans, sans-serif',
+            fontWeight: 800,
+            fontSize: 13,
+            background: marketingOptIn ? 'linear-gradient(135deg, #F5C842 0%, #E8A020 100%)' : 'rgba(255,255,255,0.1)',
+            color: marketingOptIn ? '#1A1006' : '#7A6E58',
+          }}
+        >
+          {marketingOptIn ? 'Oui' : 'Non'}
+        </button>
+      </div>
+
       <button
         type="button"
         onClick={submit}
@@ -339,6 +402,11 @@ export default function VipAccessRequestForm({
       >
         {loading ? 'Envoi…' : 'Envoyer ma demande'}
       </button>
+      <div
+        style={{ fontSize: 11, color: '#7A6E58', marginTop: 10, textAlign: 'center', lineHeight: 1.4, fontFamily: 'DM Sans, sans-serif' }}
+      >
+        Tu peux changer ce choix à tout moment depuis ton compte VIP.
+      </div>
     </div>
   )
 }

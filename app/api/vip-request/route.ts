@@ -16,12 +16,26 @@ function getBaseUrl(req: Request) {
   return new URL(req.url).origin
 }
 
+const MARKETING_COLUMNS = ['marketing_opt_in', 'marketing_opt_in_at', 'marketing_opt_in_source']
+
+// Colonne d'accord marketing pas encore migree : Postgres 42703 ou cache de schema PostgREST PGRST204
+function isMissingMarketingColumnError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const e = error as { code?: unknown; message?: unknown; details?: unknown; hint?: unknown }
+  const text = [e.message, e.details, e.hint].filter((v) => typeof v === 'string').join(' ')
+  if (!MARKETING_COLUMNS.some((c) => text.includes(c))) return false
+  const code = typeof e.code === 'string' ? e.code : ''
+  return code === '42703' || code === 'PGRST204' || /column|schema cache/i.test(text)
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
     const rawPhone = typeof body.phone === 'string' ? body.phone.trim() : ''
     const pseudo = typeof body.pseudo === 'string' ? body.pseudo.trim() : ''
     const requested_password = typeof body.requested_password === 'string' ? body.requested_password : ''
+    // Accord marketing : seul un booleen est pris en compte, toute autre valeur = absent
+    const marketingOptIn = typeof body.marketing_opt_in === 'boolean' ? body.marketing_opt_in : null
 
     if (!rawPhone || !pseudo || !requested_password) {
       return NextResponse.json({ error: 'Champs manquants' }, { status: 400 })
@@ -54,9 +68,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Insérer la demande
-    const { error: insertError } = await supabase
-      .from('vip_access_requests')
-      .insert({ phone, pseudo, status: 'pending', requested_password })
+    const baseRow = { phone, pseudo, status: 'pending', requested_password }
+    const row =
+      marketingOptIn === null
+        ? baseRow
+        : {
+            ...baseRow,
+            marketing_opt_in: marketingOptIn,
+            marketing_opt_in_at: new Date().toISOString(),
+            marketing_opt_in_source: 'demande',
+          }
+    let { error: insertError } = await supabase.from('vip_access_requests').insert(row)
+
+    // Migration des colonnes pas encore appliquee : une seule nouvelle tentative sans ces colonnes
+    if (insertError && marketingOptIn !== null && isMissingMarketingColumnError(insertError)) {
+      console.warn('[VIP Request] colonnes marketing_opt_in* absentes, insertion refaite sans elles')
+      const retry = await supabase.from('vip_access_requests').insert(baseRow)
+      insertError = retry.error
+    }
 
     if (insertError) throw insertError
 
