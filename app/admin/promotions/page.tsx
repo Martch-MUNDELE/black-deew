@@ -4,6 +4,16 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { validatePromotionRule } from '@/lib/promotion-rules'
 import {
+  addDays,
+  endOfMonth,
+  daysBetween,
+  dateToEndIso,
+  dateToStartIso,
+  durationLabel,
+  formatEndDateFr,
+  isoToDateInput,
+} from '@/lib/promotion-dates'
+import {
   describeTriggerScopeMismatch,
   getDefaultTriggerForScope,
   isTriggerAllowedForScope,
@@ -107,6 +117,8 @@ type PromotionFormState = {
   exclude_discounted_products: boolean
   customer_message: string
   admin_note: string
+  starts_on: string
+  ends_on: string
 }
 
 const initialForm: PromotionFormState = {
@@ -131,6 +143,8 @@ const initialForm: PromotionFormState = {
   exclude_discounted_products: true,
   customer_message: '',
   admin_note: '',
+  starts_on: '',
+  ends_on: '',
 }
 
 const scopeOptions: { value: PromotionScope; label: string }[] = [
@@ -496,6 +510,8 @@ export default function AdminPromotionsPage() {
     const payload: Record<string, unknown> = {
       name: form.name.trim(),
       status: form.status,
+      starts_at: dateToStartIso(form.starts_on),
+      ends_at: dateToEndIso(form.ends_on),
       scope: effectiveScope,
       trigger_type: form.trigger_type,
       trigger_product_ids: form.trigger_type === 'product' && form.trigger_product_id ? [form.trigger_product_id] : [],
@@ -510,6 +526,12 @@ export default function AdminPromotionsPage() {
       stacking_mode: form.stacking_mode,
       customer_message: form.customer_message.trim() || null,
       admin_note: form.admin_note.trim() || null,
+    }
+
+    if (form.starts_on && form.ends_on && form.ends_on < form.starts_on) {
+      setError('La date de fin doit être postérieure ou égale à la date de début.')
+      setSaving(false)
+      return
     }
 
     if (!payload.name) {
@@ -708,6 +730,8 @@ export default function AdminPromotionsPage() {
       exclude_discounted_products: promotion.exclude_discounted_products ?? true,
       customer_message: promotion.customer_message ?? '',
       admin_note: promotion.admin_note ?? '',
+      starts_on: isoToDateInput(promotion.starts_at),
+      ends_on: isoToDateInput(promotion.ends_at),
     })
 
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -980,6 +1004,78 @@ export default function AdminPromotionsPage() {
                   <option value="inactive">Inactive</option>
                 </select>
               </label>
+
+              <div className="flex flex-col gap-3 rounded-xl border border-amber-500/20 bg-black/30 p-4 md:col-span-2">
+                <p className="text-sm font-semibold">Période de validité</p>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="flex flex-col gap-2 text-sm">
+                    Début
+                    <input
+                      type="date"
+                      className="rounded-xl border border-amber-500/20 bg-black/40 px-4 py-3 text-white"
+                      value={form.starts_on}
+                      onChange={(event) => setForm((current) => ({ ...current, starts_on: event.target.value }))}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-2 text-sm">
+                    Fin
+                    <input
+                      type="date"
+                      className="rounded-xl border border-amber-500/20 bg-black/40 px-4 py-3 text-white"
+                      value={form.ends_on}
+                      min={form.starts_on || undefined}
+                      onChange={(event) => setForm((current) => ({ ...current, ends_on: event.target.value }))}
+                    />
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="rounded-full border border-amber-500/30 px-4 py-2 text-xs text-amber-200 hover:bg-amber-500/10"
+                    onClick={() => setForm((current) => ({ ...current, ends_on: addDays(current.starts_on || isoToDateInput(new Date().toISOString()), 6) }))}
+                  >
+                    7 jours
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-full border border-amber-500/30 px-4 py-2 text-xs text-amber-200 hover:bg-amber-500/10"
+                    onClick={() => setForm((current) => ({ ...current, ends_on: addDays(current.starts_on || isoToDateInput(new Date().toISOString()), 29) }))}
+                  >
+                    30 jours
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-full border border-amber-500/30 px-4 py-2 text-xs text-amber-200 hover:bg-amber-500/10"
+                    onClick={() => setForm((current) => ({ ...current, ends_on: endOfMonth(current.starts_on || isoToDateInput(new Date().toISOString())) }))}
+                  >
+                    {"Jusqu'à fin de mois"}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-full border border-white/20 px-4 py-2 text-xs text-white/80 hover:bg-white/10"
+                    onClick={() => setForm((current) => ({ ...current, ends_on: '' }))}
+                  >
+                    Sans date de fin
+                  </button>
+                </div>
+                {(() => {
+                  if (!form.ends_on) {
+                    return <p className="text-sm text-white/70">{"Sans date de fin : elle reste active tant qu'elle est active"}</p>
+                  }
+                  const startDay = form.starts_on || isoToDateInput(new Date().toISOString())
+                  const span = daysBetween(startDay, form.ends_on)
+                  if (span !== null && span < 1) {
+                    return <p className="text-sm text-red-300">{'La date de fin doit être postérieure ou égale à la date de début.'}</p>
+                  }
+                  const label = durationLabel(startDay, form.ends_on)
+                  return (
+                    <p className="text-sm text-amber-200">
+                      {label ? `${label}. ` : ''}
+                      {`Dans le panier, elle cesse de s'appliquer le ${formatEndDateFr(form.ends_on)}`}
+                    </p>
+                  )
+                })()}
+              </div>
 
               <label className="flex flex-col gap-2 text-sm">
                 Priorité
