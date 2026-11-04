@@ -14,14 +14,64 @@ export const SEND_CAP_DAYS = 30
 export const CAMPAIGN_SENDS_UNAVAILABLE_MESSAGE =
   "La file d'envoi n'est pas encore disponible : les tables nécessaires n'existent pas encore sur la base. Elles seront activées après validation de la migration."
 
-export type QueueItem = { phone: string; status: 'to_send' | 'sent'; whatsapp_url: string | null }
+// BLAC-P3-024 : pseudo (ou null) et texte exact du message ajoutes pour l'ecran 2 ; champs existants inchanges.
+export type QueueItem = {
+  phone: string
+  status: 'to_send' | 'sent'
+  whatsapp_url: string | null
+  pseudo?: string | null
+  message?: string | null
+}
 
 export const OFFER_LINE_PREFIX = "Voir l'offre : "
 const OFFER_LINE_RE = /^[ \t]*Voir l'offre : .*$/gm
 
+export const DEFAULT_PSEUDO = 'toi'
+const VARIABLE_RE = /\{(pseudo|lien|date de fin)\}/g
+const FR_DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
+const FR_MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
+
+export type MessageVariables = { pseudo?: string | null; endsAt?: unknown }
+
+// Date en francais, ex. « lundi 30 novembre 2026 ». Date absente ou invalide : chaine vide.
+export function formatFrenchDate(value: unknown): string {
+  let t = NaN
+  if (value instanceof Date) t = value.getTime()
+  else if (typeof value === 'string' && value.trim()) t = Date.parse(value.trim())
+  if (!Number.isFinite(t)) return ''
+  const d = new Date(t)
+  return `${FR_DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${FR_MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
+}
+
+// Fonction pure : remplace {pseudo}, {lien} et {date de fin} en un seul passage (une valeur inseree n'est jamais reinterpretee).
+// Pseudo inconnu : « toi ». Pas de date de fin : la variable disparait et les espaces laisses sont nettoyes.
+export function applyCampaignVariables(
+  message: string,
+  vars: { pseudo?: string | null; offerUrl?: string | null; endsAt?: unknown } = {},
+): string {
+  const pseudo = typeof vars.pseudo === 'string' && vars.pseudo.trim() ? vars.pseudo.trim() : DEFAULT_PSEUDO
+  const offerUrl = typeof vars.offerUrl === 'string' ? vars.offerUrl.trim() : ''
+  const endDate = formatFrenchDate(vars.endsAt)
+  let emptiedDate = false
+  const out = String(message ?? '').replace(VARIABLE_RE, (_m, name: string) => {
+    if (name === 'pseudo') return pseudo
+    if (name === 'lien') return offerUrl
+    if (!endDate) {
+      emptiedDate = true
+      return ''
+    }
+    return endDate
+  })
+  if (!emptiedDate) return out
+  return out
+    .replace(/[ \t]+([.,;:!?])/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+$/gm, '')
+}
+
 // Message WhatsApp : texte, puis « Voir l'offre : <adresse> » (une seule fois, ancienne ligne remplacee), puis la ligne STOP (une seule fois).
-// Sans identifiant de campagne : pas de lien, STOP seul.
-export function buildCampaignMessageWithOffer(message: string, campaignId?: string | null): string {
+// Si le texte contient deja {lien}, la ligne finale n'est pas ajoutee (pas de doublon). Sans identifiant de campagne : pas de lien, STOP seul.
+export function buildCampaignMessageWithOffer(message: string, campaignId?: string | null, vars: MessageVariables = {}): string {
   const base = String(message ?? '')
     .split(STOP_LINE)
     .join('')
@@ -29,18 +79,26 @@ export function buildCampaignMessageWithOffer(message: string, campaignId?: stri
     .replace(/\n{3,}/g, '\n\n')
     .replace(/\s+$/, '')
   const ref = typeof campaignId === 'string' ? campaignId.trim() : ''
-  if (!ref) return buildCampaignMessage(base)
   // Accepte soit l'adresse complete de l'offre, soit l'identifiant de la campagne.
-  const offerUrl = /^https?:\/\//i.test(ref) ? ref : buildCampaignPublicUrl(ref)
-  const line = OFFER_LINE_PREFIX + offerUrl
-  return buildCampaignMessage(base ? `${base}\n\n${line}` : line)
+  const offerUrl = ref ? (/^https?:\/\//i.test(ref) ? ref : buildCampaignPublicUrl(ref)) : ''
+  let text = base
+  if (offerUrl && !base.includes('{lien}')) {
+    const line = OFFER_LINE_PREFIX + offerUrl
+    text = base ? `${base}\n\n${line}` : line
+  }
+  return buildCampaignMessage(applyCampaignVariables(text, { pseudo: vars.pseudo, offerUrl, endsAt: vars.endsAt }))
 }
 
 // Lien WhatsApp : https://wa.me/<chiffres>?text=<message encode>, lien de l'offre avant STOP, STOP exactement une fois.
-export function buildWhatsappLink(phone: string, message: string, campaignId?: string | null): string | null {
+export function buildWhatsappLink(
+  phone: string,
+  message: string,
+  campaignId?: string | null,
+  vars: MessageVariables = {},
+): string | null {
   const digits = getPhoneDigits(phone)
   if (!digits) return null
-  return `https://wa.me/${digits}?text=${encodeURIComponent(buildCampaignMessageWithOffer(message, campaignId))}`
+  return `https://wa.me/${digits}?text=${encodeURIComponent(buildCampaignMessageWithOffer(message, campaignId, vars))}`
 }
 
 type Row = Record<string, unknown>
@@ -155,9 +213,29 @@ function unavailable(): CampaignActionResult {
 }
 
 async function loadReadyCampaign(db: AdminDb, id: string) {
-  const { data, error } = await db.from('campaigns').select('id, name, message, status').eq('id', id).maybeSingle()
+  const { data, error } = await db.from('campaigns').select('id, name, message, status, ends_at').eq('id', id).maybeSingle()
   if (error) throw new Unavailable()
-  return data as { id: string; name?: string; message: string; status: string } | null
+  return data as { id: string; name?: string; message: string; status: string; ends_at?: string | null } | null
+}
+
+// Pseudos des clients VIP (lecture seule, table vip_access_requests deja utilisee par le module).
+// Echec de lecture : liste vide, la file n'est jamais bloquee (le message dira « toi »).
+async function loadPseudos(db: AdminDb): Promise<{ phone: string; pseudo: string }[]> {
+  try {
+    const rows = await readRows(db, 'vip_access_requests', 'phone, pseudo, status')
+    const named = rows.filter(
+      (r) => typeof r.pseudo === 'string' && r.pseudo.trim() && getPhoneDigits(String(r.phone ?? '')),
+    )
+    const ordered = [...named.filter((r) => r.status === 'approved'), ...named.filter((r) => r.status !== 'approved')]
+    return ordered.map((r) => ({ phone: String(r.phone), pseudo: String(r.pseudo).trim() }))
+  } catch {
+    return []
+  }
+}
+
+function pseudoFor(list: { phone: string; pseudo: string }[], phone: string): string | null {
+  const found = list.find((e) => phonesMatch(phone, [e.phone]))
+  return found ? found.pseudo : null
 }
 
 export async function runCampaignSendsAction(input: {
@@ -184,10 +262,17 @@ export async function runCampaignSendsAction(input: {
           body: { unavailable: true, message: SCENARIO_UNAVAILABLE_MESSAGE, queue: [], sent: 0, total: 0, audience: queue.audience },
         }
       }
-      const items = queue.items.map((i) => ({
-        ...i,
-        whatsapp_url: i.status === 'to_send' ? buildWhatsappLink(i.phone, campaign.message, id) : null,
-      }))
+      const pseudos = await loadPseudos(db)
+      const items = queue.items.map((i) => {
+        const pseudo = pseudoFor(pseudos, i.phone)
+        const vars = { pseudo, endsAt: campaign.ends_at ?? null }
+        return {
+          ...i,
+          pseudo,
+          message: buildCampaignMessageWithOffer(campaign.message, id, vars),
+          whatsapp_url: i.status === 'to_send' ? buildWhatsappLink(i.phone, campaign.message, id, vars) : null,
+        }
+      })
       return { status: 200, body: { queue: items, sent: queue.sent, total: queue.total, audience: queue.audience } }
     }
 
