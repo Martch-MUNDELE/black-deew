@@ -782,6 +782,25 @@ function getVipPrefillPhone() {
       {/* ══ STEP 1 — PANIER ══ */}
       {step === 'cart' && (
         <div style={{ padding: '0 20px' }}>
+          {/* BLAC-P3-027 : bandeau offre appliquee (affichage seul, aucun calcul) */}
+          {(serverPromo.discount_total > 0 || serverPromo.gifts.length > 0) && typeof form.phone === 'string' && form.phone.trim() !== '' && (
+            <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(245,200,66,0.55)', background: 'rgba(245,200,66,0.10)', fontFamily: 'DM Sans, sans-serif' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5C842" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                <line x1="7" y1="7" x2="7.01" y2="7" />
+              </svg>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#F5EDD6', lineHeight: 1.3 }}>
+                  Ton offre est appliquée{serverPromo.labels[0] ? ` : ${serverPromo.labels[0]}` : ''}
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#C8B99A', marginTop: 2 }}>
+                  {serverPromo.discount_total > 0
+                    ? `Tu économises ${Math.max(serverPromo.discount_total, 0).toFixed(2)} ${currency}`
+                    : `Cadeau offert : ${serverPromo.gifts.map((g) => g.product_name).join(', ')}`}
+                </div>
+              </div>
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {items.map((item) => (
               <div key={`${item.product.id}-${JSON.stringify(item.selectedVariants || {})}`} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '13px 0', borderBottom: '1px solid rgba(232,160,32,0.06)' }}>
