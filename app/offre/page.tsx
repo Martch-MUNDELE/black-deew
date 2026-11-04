@@ -3,6 +3,7 @@
 import type { Metadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { loadPublicCampaign, resolveCampaignOgImage, type PublicCampaign } from '@/lib/campaign-public'
+import { isValidCampaignImageUrl } from '@/lib/campaigns'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,6 +77,7 @@ export async function generateMetadata({ searchParams }: { searchParams: SearchP
   }
 }
 
+
 const WRAP: React.CSSProperties = {
   minHeight: '100vh', background: '#080603', color: '#F0E6CC', display: 'flex',
   alignItems: 'center', justifyContent: 'center', padding: '1.5rem',
@@ -87,6 +89,42 @@ const CARD: React.CSSProperties = {
 const BUTTON: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, padding: '0 1.5rem',
   borderRadius: 10, background: '#E8A020', color: '#080603', fontWeight: 700, fontSize: 16, textDecoration: 'none',
+}
+const OFFER_WRAP: React.CSSProperties = {
+  minHeight: '100vh', background: '#080603', color: '#F0E6CC', display: 'flex',
+  justifyContent: 'center', padding: '1rem',
+}
+const OFFER_COL: React.CSSProperties = { width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 16 }
+const HEADER: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, padding: '0 4px',
+}
+const BADGE: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', minHeight: 28, padding: '0 12px', borderRadius: 999,
+  background: 'rgba(232,160,32,0.15)', border: '1px solid rgba(232,160,32,0.4)', color: '#E8A020',
+  fontSize: 12, fontWeight: 700, letterSpacing: 0.5,
+}
+const OFFER_CARD: React.CSSProperties = {
+  background: '#131009', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 16, overflow: 'hidden',
+}
+const VISUAL: React.CSSProperties = { display: 'block', width: '100%', height: 'auto', maxHeight: 360, objectFit: 'cover' }
+const BODY: React.CSSProperties = { padding: '1.25rem', textAlign: 'center' }
+const VALIDITY: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 44, fontSize: 14, color: '#8A7A5C', margin: '0 0 16px',
+}
+const NOTICE: React.CSSProperties = {
+  background: 'rgba(232,160,32,0.08)', border: '1px solid rgba(232,160,32,0.3)', borderRadius: 12,
+  padding: '12px 16px', fontSize: 14, lineHeight: 1.5, color: '#F0E6CC', margin: '0 0 20px',
+}
+const BIG_BUTTON: React.CSSProperties = { ...BUTTON, width: '100%', minHeight: 52, fontSize: 17 }
+
+function ClockIcon() {
+  return (
+    <svg data-icon="validity-clock" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E8A020"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  )
 }
 
 export default async function OffrePage({ searchParams }: { searchParams: SearchParams }) {
@@ -108,16 +146,40 @@ export default async function OffrePage({ searchParams }: { searchParams: Search
   }
 
   const dates = describeDates(offer)
+  const imageUrl = isValidCampaignImageUrl(offer.imageUrl) ? offer.imageUrl.trim() : null
   return (
-    <main style={WRAP}>
-      <div style={CARD}>
-        <h1 style={{ fontSize: 26, color: '#E8A020', margin: '0 0 8px' }}>{offer.name}</h1>
-        {offer.promotionName && (
-          <p style={{ fontSize: 14, color: '#8A7A5C', margin: '0 0 16px' }}>{offer.promotionName}</p>
-        )}
-        <p style={{ fontSize: 16, lineHeight: 1.6, whiteSpace: 'pre-line', margin: '0 0 16px' }}>{offer.message}</p>
-        {dates && <p style={{ fontSize: 13, color: '#8A7A5C', margin: '0 0 24px' }}>{dates}</p>}
-        <a href="/" style={BUTTON}>Commander</a>
+    <main style={OFFER_WRAP}>
+      <div style={OFFER_COL}>
+        <header style={HEADER}>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#E8A020' }}>Black Deew</span>
+          <span style={BADGE}>Offre VIP</span>
+        </header>
+        <section style={OFFER_CARD}>
+          {imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={imageUrl} alt={`Visuel de l'offre : ${offer.name}`} style={VISUAL} />
+          )}
+          <div style={BODY}>
+            <h1 style={{ fontSize: 26, color: '#E8A020', margin: '0 0 8px' }}>{offer.name}</h1>
+            {offer.promotionName && (
+              <p style={{ fontSize: 15, color: '#F0E6CC', margin: '0 0 16px' }}>
+                Profite de la promotion « {offer.promotionName} ».
+              </p>
+            )}
+            <p style={{ fontSize: 16, lineHeight: 1.6, whiteSpace: 'pre-line', margin: '0 0 16px' }}>{offer.message}</p>
+            {dates && (
+              <p style={VALIDITY}>
+                <ClockIcon />
+                <span>{dates}</span>
+              </p>
+            )}
+            <div style={NOTICE}>Ton offre est déjà dans ton compte : elle s&apos;ajoutera à ton panier.</div>
+            <a href="/panier" style={BIG_BUTTON}>Commander avec l&apos;offre</a>
+            <p style={{ fontSize: 12, color: '#8A7A5C', margin: '12px 0 0', minHeight: 20 }}>
+              Connexion VIP demandée si tu n&apos;es pas déjà connecté.
+            </p>
+          </div>
+        </section>
       </div>
     </main>
   )
