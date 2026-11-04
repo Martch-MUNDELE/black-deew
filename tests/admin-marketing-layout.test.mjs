@@ -7,22 +7,22 @@ const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
 const page = read('app/admin/marketing/page.tsx')
 const panel = read('components/admin/CampaignsPanel.tsx')
 
-test('la page a un tablist accessible avec trois onglets et sans onglet Scénarios', () => {
+test('la page a un tablist accessible avec quatre onglets dont Scénarios automatiques', () => {
   assert.ok(page.includes('role="tablist"'))
   assert.ok(page.includes('role="tab"'))
   assert.ok(page.includes('aria-selected'))
   assert.ok(page.includes("label: 'Campagnes'"))
   assert.ok(page.includes("label: 'Offres clients'"))
   assert.ok(page.includes("label: 'Résultats'"))
-  assert.ok(!/Scénarios/.test(page))
+  assert.ok(page.includes("label: 'Scénarios automatiques'"))
 })
 
 test('onglet Campagnes par défaut, hash gardé, un seul panneau visible', () => {
   assert.ok(page.includes("useState<TabId>('campagnes')"))
   assert.ok(page.includes('window.location.hash'))
   assert.ok(page.includes('hashchange'))
-  assert.equal((page.match(/role="tabpanel"/g) ?? []).length, 3)
-  assert.equal((page.match(/hidden=\{active !==/g) ?? []).length, 3)
+  assert.equal((page.match(/role="tabpanel"/g) ?? []).length, 4)
+  assert.equal((page.match(/hidden=\{active !==/g) ?? []).length, 4)
 })
 
 test('les cinq cartes numérotées et les deux cartes latérales existent', () => {

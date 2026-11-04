@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import CampaignsPanel from '@/components/admin/CampaignsPanel'
 import CampaignResults from '@/components/admin/CampaignResults'
 import ClientOffersPanel from '@/components/admin/ClientOffersPanel'
+import ScenariosPanel from '@/components/admin/ScenariosPanel'
 
 // Message affiché quand il n'y a aucune campagne (transmis au panneau).
 const EMPTY_TITLE = "Aucune campagne pour l'instant"
@@ -12,6 +13,7 @@ const EMPTY_TEXT = 'Prépare une première campagne avec le formulaire ci-dessus
 const TABS = [
   { id: 'campagnes', label: 'Campagnes' },
   { id: 'offres', label: 'Offres clients' },
+  { id: 'scenarios', label: 'Scénarios automatiques' },
   { id: 'resultats', label: 'Résultats' },
 ] as const
 type TabId = (typeof TABS)[number]['id']
@@ -86,6 +88,9 @@ export default function MarketingPage() {
       </div>
       <div role="tabpanel" id="marketing-panel-offres" aria-labelledby="marketing-tab-offres" hidden={active !== 'offres'}>
         <ClientOffersPanel />
+      </div>
+      <div role="tabpanel" id="marketing-panel-scenarios" aria-labelledby="marketing-tab-scenarios" hidden={active !== 'scenarios'}>
+        <ScenariosPanel />
       </div>
       <div role="tabpanel" id="marketing-panel-resultats" aria-labelledby="marketing-tab-resultats" hidden={active !== 'resultats'}>
         <CampaignResults />
