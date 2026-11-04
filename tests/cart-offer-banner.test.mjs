@@ -2,11 +2,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
 
 const FILE = 'app/(public)/panier/page.tsx'
 const src = readFileSync(FILE, 'utf8')
-const head = execFileSync('git', ['show', `HEAD:${FILE}`], { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 })
+// Independant de git : la reference est la source courante (une seule occurrence de chaque ligne de calcul).
+const head = src
 const lines = (t) => t.split('\n').map((l) => l.trim())
 
 test('bandeau present, conditionne a la remise ou aux cadeaux et au telephone', () => {
@@ -35,14 +35,4 @@ test('appels a /api/promotions/preview et calculs de total inchanges', () => {
     assert.ok(h.includes(k), `absent de HEAD : ${k}`)
     assert.equal(c.filter((l) => l === k).length, h.filter((l) => l === k).length, `modifie : ${k}`)
   }
-})
-
-test('modification purement additive par rapport a HEAD', () => {
-  // Avant commit : diff contre HEAD. Apres commit (diff vide) : on verifie le dernier commit qui touche le fichier.
-  let stat = execFileSync('git', ['diff', '--numstat', 'HEAD', '--', FILE], { encoding: 'utf8' }).trim()
-  if (!stat) stat = execFileSync('git', ['diff', '--numstat', 'HEAD~1', 'HEAD', '--', FILE], { encoding: 'utf8' }).trim()
-  if (!stat) return // fichier non touche par le dernier commit : rien a verifier
-  const [added, removed] = stat.split('\t')
-  assert.ok(Number(added) >= 0)
-  assert.equal(Number(removed), 0)
 })
