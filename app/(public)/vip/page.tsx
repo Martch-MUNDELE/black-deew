@@ -3,6 +3,7 @@
 import Image, { type ImageLoaderProps } from 'next/image'
 import PopularVipCard from '@/components/PopularVipCard'
 import VipAccessGate from '@/components/VipAccessGate'
+import VipMarketingConsentSheet from '@/components/VipMarketingConsentSheet'
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCart } from '@/store/cart'
@@ -261,6 +262,7 @@ export default function VipPage() {
 
   return (
     <VipAccessGate storageKey="black_deew_vip_access_granted_v4" onGranted={() => setGrantedOk(true)} revokeToken={revokeToken}>
+      {grantedOk && <VipMarketingConsentSheet />}
       <div style={{
       minHeight: '100vh',
       background: '#080603',
