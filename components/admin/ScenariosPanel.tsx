@@ -14,7 +14,7 @@ type ScenariosData = {
   best?: RankedClient[]
   inactive?: { count: number; preview: string[] }
 }
-type RuleOption = { id: string; name: string }
+type RuleOption = { id: string; name: string; ends_at?: string | null }
 
 const GOLD = '#E8A020'
 const MUTED = '#8A7A5C'
@@ -157,7 +157,21 @@ export default function ScenariosPanel() {
     ? `https://wa.me/${winner.phone.replace(/\D/g, '')}?text=${encodeURIComponent(bestMessageSent)}`
     : ''
 
+  // BLAC-P3-026 : avertissement si la promotion choisie n'a pas de date de fin (ends_at fourni et vide).
+  const noEndWarning = (value: string) => {
+    const rule = rules.find((r) => r.id === value)
+    if (!rule || !('ends_at' in rule) || rule.ends_at) return null
+    return (
+      <div role="alert" data-testid="promo-no-end-warning-scenarios"
+        style={{ padding: '8px 12px', borderRadius: 8, fontSize: 13, color: '#F5A623',
+          background: 'rgba(245,166,35,0.1)', border: '1px solid rgba(245,166,35,0.45)' }}>
+        Cette promotion n'a pas de date de fin : l'offre n'expirera pas toute seule.
+      </div>
+    )
+  }
+
   const promoSelect = (id: string, value: string, onChange: (v: string) => void) => (
+    <>
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: MUTED }}>
       Promotion
       <select id={id} value={value} onChange={(e) => onChange(e.target.value)} style={fieldStyle}>
@@ -165,6 +179,8 @@ export default function ScenariosPanel() {
         {rules.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
       </select>
     </label>
+    {noEndWarning(value)}
+    </>
   )
 
   return (

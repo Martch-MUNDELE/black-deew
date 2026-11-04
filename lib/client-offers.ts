@@ -149,7 +149,20 @@ function parseOptionalDate(value: unknown): { ok: true; value: string | null } |
   return { ok: true, value: new Date(ms).toISOString() }
 }
 
-async function loadRuleOptions(db: AdminDb): Promise<{ id: string; name: string }[] | null> {
+async function loadRuleOptions(db: AdminDb): Promise<{ id: string; name: string; ends_at?: string | null }[] | null> {
+  // BLAC-P3-026 : ends_at (promotion_rules.ends_at) permet l'avertissement « pas de date de fin ».
+  const withEnd = await db.from('promotion_rules').select('id, name, status, ends_at').eq('status', 'active')
+  if (!withEnd.error && Array.isArray(withEnd.data)) {
+    return withEnd.data
+      .filter((r: { id?: unknown }) => typeof r.id === 'string')
+      .map((r: { id: string; name?: string | null; ends_at?: string | null }) => ({
+        id: r.id,
+        name: String(r.name ?? r.id),
+        // ends_at n'est renvoyé que si la clé est présente dans la ligne lue (toujours le cas avec la vraie base).
+        ...('ends_at' in r ? { ends_at: typeof r.ends_at === 'string' && r.ends_at ? r.ends_at : null } : {}),
+      }))
+  }
+  // Repli : ancienne lecture sans ends_at.
   const { data, error } = await db.from('promotion_rules').select('id, name, status').eq('status', 'active')
   if (error || !Array.isArray(data)) return null
   return data
