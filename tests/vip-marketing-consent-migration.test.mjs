@@ -13,9 +13,9 @@ const code = sql
   .filter((l) => !l.trim().startsWith('--'))
   .join('\n')
 
-test("l'en-tête NON APPLIQUÉE est présent en tête de fichier", () => {
+test("l'en-tête APPLIQUÉE en production est présent en tête de fichier", () => {
   const head = sql.split('\n').slice(0, 5).join('\n')
-  assert.match(head, /NON APPLIQUÉE : ne pas exécuter sans validation humaine/)
+  assert.match(head, /APPLIQUÉE en production le 3 novembre 2026 \(version Supabase 20261103202757\) : ne pas réexécuter/)
 })
 
 test('les trois colonnes sont ajoutées sur public.vip_access_requests', () => {

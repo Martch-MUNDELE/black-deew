@@ -1,4 +1,4 @@
--- BLAC-P2-025 : table des campagnes Marketing. NON APPLIQUÉE : ne pas exécuter sans validation humaine
+-- BLAC-P2-025 : table des campagnes Marketing. APPLIQUÉE en production le 3 novembre 2026 (version Supabase 20261103202812) : ne pas réexécuter
 -- Préparation locale uniquement.
 -- Ne pas exécuter en production Supabase sans validation humaine explicite.
 

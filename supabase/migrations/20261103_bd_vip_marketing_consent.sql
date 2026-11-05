@@ -1,5 +1,5 @@
 -- =====================================================================
--- NON APPLIQUÉE : ne pas exécuter sans validation humaine
+-- APPLIQUÉE en production le 3 novembre 2026 (version Supabase 20261103202757) : ne pas réexécuter
 -- Migration : consentement aux offres marketing VIP (WhatsApp)
 -- Projet    : black-deew
 -- Table     : public.vip_access_requests

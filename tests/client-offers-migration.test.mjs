@@ -11,8 +11,8 @@ const bodyLower = body.toLowerCase();
 const norm = (s) => s.toLowerCase().replace(/\s+/g, ' ');
 const n = norm(body);
 
-test('en-tête NON APPLIQUÉE', () => {
-  assert.match(sql.split('\n').slice(0, 4).join('\n'), /NON APPLIQUÉE : ne pas exécuter sans validation humaine/);
+test('en-tête APPLIQUÉE en production', () => {
+  assert.match(sql.split('\n').slice(0, 4).join('\n'), /APPLIQUÉE en production le 3 novembre 2026 \(version Supabase 20261103202806\) : ne pas réexécuter/);
 });
 
 test('création idempotente de la table', () => {

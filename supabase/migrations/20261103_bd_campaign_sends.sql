@@ -1,4 +1,4 @@
--- BLAC-P2-026 : file d'envoi WhatsApp des campagnes. NON APPLIQUÉE : ne pas exécuter sans validation humaine
+-- BLAC-P2-026 : file d'envoi WhatsApp des campagnes. APPLIQUÉE en production le 3 novembre 2026 (version Supabase 20261103202850) : ne pas réexécuter
 -- Préparation locale uniquement.
 -- Ne pas exécuter en production Supabase sans validation humaine explicite.
 -- Dépend de public.campaigns (migration 20261103_bd_campaigns.sql, elle aussi non appliquée).

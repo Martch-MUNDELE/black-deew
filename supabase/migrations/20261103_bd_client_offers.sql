@@ -1,4 +1,4 @@
--- BLAC-P2-022 : table des offres clients (campagnes Marketing). NON APPLIQUÉE : ne pas exécuter sans validation humaine
+-- BLAC-P2-022 : table des offres clients (campagnes Marketing). APPLIQUÉE en production le 3 novembre 2026 (version Supabase 20261103202806) : ne pas réexécuter
 -- Préparation locale uniquement.
 -- Ne pas exécuter en production Supabase sans validation humaine explicite.
 

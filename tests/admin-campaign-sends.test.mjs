@@ -152,9 +152,9 @@ test('tables absentes : 200 + unavailable true, pas d erreur 500', async () => {
   }
 })
 
-test('migration : non appliquee, securite par ligne sur les deux tables, sans politique, retour arriere', () => {
+test('migration : appliquee en production, securite par ligne sur les deux tables, sans politique, retour arriere', () => {
   const sql = readFileSync(new URL('../supabase/migrations/20261103_bd_campaign_sends.sql', import.meta.url), 'utf8')
-  assert.ok(/NON APPLIQUÉE/.test(sql))
+  assert.ok(/APPLIQUÉE en production le 3 novembre 2026 \(version Supabase 20261103202850\) : ne pas réexécuter/.test(sql.split("\n").slice(0, 4).join("\n")))
   assert.ok(/create table if not exists public\.campaign_sends/.test(sql))
   assert.ok(/create table if not exists public\.marketing_refusals/.test(sql))
   assert.ok(/alter table public\.campaign_sends enable row level security/.test(sql))

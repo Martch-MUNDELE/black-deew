@@ -146,9 +146,9 @@ test('table absente : 200 avec unavailable true, jamais 500', async () => {
   }
 })
 
-test('migration : NON APPLIQUEE, RLS activee, aucune politique, aucun acces public', () => {
+test('migration : APPLIQUEE en production, RLS activee, aucune politique, aucun acces public', () => {
   const sql = readFileSync(new URL('../supabase/migrations/20261103_bd_campaigns.sql', import.meta.url), 'utf8')
-  assert.match(sql.split('\n').slice(0, 4).join('\n'), /NON APPLIQUÉE : ne pas exécuter sans validation humaine/)
+  assert.match(sql.split('\n').slice(0, 4).join('\n'), /APPLIQUÉE en production le 3 novembre 2026 \(version Supabase 20261103202812\) : ne pas réexécuter/)
   const idx = sql.indexOf('-- RETOUR ARRIÈRE')
   assert.ok(idx > 0, 'retour arriere present')
   const body = sql.slice(0, idx)
