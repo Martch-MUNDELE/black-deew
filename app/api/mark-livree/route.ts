@@ -3,15 +3,18 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { recalculatePeriodCore } from '@/app/actions/billing'
 import { isTestPhone } from '@/lib/test-orders'
+import {
+  addStockMovement,
+  listCashMovements,
+  listStockMovements,
+  sessionCashSummary,
+} from '@/lib/driver-ledger-data'
+import { vipQuantities, type OrderLineInput } from '@/lib/driver-stock-alert'
+import type { LedgerDelivery } from '@/lib/driver-ledger'
 
 type MarkLivreeRequestBody = {
   orderId?: string
   total?: number
-}
-
-type DeliveryCashRow = {
-  amount_collected: number | string | null
-  driver_fee_total: number | string | null
 }
 
 const supabase = createClient(
@@ -72,7 +75,7 @@ export async function POST(req: NextRequest) {
     if (openPeriod?.id) {
       recalculatePeriodCore(openPeriod.id, supabase).catch(() => {})
     }
-  })()
+  })().catch(() => {})
 
   // 2. order_deliveries -> delivered + delivered_at + amount_collected
   const { data: updatedDel, error: delErr } = await supabase
@@ -89,27 +92,73 @@ export async function POST(req: NextRequest) {
   const driverId = updatedDel?.[0]?.driver_id
   if (!driverId) return NextResponse.json({ ok: true, driverSessionUpdated: false })
 
-  // 3. Recalcul driver_sessions.collected_cash + net_to_remit
+  // 3. Session ouverte du livreur
   const { data: sess } = await supabase
     .from('driver_sessions')
-    .select('id, opening_cash')
+    .select('*')
     .eq('driver_id', driverId)
     .eq('session_status', 'open')
     .maybeSingle()
   if (!sess?.id) return NextResponse.json({ ok: true, driverSessionUpdated: false })
 
+  // BLAC-P3-034 : stock VIP embarque - mouvement delivered par produit VIP (idempotent).
+  // N'ecrit QUE dans le journal du livreur ; products.stock n'est jamais touche ici.
+  // Un echec est journalise cote serveur et ne bloque jamais la livraison.
+  try {
+    const { data: itemRows } = await supabase.from('order_items').select('*').eq('order_id', orderId)
+    const wanted = vipQuantities((itemRows || []) as OrderLineInput[])
+    const productIds = Object.keys(wanted)
+    if (productIds.length > 0) {
+      const existing = await listStockMovements(supabase, sess.id)
+      for (const productId of productIds) {
+        const already = existing.some(
+          (m) => m.kind === 'delivered' && m.order_id === orderId && m.product_id === productId
+        )
+        if (already) continue
+        try {
+          await addStockMovement(supabase, {
+            session_id: sess.id,
+            driver_id: driverId,
+            product_id: productId,
+            kind: 'delivered',
+            quantity: wanted[productId],
+            order_id: orderId,
+          })
+        } catch (e) {
+          console.error('[mark-livree] journal stock VIP non ecrit', orderId, productId, e)
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[mark-livree] journal stock VIP en echec', orderId, e)
+  }
+
+  // 4. Recalcul driver_sessions.collected_cash + net_to_remit sur les livraisons de la SESSION,
+  //    avec le fonds reel (ouverture + complements du journal ; repli sur opening_cash sans journal)
   const { data: deliveries } = await supabase
     .from('order_deliveries')
-    .select('amount_collected, driver_fee_total')
+    .select('*')
     .eq('driver_id', driverId)
     .eq('status', 'delivered')
-  const openingCash = Number(sess.opening_cash) || 0
-  const deliveryRows = (deliveries || []) as DeliveryCashRow[]
-  const collected = deliveryRows.reduce((s, d) => s + (Number(d.amount_collected) || 0), 0)
-  const feesTotal = deliveryRows.reduce((s, d) => s + (Number(d.driver_fee_total) || 0), 0)
+  let cashMovements: Awaited<ReturnType<typeof listCashMovements>> | undefined
+  try {
+    cashMovements = await listCashMovements(supabase, sess.id)
+  } catch (e) {
+    console.error('[mark-livree] journal monnaie illisible, repli sur opening_cash', e)
+  }
+  const cash = sessionCashSummary(
+    {
+      driver_id: driverId,
+      started_at: sess.started_at,
+      closed_at: sess.closed_at ?? null,
+      opening_cash: Number(sess.opening_cash) || 0,
+    },
+    (deliveries || []) as LedgerDelivery[],
+    cashMovements
+  )
   const { error: sessErr } = await supabase.from('driver_sessions').update({
-    collected_cash: collected,
-    net_to_remit: openingCash + collected - feesTotal,
+    collected_cash: cash.collected,
+    net_to_remit: cash.netToRemit,
   }).eq('id', sess.id)
   if (sessErr) return NextResponse.json({ error: `driver_sessions: ${sessErr.message}` }, { status: 500 })
 

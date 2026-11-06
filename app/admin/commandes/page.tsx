@@ -3,6 +3,16 @@ import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'rea
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/lib/currency'
+import DriverVipAlert from '@/components/DriverVipAlert'
+import {
+  driverVipAlerts,
+  driverVipNote,
+  hasVipLines,
+  loadOpenDriverStock,
+  type DriverVipAlertItem,
+  type OpenDriverStock,
+  type OrderLineInput,
+} from '@/lib/driver-stock-alert'
 
 type VipAwareOrderItem = {
   is_vip?: boolean | null
@@ -289,6 +299,10 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: Orde
   const [pendingPayload, setPendingPayload] = useState<DispatchedPayload | null>(null)
   const [phase, setPhase] = useState<'form' | 'success'>('form')
   const supabase = useMemo(() => createClient(), [])
+  const [vipStock, setVipStock] = useState<OpenDriverStock>({ drivers: [], names: {} })
+  const orderLines = (order.order_items || []) as unknown as OrderLineInput[]
+  const vipOrder = hasVipLines(orderLines)
+  useEffect(() => { loadOpenDriverStock(supabase).then(setVipStock) }, [supabase])
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase
@@ -398,7 +412,7 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: Orde
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-                {drivers.map(d => (<button key={d.id} onClick={() => setSelectedDriver(d.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 10, border: `1px solid ${selectedDriver === d.id ? 'rgba(56,182,255,0.5)' : 'rgba(255,255,255,0.08)'}`, background: selectedDriver === d.id ? 'rgba(56,182,255,0.08)' : 'rgba(255,255,255,0.02)', cursor: 'pointer', textAlign: 'left' }}><div><div style={{ fontWeight: 700, fontSize: 13, color: selectedDriver === d.id ? '#38B6FF' : '#F5EDD6' }}>{d.full_name}</div><div style={{ fontSize: 11, color: '#C8B99A', marginTop: 2 }}>{d.phone}</div></div>{selectedDriver === d.id && <span style={{ color: '#38B6FF' }}>OK</span>}</button>))}
+                {drivers.map(d => (<button key={d.id} onClick={() => setSelectedDriver(d.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 10, border: `1px solid ${selectedDriver === d.id ? 'rgba(56,182,255,0.5)' : 'rgba(255,255,255,0.08)'}`, background: selectedDriver === d.id ? 'rgba(56,182,255,0.08)' : 'rgba(255,255,255,0.02)', cursor: 'pointer', textAlign: 'left' }}><div><div style={{ fontWeight: 700, fontSize: 13, color: selectedDriver === d.id ? '#38B6FF' : '#F5EDD6' }}>{d.full_name}</div><div style={{ fontSize: 11, color: '#C8B99A', marginTop: 2 }}>{d.phone}</div>{vipOrder && (<div data-testid="vip-driver-stock" style={{ fontSize: 11, color: '#C8B99A', marginTop: 4 }}>{driverVipNote(orderLines, vipStock, d.id).summary}{driverVipNote(orderLines, vipStock, d.id).warning && (<div data-testid="vip-stock-warning" style={{ color: '#F59E0B', marginTop: 2 }}>{driverVipNote(orderLines, vipStock, d.id).warning}</div>)}</div>)}</div>{selectedDriver === d.id && <span style={{ color: '#38B6FF' }}>OK</span>}</button>))}
               </div>
             )}
             {errorMsg && (
@@ -430,6 +444,9 @@ function CommandesAdminInner() {
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [dispatchOrder, setDispatchOrder] = useState<OrderRow | null>(null)
+  const vipAlertClient = useMemo(() => createClient(), [])
+  const [vipAlerts, setVipAlerts] = useState<DriverVipAlertItem[]>([])
+  useEffect(() => { loadOpenDriverStock(vipAlertClient).then((s) => setVipAlerts(driverVipAlerts(s.drivers, s.names))) }, [vipAlertClient])
   const [driverInfos, setDriverInfos] = useState<Record<string, { full_name: string; phone: string }>>({})
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const supabase = useMemo(() => createClient(), [])
@@ -619,6 +636,7 @@ function CommandesAdminInner() {
       {dispatchOrder && (
         <DispatchModal order={dispatchOrder} currency={currency} onClose={() => setDispatchOrder(null)} onDispatched={handleDispatched} />
       )}
+      <DriverVipAlert alerts={vipAlerts} />
       <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 26, fontWeight: 900, color: '#F5EDD6', marginBottom: 24 }}>
         Commandes
       </h1>
