@@ -3,6 +3,25 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/lib/currency'
 import PhoneInput from '@/components/PhoneInput'
+import DriverLedgerPanel from '@/components/DriverLedgerPanel'
+import DriverCloseDialog, { type CloseResult } from '@/components/DriverCloseDialog'
+import { deliveriesOfSession, type SessionCash } from '@/lib/driver-ledger'
+import {
+  addCashMovement,
+  addStockMovement,
+  describeClosing,
+  finalizeSessionClose,
+  listVipProducts,
+  loadClosingContext,
+  loadLedgers,
+  openSessionWithLedger,
+  prepareOpening,
+  sessionCashSummary,
+  stockAlertLevel,
+  type ClosingContext,
+  type SessionLedger,
+  type VipProductRef,
+} from '@/lib/driver-ledger-data'
 
 type Driver = {
   id: string
@@ -27,11 +46,15 @@ type DriverKPIs = {
   caCollected: number
   totalToRemit: number
   win: number
+  cash: SessionCash | null
 }
 
 type OrderDelivery = {
   id: string
   order_id: string
+  driver_id: string | null
+  created_at: string | null
+  delivered_at: string | null
   status: string
   amount_collected: number
   delivery_fee: number
@@ -64,6 +87,10 @@ type DriverSessionRow = NonNullable<Driver['open_session']> & {
 }
 
 type DeliveryMetricRow = {
+  driver_id: string | null
+  status: string
+  created_at: string | null
+  delivered_at: string | null
   amount_collected: number | null
   driver_fee_total: number | null
 }
@@ -120,7 +147,6 @@ export default function LivreursPage() {
   const [sessionLoading, setSessionLoading] = useState(false)
   const [sessionError, setSessionError] = useState('')
   const [closeDriver, setCloseDriver] = useState<Driver | null>(null)
-  const [closeLoading, setCloseLoading] = useState(false)
   const [editDriver, setEditDriver] = useState<Driver | null>(null)
   const [editForm, setEditForm] = useState({ full_name: '', phone: '', vehicle_type: 'scooter', zone: '', status: 'active' })
   const [editLoading, setEditLoading] = useState(false)
@@ -135,6 +161,12 @@ export default function LivreursPage() {
   const [settleLoading, setSettleLoading] = useState<string | null>(null)
   const [driverDailyCA, setDriverDailyCA] = useState<Record<string, number>>({})
   const [driverDailyWin, setDriverDailyWin] = useState<Record<string, number>>({})
+  const [ledgers, setLedgers] = useState<Record<string, SessionLedger>>({})
+  const [vipProducts, setVipProducts] = useState<VipProductRef[]>([])
+  const [openLoads, setOpenLoads] = useState<Record<string, string>>({})
+  const [closeCtx, setCloseCtx] = useState<(ClosingContext & { sessionId: string }) | null>(null)
+  const [ledgerBusy, setLedgerBusy] = useState(false)
+  const [ledgerError, setLedgerError] = useState<string | null>(null)
 
 async function updateDriverStatus(id: string, status: string) {
   await supabase.from('delivery_drivers').update({ status: status }).eq('id', id)
@@ -155,6 +187,9 @@ async function updateDriverStatus(id: string, status: string) {
     const sessionMap: Record<string, DriverSessionRow> = {}
     const sessionRows = (sessions || []) as DriverSessionRow[]
     for (const s of sessionRows) { sessionMap[s.driver_id] = s }
+    const sessionLedgers = await loadLedgers(supabase, sessionRows.map((r) => r.id))
+    setLedgers((prev) => ({ ...prev, ...sessionLedgers }))
+    setVipProducts(await listVipProducts(supabase))
     const driverRows = (driversRaw || []) as DriverDbRow[]
     const driversList: Driver[] = driverRows.map((d) => {
       const openSess = sessionMap[d.id] || null
@@ -167,24 +202,24 @@ async function updateDriverStatus(id: string, status: string) {
     for (const id of driverIds) {
       const openSess = sessionMap[id] || null
       if (!openSess) {
-        kpis[id] = { deliveries: 0, caCollected: 0, totalToRemit: 0, win: 0 }
+        kpis[id] = { deliveries: 0, caCollected: 0, totalToRemit: 0, win: 0, cash: null }
         continue
       }
       const { data: driverDels } = await supabase
         .from('order_deliveries')
-        .select('driver_id, amount_collected, driver_fee_total')
+        .select('driver_id, status, amount_collected, driver_fee_total, created_at, delivered_at')
         .in('status', ['pending', 'delivered'])
         .eq('driver_id', id)
         .gte('created_at', openSess.started_at)
       const dd = (driverDels || []) as DeliveryMetricRow[]
-      const openingCashCurrent = openSess.opening_cash || 0
+      const sessCash = sessionCashSummary({ driver_id: id, started_at: openSess.started_at, opening_cash: openSess.opening_cash }, dd, sessionLedgers[openSess.id]?.cash)
       const caCollected = dd.reduce((sum: number, d: DeliveryMetricRow) => sum + (d.amount_collected || 0), 0)
-      const sumDriverFee = dd.reduce((sum: number, d: DeliveryMetricRow) => sum + (d.driver_fee_total || 0), 0)
       kpis[id] = {
         deliveries: dd.length,
         caCollected,
-        totalToRemit: openingCashCurrent + caCollected - sumDriverFee,
-        win: sumDriverFee,
+        totalToRemit: sessCash.netToRemit,
+        win: sessCash.driverFees,
+        cash: sessCash,
       }
     }
     setDriverKPIs(kpis)
@@ -213,10 +248,10 @@ async function updateDriverStatus(id: string, status: string) {
   const loadDriverDetails = useCallback(async (driverId: string) => {
     const { data: dels } = await supabase
       .from('order_deliveries')
-      .select('id, order_id, status, amount_collected, delivery_fee, driver_fee_total, orders(id, total_amount, customer_name)')
+      .select('id, order_id, driver_id, status, created_at, delivered_at, amount_collected, delivery_fee, driver_fee_total, orders(id, total_amount, customer_name)')
       .eq('driver_id', driverId)
       .order('created_at', { ascending: false })
-      .limit(30)
+      .limit(200)
     setDriverDeliveries(prev => ({ ...prev, [driverId]: (dels || []) as unknown as OrderDelivery[] }))
     const { data: closed } = await supabase
       .from('driver_sessions')
@@ -226,6 +261,8 @@ async function updateDriverStatus(id: string, status: string) {
       .order('started_at', { ascending: false })
       .limit(10)
     setDriverClosedSessions(prev => ({ ...prev, [driverId]: (closed || []) as ClosedSession[] }))
+    const closedLedgers = await loadLedgers(supabase, ((closed || []) as ClosedSession[]).map((c) => c.id))
+    setLedgers(prev => ({ ...prev, ...closedLedgers }))
   }, [supabase])
 
   function toggleExpand(driverId: string) {
@@ -263,6 +300,16 @@ async function updateDriverStatus(id: string, status: string) {
     const timer = window.setTimeout(() => { void load() }, 0)
     return () => window.clearTimeout(timer)
   }, [load])
+
+  useEffect(() => {
+    const sess = closeDriver?.open_session
+    if (!closeDriver || !sess) return
+    let cancelled = false
+    loadClosingContext(supabase, { id: sess.id, driver_id: closeDriver.id, started_at: sess.started_at, opening_cash: sess.opening_cash })
+      .then((c) => { if (!cancelled) setCloseCtx({ ...c, sessionId: sess.id }) })
+      .catch((e) => { if (!cancelled) setLedgerError(e instanceof Error ? e.message : 'Chargement de la clôture impossible') })
+    return () => { cancelled = true }
+  }, [closeDriver, supabase])
 
 
   async function handleContactPicker() {
@@ -331,35 +378,44 @@ async function updateDriverStatus(id: string, status: string) {
     const cash = parseFloat(openingCash)
     if (isNaN(cash) || cash < 0) { setSessionError('Montant invalide'); return }
     setSessionLoading(true)
-    const { error } = await supabase.from('driver_sessions').insert({
-      driver_id: sessionDriver.id, opening_cash: cash, session_status: 'open',
-      started_at: new Date().toISOString(), collected_cash: 0, expected_cash: 0, net_to_remit: 0,
-    })
+    let openError = ''
+    try {
+      await openSessionWithLedger(supabase, {
+        driver_id: sessionDriver.id,
+        openingCash: cash,
+        loads: Object.entries(openLoads).map(([product_id, q]) => ({ product_id, quantity: parseInt(q, 10) })).filter((l) => l.quantity > 0),
+      })
+    } catch (e) { openError = e instanceof Error ? e.message : 'Ouverture impossible' }
     setSessionLoading(false)
-    if (error) { setSessionError(error.message); return }
+    if (openError) { setSessionError(openError); return }
     await updateDriverStatus(sessionDriver.id, "active")
-    setSessionDriver(null); setOpeningCash(""); void load()
+    setSessionDriver(null); setOpeningCash(""); setOpenLoads({}); void load()
   }
 
-  async function handleCloseSession() {
-    if (!closeDriver?.open_session) return
-    setCloseLoading(true)
-    const { data: deliveries } = await supabase
-      .from('order_deliveries')
-      .select('amount_collected')
-      .eq('driver_id', closeDriver.id)
-      .in('status', ['pending', 'delivered'])
-      .gte('created_at', closeDriver.open_session.started_at)
-    const closeDeliveryRows = (deliveries || []) as { amount_collected: number | null }[]
-    const collected_cash = closeDeliveryRows.reduce((sum: number, d) => sum + (d.amount_collected || 0), 0)
-    const opening_cash = closeDriver.open_session.opening_cash || 0
-    const driver_fee_total = closeDriver.open_session.driver_fee_total || 0
-    const net_to_remit = opening_cash + collected_cash - driver_fee_total
-    await supabase.from('driver_sessions')
-      .update({ session_status: 'closed', closed_at: new Date().toISOString(), collected_cash, net_to_remit })
-      .eq('id', closeDriver.open_session.id)
-    await updateDriverStatus(closeDriver.id, "inactive")
-    setCloseLoading(false); setCloseDriver(null); void load()
+  async function startOpening(driver: Driver) {
+    setSessionError('')
+    const prep = await prepareOpening(supabase, driver.id)
+    setOpeningCash(prep.openingCash > 0 ? String(prep.openingCash) : '')
+    setOpenLoads(prep.loads)
+    setSessionDriver(driver)
+  }
+
+  async function runLedgerAction(sessionId: string, action: () => Promise<unknown>) {
+    setLedgerBusy(true)
+    setLedgerError(null)
+    try {
+      await action()
+      const fresh = await loadLedgers(supabase, [sessionId])
+      setLedgers(prev => ({ ...prev, ...fresh }))
+      void load()
+    } catch (e) { setLedgerError(e instanceof Error ? e.message : 'Action impossible') }
+    setLedgerBusy(false)
+  }
+
+  async function handleSessionClosed(result: CloseResult) {
+    if (!closeDriver?.open_session || !closeCtx) return
+    await finalizeSessionClose(supabase, { session_id: closeDriver.open_session.id, driver_id: closeDriver.id, collected_cash: closeCtx.collected, net_to_remit: result.netToRemit })
+    setCloseDriver(null); setCloseCtx(null); void load()
   }
 
   const filtered = tab === 'tous' ? drivers : drivers.filter(d => d.status === tab)
@@ -438,14 +494,12 @@ async function updateDriverStatus(id: string, status: string) {
                 const sc = STATUS_COLORS[driver.status] || STATUS_COLORS.inactive
                 const hasSession = !!driver.open_session
                 const isExpanded = expandedDrivers.has(driver.id)
-                const deliveries = driverDeliveries[driver.id] || []
                 const closedSessions = driverClosedSessions[driver.id] || []
                 const kpi = driverKPIs[driver.id]
                 const openSess = driver.open_session
-                const openingCashVal = openSess ? (openSess.opening_cash || 0) : 0
-                const caCollecte = kpi ? kpi.caCollected : 0
-                const fraisLivreur = kpi ? (openingCashVal + caCollecte - kpi.totalToRemit) : 0
-                const netARemettreCalc = openingCashVal + caCollecte - fraisLivreur
+                const displaySession = openSess ?? closedSessions[0] ?? null
+                const displayEnd = openSess ? null : (closedSessions[0]?.closed_at ?? null)
+                const deliveries = displaySession ? deliveriesOfSession(driverDeliveries[driver.id] || [], { driver_id: driver.id, started_at: displaySession.started_at, closed_at: displayEnd }) : []
                 return (
                   <div key={driver.id} style={{ background: hasSession ? 'rgba(245,200,66,0.04)' : 'rgba(255,255,255,0.02)', border: hasSession ? '1px solid rgba(245,200,66,0.2)' : '1px solid rgba(232,160,32,0.08)', borderRadius: 14, overflow: 'hidden' }}>
                     <div onClick={() => toggleExpand(driver.id)} style={{ padding: 16, cursor: 'pointer', position: 'relative' }}>
@@ -467,6 +521,7 @@ async function updateDriverStatus(id: string, status: string) {
                           </div>
                           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                             <span style={{ fontSize: 12, color: '#7A6E58' }}>📞 {driver.phone}</span>
+                            {hasSession && openSess && stockAlertLevel(ledgers[openSess.id]?.stock) && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: 'rgba(255,107,107,0.12)', color: '#FF6B6B', border: '1px solid rgba(255,107,107,0.25)' }}>Stock VIP bas</span>}
                             {driver.zone && <span style={{ fontSize: 12, color: '#7A6E58' }}>📍 {driver.zone}</span>}
                           </div>
                         </div>
@@ -485,31 +540,17 @@ async function updateDriverStatus(id: string, status: string) {
                       <div style={{ borderTop: '1px solid rgba(232,160,32,0.1)', padding: '0 16px 16px' }}>
                         {hasSession && openSess && (
                           <div style={{ marginTop: 16 }}>
-                            <div style={{ fontSize: 11, color: '#F5C842', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>💰 Tresorerie session</div>
-                            <div style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(245,200,66,0.12)', borderRadius: 10, padding: '12px 14px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                <span style={{ fontSize: 12, color: '#7A6E58' }}>Fonds ouverture</span>
-                                <span style={{ fontSize: 12, color: '#F5EDD6', fontWeight: 600 }}>{openingCashVal.toFixed(0)} {currency}</span>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                <span style={{ fontSize: 12, color: '#7A6E58' }}>CA collecte</span>
-                                <span style={{ fontSize: 12, color: '#5BC57A', fontWeight: 600 }}>+ {caCollecte.toFixed(0)} {currency}</span>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid rgba(232,160,32,0.1)' }}>
-                                <span style={{ fontSize: 12, color: '#7A6E58' }}>Frais livreur</span>
-                                <span style={{ fontSize: 12, color: '#FF6B6B', fontWeight: 600 }}>- {fraisLivreur.toFixed(0)} {currency}</span>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: 13, color: '#F5C842', fontWeight: 700 }}>Net a remettre</span>
-                                <span style={{ fontSize: 16, color: '#F5C842', fontWeight: 700 }}>{netARemettreCalc.toFixed(0)} {currency}</span>
-                              </div>
-                            </div>
-                            <button
-                              onClick={e => { e.stopPropagation(); handleSettle(openSess.id) }}
-                              disabled={settleLoading === openSess.id}
-                              style={{ marginTop: 10, width: '100%', background: 'linear-gradient(135deg,rgba(91,197,122,0.2),rgba(91,197,122,0.1))', color: '#5BC57A', border: '1px solid rgba(91,197,122,0.3)', borderRadius: 8, padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: settleLoading === openSess.id ? 'wait' : 'pointer', fontFamily: 'DM Sans, sans-serif', opacity: settleLoading === openSess.id ? 0.6 : 1 }}>
-                              {settleLoading === openSess.id ? 'Traitement...' : '✅ Argent remis'}
-                            </button>
+                            <DriverLedgerPanel
+                              cashMovements={ledgers[openSess.id]?.cash ?? []}
+                              stockMovements={ledgers[openSess.id]?.stock ?? []}
+                              vipProducts={vipProducts}
+                              currency={currency}
+                              busy={ledgerBusy}
+                              error={ledgerError}
+                              summary={kpi?.cash ?? null}
+                              onAddCash={(amount) => runLedgerAction(openSess.id, () => addCashMovement(supabase, { session_id: openSess.id, driver_id: driver.id, kind: 'topup', amount }))}
+                              onRestock={(productId, quantity) => runLedgerAction(openSess.id, () => addStockMovement(supabase, { session_id: openSess.id, driver_id: driver.id, product_id: productId, kind: 'topup', quantity }))}
+                            />
                           </div>
                         )}
                         <div style={{ marginTop: 16 }}>
@@ -562,6 +603,10 @@ async function updateDriverStatus(id: string, status: string) {
                                     <div><div style={{ fontSize: 9, color: '#7A6E58', textTransform: 'uppercase', marginBottom: 2 }}>Collecte</div><div style={{ fontSize: 12, color: '#5BC57A', fontWeight: 600 }}>{(cs.collected_cash || 0).toFixed(0)} {currency}</div></div>
                                     <div><div style={{ fontSize: 9, color: '#7A6E58', textTransform: 'uppercase', marginBottom: 2 }}>Net remis</div><div style={{ fontSize: 12, color: '#F5C842', fontWeight: 600 }}>{(cs.net_to_remit || 0).toFixed(0)} {currency}</div></div>
                                   </div>
+                                  {(() => {
+                                    const closing = describeClosing(ledgers[cs.id], (id) => vipProducts.find((p) => p.id === id)?.name ?? id, currency)
+                                    return closing ? <div style={{ marginTop: 6, fontSize: 11, color: '#C8B99A' }}>{closing}</div> : null
+                                  })()}
                                   {cs.settled_at && <div style={{ marginTop: 6, fontSize: 10, color: '#5BC57A' }}>Regle le {formatDate(cs.settled_at)} a {formatTime(cs.settled_at)}</div>}
                                   {cs.session_status === 'closed' && !cs.settled_at && (
                                     <button
@@ -578,7 +623,7 @@ async function updateDriverStatus(id: string, status: string) {
                         )}
                         <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(232,160,32,0.08)' }}>
                           {!hasSession && (
-                            <button onClick={() => { setSessionDriver(driver); setOpeningCash(''); setSessionError('') }} style={{ background: 'rgba(91,197,122,0.1)', color: '#5BC57A', border: '1px solid rgba(91,197,122,0.25)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Ouvrir session</button>
+                            <button onClick={() => { void startOpening(driver) }} style={{ background: 'rgba(91,197,122,0.1)', color: '#5BC57A', border: '1px solid rgba(91,197,122,0.25)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Ouvrir session</button>
                           )}
                           {hasSession && (
                             <button onClick={() => setCloseDriver(driver)} style={{ background: 'rgba(255,107,107,0.1)', color: '#FF6B6B', border: '1px solid rgba(255,107,107,0.25)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Cloture session</button>
@@ -654,6 +699,16 @@ async function updateDriverStatus(id: string, status: string) {
             <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, fontWeight: 700, color: '#F5EDD6', margin: '0 0 20px' }}>Ouvrir une session</h2>
             <p style={{ color: '#C8B99A', fontSize: 14, margin: '0 0 16px' }}>Livreur : <strong style={{ color: '#F5EDD6' }}>{sessionDriver.full_name}</strong></p>
             <div style={{ marginBottom: 16 }}><label style={LBL}>Fonds ouverture</label><input type="number" min="0" value={openingCash} onChange={e => setOpeningCash(e.target.value)} placeholder="0" style={INP} /></div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={LBL}>Produits VIP à embarquer</label>
+              {vipProducts.length === 0 && <div style={{ fontSize: 12, color: '#7A6E58' }}>Aucun produit VIP.</div>}
+              {vipProducts.map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ flex: 1, fontSize: 13, color: '#F5EDD6' }}>{p.name}</span>
+                  <input type="number" min="0" step="1" value={openLoads[p.id] ?? ''} onChange={e => setOpenLoads(prev => ({ ...prev, [p.id]: e.target.value }))} placeholder="0" style={{ ...INP, width: 90 }} />
+                </div>
+              ))}
+            </div>
             {sessionError && <div style={{ color: '#FF6B6B', fontSize: 13, background: 'rgba(255,107,107,0.1)', padding: '8px 12px', borderRadius: 8, marginBottom: 12 }}>{sessionError}</div>}
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setSessionDriver(null)} style={BCANCEL}>Annuler</button>
@@ -663,17 +718,22 @@ async function updateDriverStatus(id: string, status: string) {
         </div>
       )}
 
-      {closeDriver && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#1A1610', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 380, fontFamily: 'DM Sans, sans-serif' }}>
-            <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, fontWeight: 700, color: '#F5EDD6', margin: '0 0 12px' }}>Cloture session</h2>
-            <p style={{ color: '#C8B99A', fontSize: 14, margin: '0 0 20px' }}>Confirmer la cloture pour <strong style={{ color: '#F5EDD6' }}>{closeDriver.full_name}</strong> ?</p>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setCloseDriver(null)} style={BCANCEL}>Annuler</button>
-              <button onClick={handleCloseSession} disabled={closeLoading} style={{ background: 'rgba(255,107,107,0.12)', color: '#FF6B6B', border: '1px solid rgba(255,107,107,0.3)', borderRadius: 10, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', flex: 1, opacity: closeLoading ? 0.7 : 1 }}>{closeLoading ? 'Cloture...' : 'Cloturer'}</button>
-            </div>
-          </div>
-        </div>
+      {closeDriver && closeDriver.open_session && closeCtx && closeCtx.sessionId === closeDriver.open_session.id && (
+        <DriverCloseDialog
+          client={supabase}
+          sessionId={closeDriver.open_session.id}
+          driverId={closeDriver.id}
+          driverName={closeDriver.full_name}
+          currency={currency}
+          cashOnHand={closeCtx.cashOnHand}
+          netToRemit={closeCtx.netToRemit}
+          stock={closeCtx.stock}
+          onCancel={() => { setCloseDriver(null); setCloseCtx(null) }}
+          onClosed={handleSessionClosed}
+        />
+      )}
+      {closeDriver && closeDriver.open_session && !(closeCtx && closeCtx.sessionId === closeDriver.open_session.id) && (
+        <div onClick={() => setCloseDriver(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#C8B99A', fontSize: 14 }}>Chargement de la clôture...</div>
       )}
 
       {deleteDriver && (
