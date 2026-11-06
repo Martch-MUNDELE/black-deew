@@ -322,11 +322,20 @@ export function lowStockAlerts(
   return alerts
 }
 
-/** Refuse tout produit qui n'est pas explicitement VIP. */
-export function assertVipProduct<T extends { is_vip?: boolean | null; id?: string; name?: string }>(product: T): T {
+/**
+ * Refuse tout produit qui n'est pas explicitement VIP, et tout produit VIP que le livreur
+ * ne peut pas embarquer (driver_carryable === false, ex. un service de facturation).
+ * Colonne absente ou null : le produit reste accepté (comportement d'avant BLAC-P3-036).
+ */
+export function assertVipProduct<
+  T extends { is_vip?: boolean | null; driver_carryable?: boolean | null; id?: string; name?: string },
+>(product: T): T {
+  const label = product?.name ?? product?.id ?? 'inconnu'
   if (!product || product.is_vip !== true) {
-    const label = product?.name ?? product?.id ?? 'inconnu'
     throw new LedgerError(`Produit non VIP refusé : ${label}.`)
+  }
+  if (product.driver_carryable === false) {
+    throw new LedgerError(`Produit non embarquable par un livreur refusé : ${label}.`)
   }
   return product
 }

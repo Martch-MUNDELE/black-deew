@@ -87,7 +87,9 @@ export async function requireVipProduct(client: LedgerClient, productId: string)
   const { data, error } = await client.from('products').select('*').eq('id', productId).maybeSingle()
   if (error) fail('products', error)
   if (!data) throw new LedgerError(`Produit introuvable : ${productId}.`)
-  return assertVipProduct(data as { id?: string; name?: string; is_vip?: boolean | null })
+  return assertVipProduct(
+    data as { id?: string; name?: string; is_vip?: boolean | null; driver_carryable?: boolean | null }
+  )
 }
 
 /** Ajoute un chargement ou un réapprovisionnement de stock VIP (produit non VIP refusé). */
@@ -208,11 +210,42 @@ export interface LedgerSessionInfo {
   opening_cash?: number | null
 }
 
-/** Produits VIP (is_vip vrai). */
-export async function listVipProducts(client: LedgerClient): Promise<VipProductRef[]> {
+interface VipProductRow {
+  id: string
+  name?: string | null
+  driver_carryable?: boolean | null
+}
+
+/** Lignes products avec is_vip vrai (select * : fonctionne que la colonne driver_carryable existe ou non). */
+async function loadVipProductRows(client: LedgerClient): Promise<VipProductRow[]> {
   const { data, error } = await client.from('products').select('*').eq('is_vip', true).order('name')
   if (error) fail('products', error)
-  return ((data ?? []) as { id: string; name?: string | null }[]).map((p) => ({ id: p.id, name: p.name ?? p.id }))
+  return (data ?? []) as VipProductRow[]
+}
+
+/**
+ * Un produit est embarquable sauf si driver_carryable est explicitement false.
+ * Le filtre est fait ici et non dans la requête : si la colonne n'existe pas encore
+ * (migration non appliquée), la propriété est absente, donc undefined, donc embarquable : repli sur l'ancien comportement.
+ */
+export function isDriverCarryable(product: { driver_carryable?: boolean | null }): boolean {
+  return product.driver_carryable !== false
+}
+
+/** Produits VIP que le livreur peut embarquer (is_vip vrai et driver_carryable pas à false). */
+export async function listVipProducts(client: LedgerClient): Promise<VipProductRef[]> {
+  const rows = await loadVipProductRows(client)
+  return rows.filter(isDriverCarryable).map((p) => ({ id: p.id, name: p.name ?? p.id }))
+}
+
+/** Identifiants des produits VIP non embarquables ; ensemble vide si la lecture échoue (l'écran reste utilisable). */
+async function nonCarryableProductIds(client: LedgerClient): Promise<Set<string>> {
+  try {
+    const rows = await loadVipProductRows(client)
+    return new Set(rows.filter((p) => !isDriverCarryable(p)).map((p) => p.id))
+  } catch {
+    return new Set()
+  }
 }
 
 /**
@@ -229,7 +262,10 @@ export async function loadLedgers(client: LedgerClient, sessionIds: string[]): P
   ])
   if (cash.error || stock.error) return out
   for (const r of (cash.data ?? []) as CashMovementRow[]) out[r.session_id]?.cash.push(r)
-  for (const r of (stock.data ?? []) as StockMovementRow[]) out[r.session_id]?.stock.push(r)
+  // Les mouvements d'un produit non embarquable (driver_carryable false) sont ignorés : alertes, clôture et historique.
+  const stockRows = (stock.data ?? []) as StockMovementRow[]
+  const ignored = stockRows.length > 0 ? await nonCarryableProductIds(client) : new Set<string>()
+  for (const r of stockRows) if (!ignored.has(r.product_id)) out[r.session_id]?.stock.push(r)
   return out
 }
 
@@ -310,9 +346,14 @@ export function sessionCashSummary(
 }
 
 /** Niveau d'alerte de stock VIP d'une session (empty prioritaire sur low), null si rien à signaler. */
-export function stockAlertLevel(stock: StockMovement[] | undefined): LowStockLevel | null {
-  if (!stock || stock.length === 0) return null
-  const alerts = lowStockAlerts(vipStockBalance(stock))
+export function stockAlertLevel(
+  stock: StockMovement[] | undefined,
+  ignoredProductIds?: Iterable<string>
+): LowStockLevel | null {
+  const ignored = new Set(ignoredProductIds ?? [])
+  const kept = (stock ?? []).filter((m) => !ignored.has(m.product_id))
+  if (kept.length === 0) return null
+  const alerts = lowStockAlerts(vipStockBalance(kept))
   if (alerts.some((a) => a.level === 'empty')) return 'empty'
   if (alerts.length > 0) return 'low'
   return null
@@ -361,10 +402,12 @@ export async function loadClosingContext(
   const ledgers = await loadLedgers(client, [session.id])
   const ledger = ledgers[session.id] ?? { cash: [], stock: [] }
   const summary = sessionCashSummary(session, (data ?? []) as LedgerDelivery[], ledger.cash)
-  const products = await listVipProducts(client)
+  const vipRows = await loadVipProductRows(client)
+  const products = vipRows.filter(isDriverCarryable).map((p) => ({ id: p.id, name: p.name ?? p.id }))
+  const notCarryable = new Set(vipRows.filter((p) => !isDriverCarryable(p)).map((p) => p.id))
   const nameOf = (id: string) => products.find((p) => p.id === id)?.name ?? id
   const stock = vipStockBalance(ledger.stock)
-    .filter((b) => b.onHand !== 0)
+    .filter((b) => b.onHand !== 0 && !notCarryable.has(b.product_id))
     .map((b) => ({ product_id: b.product_id, name: nameOf(b.product_id), onHand: b.onHand }))
   return { summary, cashOnHand: summary.cashOnHand, netToRemit: summary.netToRemit, collected: summary.collected, stock }
 }
