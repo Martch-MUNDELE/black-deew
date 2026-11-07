@@ -1,8 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { useCart } from '@/store/cart'
 import { useCatalogue } from '@/store/catalogue'
 import { useCurrency } from '@/lib/currency'
@@ -62,7 +61,6 @@ export default function ConfirmationPage() {
   const [slot, setSlot] = useState<DeliverySlotRow | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const supabase = useMemo(() => createClient(), [])
   const currency = useCurrency()
   const clear = useCart(s => s.clear)
   const resetCatalogue = useCatalogue(s => s.reset)
@@ -86,34 +84,26 @@ export default function ConfirmationPage() {
         return
       }
 
-      const { data: orderData } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('id', orderId)
-        .single<OrderRow>()
+      try {
+        const res = await fetch('/api/commandes/' + orderId + '/confirmation', { cache: 'no-store' })
+        if (cancelled) return
 
-      if (cancelled) return
+        if (res.ok) {
+          const data = await res.json() as {
+            order: OrderRow | null
+            items: OrderItemRow[] | null
+            slot: DeliverySlotRow | null
+          }
+          if (cancelled) return
 
-      if (orderData) {
-        setOrder(orderData)
-
-        const { data: itemsData } = await supabase
-          .from('order_items')
-          .select('*')
-          .eq('order_id', orderId)
-          .returns<OrderItemRow[]>()
-
-        if (!cancelled && itemsData) setItems(itemsData)
-
-        if (orderData.slot_id) {
-          const { data: slotData } = await supabase
-            .from('delivery_slots')
-            .select('*')
-            .eq('id', orderData.slot_id)
-            .single<DeliverySlotRow>()
-
-          if (!cancelled && slotData) setSlot(slotData)
+          if (data.order) {
+            setOrder(data.order)
+            if (data.items) setItems(data.items)
+            if (data.slot) setSlot(data.slot)
+          }
         }
+      } catch {
+        // commande introuvable : meme etat qu'avant
       }
 
       if (!cancelled) setLoading(false)
@@ -124,7 +114,7 @@ export default function ConfirmationPage() {
     return () => {
       cancelled = true
     }
-  }, [orderId, supabase])
+  }, [orderId])
 
   if (loading) {
     return (
