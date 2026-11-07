@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRef, useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useCurrency } from '@/lib/currency'
 import PhoneInput from '@/components/PhoneInput'
@@ -145,6 +145,7 @@ export default function LivreursPage() {
   const [sessionDriver, setSessionDriver] = useState<Driver | null>(null)
   const [openingCash, setOpeningCash] = useState('')
   const [sessionLoading, setSessionLoading] = useState(false)
+  const openingRef = useRef(false)
   const [sessionError, setSessionError] = useState('')
   const [closeDriver, setCloseDriver] = useState<Driver | null>(null)
   const [editDriver, setEditDriver] = useState<Driver | null>(null)
@@ -373,10 +374,11 @@ async function updateDriverStatus(id: string, status: string) {
   }
 
   async function handleOpenSession() {
-    if (!sessionDriver) return
+    if (!sessionDriver || openingRef.current) return
     setSessionError('')
     const cash = parseFloat(openingCash)
     if (isNaN(cash) || cash < 0) { setSessionError('Montant invalide'); return }
+    openingRef.current = true
     setSessionLoading(true)
     let openError = ''
     try {
@@ -386,6 +388,7 @@ async function updateDriverStatus(id: string, status: string) {
         loads: Object.entries(openLoads).map(([product_id, q]) => ({ product_id, quantity: parseInt(q, 10) })).filter((l) => l.quantity > 0),
       })
     } catch (e) { openError = e instanceof Error ? e.message : 'Ouverture impossible' }
+    openingRef.current = false
     setSessionLoading(false)
     if (openError) { setSessionError(openError); return }
     await updateDriverStatus(sessionDriver.id, "active")

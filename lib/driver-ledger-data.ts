@@ -289,7 +289,7 @@ export async function prepareOpening(
  * Ouvre une session avec son fonds et ses produits VIP embarqués.
  * Tout est validé avant la première écriture ; si le journal échoue, la session créée est supprimée.
  */
-export async function openSessionWithLedger(
+async function insertSessionWithLedger(
   client: LedgerClient,
   params: { driver_id: string; openingCash: number; loads: { product_id: string; quantity: number }[]; now?: Date }
 ): Promise<{ session_id: string }> {
@@ -323,6 +323,63 @@ export async function openSessionWithLedger(
     throw e
   }
   return { session_id }
+}
+
+export const SESSION_DEJA_OUVERTE_MESSAGE = "Ce livreur a déjà une session ouverte : clôturez-la avant d'en ouvrir une nouvelle."
+
+// Livreurs dont une ouverture est en cours : un second appel rapide est refusé avant toute écriture.
+const openingDrivers = new Set<string>()
+
+/**
+ * Ouvre une session avec son fonds et ses produits VIP embarqués.
+ * Refuse (sans rien écrire) si le livreur a déjà une session ouverte ou si une ouverture est en cours pour lui.
+ */
+export async function openSessionWithLedger(
+  client: LedgerClient,
+  params: { driver_id: string; openingCash: number; loads: { product_id: string; quantity: number }[]; now?: Date }
+): Promise<{ session_id: string }> {
+  const cash = Number(params.openingCash)
+  if (!Number.isFinite(cash) || cash < 0) throw new LedgerError('Montant invalide')
+  if (openingDrivers.has(params.driver_id)) throw new LedgerError(SESSION_DEJA_OUVERTE_MESSAGE)
+  openingDrivers.add(params.driver_id)
+  try {
+    // Les chargements sont validés d'abord (produit non VIP, quantité invalide) : aucune écriture dans tous les cas.
+    for (const l of params.loads) {
+      if (!Number.isInteger(l.quantity) || l.quantity <= 0) {
+        throw new LedgerError('Quantité invalide : un entier strictement positif est attendu.')
+      }
+      await requireVipProduct(client, l.product_id)
+    }
+    const { data, error } = await client
+      .from('driver_sessions')
+      .select('id')
+      .eq('driver_id', params.driver_id)
+      .eq('session_status', 'open')
+    if (error) fail('driver_sessions', error)
+    if (((data ?? []) as unknown[]).length > 0) throw new LedgerError(SESSION_DEJA_OUVERTE_MESSAGE)
+    return await insertSessionWithLedger(client, params)
+  } finally {
+    openingDrivers.delete(params.driver_id)
+  }
+}
+
+/**
+ * Liste d'affectation : un livreur n'apparaît qu'une fois, avec sa session ouverte la plus récente.
+ * Les sessions sont triées de la plus récente à la plus ancienne (started_at), la première rencontrée gagne.
+ */
+export function dedupeOpenSessionDrivers<T extends { id: string }>(
+  rows: { started_at?: string | null; delivery_drivers?: T | T[] | null }[]
+): T[] {
+  const sorted = [...rows].sort((a, b) => String(b.started_at ?? '').localeCompare(String(a.started_at ?? '')))
+  const seen = new Set<string>()
+  const out: T[] = []
+  for (const row of sorted) {
+    const d = Array.isArray(row.delivery_drivers) ? row.delivery_drivers[0] : row.delivery_drivers
+    if (!d || seen.has(d.id)) continue
+    seen.add(d.id)
+    out.push(d)
+  }
+  return out
 }
 
 /** Trésorerie d'une session via computeSessionCash (repli sur opening_cash si la session n'a pas de journal). */

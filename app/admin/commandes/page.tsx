@@ -13,6 +13,7 @@ import {
   type OpenDriverStock,
   type OrderLineInput,
 } from '@/lib/driver-stock-alert'
+import { dedupeOpenSessionDrivers } from '@/lib/driver-ledger-data'
 
 type VipAwareOrderItem = {
   is_vip?: boolean | null
@@ -307,12 +308,10 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: Orde
     const load = async () => {
       const { data } = await supabase
         .from('driver_sessions')
-        .select('driver_id, delivery_drivers(id, full_name, phone, vehicle_type, zone)')
+        .select('driver_id, started_at, delivery_drivers(id, full_name, phone, vehicle_type, zone)')
         .eq('session_status', 'open')
       const rows = (data || []) as DriverSessionRow[]
-      const mapped = rows
-        .map((s) => Array.isArray(s.delivery_drivers) ? s.delivery_drivers[0] : s.delivery_drivers)
-        .filter((driver): driver is DriverRow => Boolean(driver))
+      const mapped = dedupeOpenSessionDrivers<DriverRow>(rows)
       setDrivers(mapped)
       setLoading(false)
     }
