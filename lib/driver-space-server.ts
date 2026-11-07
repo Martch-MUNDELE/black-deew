@@ -3,7 +3,14 @@
 import { createClient } from '@supabase/supabase-js'
 import { lowStockAlerts, vipStockBalance } from '@/lib/driver-ledger'
 import { listVipProducts, loadLedgers, sessionCashSummary, type LedgerClient } from '@/lib/driver-ledger-data'
-import type { DriverDelivery, DriverHomeData, DriverLastSession, DriverStockLine } from '@/lib/driver-space'
+import {
+  type DriverDelivery,
+  type DriverDeliveryDetail,
+  type DriverHomeData,
+  type DriverLastSession,
+  type DriverStockLine,
+  shortOrderRef,
+} from '@/lib/driver-space'
 
 type DeliveryRow = {
   id: string
@@ -192,5 +199,69 @@ export async function getDriverHome(driverId: string, fullName: string | null = 
     lastSession: null,
     stock,
     deliveries,
+  }
+}
+
+// BLAC-P3-049 : detail d'une livraison. Lecture service_role, imposee au livreur de la session.
+// Une livraison inconnue ou d'un autre livreur renvoie null (aucune donnee d'autrui).
+export async function getDriverDelivery(driverId: string, deliveryId: string): Promise<DriverDeliveryDetail | null> {
+  if (!driverId || !deliveryId) return null
+  const db = serviceClient()
+
+  const { data: delivery, error: deliveryError } = await db
+    .from('order_deliveries')
+    .select('id, order_id, driver_id, status, delivery_address, distance_km, amount_to_collect')
+    .eq('id', deliveryId)
+    .eq('driver_id', driverId)
+    .maybeSingle()
+  if (deliveryError) throw new Error('Lecture de la livraison impossible')
+  if (!delivery || !delivery.order_id) return null
+
+  const { data: order, error: orderError } = await db
+    .from('orders')
+    .select('id, customer_name, customer_phone, customer_address, customer_note, lat, lng, slot_id, total, delivery_fee')
+    .eq('id', delivery.order_id)
+    .maybeSingle()
+  if (orderError) throw new Error('Lecture de la commande impossible')
+  if (!order) return null
+
+  const { data: itemRows, error: itemError } = await db
+    .from('order_items')
+    .select('product_name, quantity, unit_price')
+    .eq('order_id', order.id)
+  if (itemError) throw new Error('Lecture des articles impossible')
+
+  let slot: { date: string | null; time_start: string | null; time_end: string | null } | null = null
+  if (order.slot_id) {
+    const { data: slotRow, error: slotError } = await db
+      .from('delivery_slots')
+      .select('date, time_start, time_end')
+      .eq('id', order.slot_id)
+      .maybeSingle()
+    if (slotError) throw new Error('Lecture du creneau impossible')
+    slot = slotRow ?? null
+  }
+
+  return {
+    id: delivery.id as string,
+    orderRef: shortOrderRef(delivery.order_id as string),
+    customerName: (order.customer_name as string | null)?.trim() || 'Client',
+    customerPhone: (order.customer_phone as string | null) ?? null,
+    address: (order.customer_address as string | null) ?? (delivery.delivery_address as string | null) ?? null,
+    lat: toNumOrNull(order.lat),
+    lng: toNumOrNull(order.lng),
+    note: (order.customer_note as string | null)?.trim() || null,
+    slotDate: slot?.date ?? null,
+    slotStart: slot?.time_start ?? null,
+    slotEnd: slot?.time_end ?? null,
+    distanceKm: toNumOrNull(delivery.distance_km),
+    status: (delivery.status as string | null) ?? '',
+    items: (itemRows ?? []).map((r) => ({
+      name: (r.product_name as string | null) ?? 'Article',
+      quantity: toNum(r.quantity),
+      unitPrice: toNum(r.unit_price),
+    })),
+    deliveryFee: toNum(order.delivery_fee),
+    amountToCollect: toNum(delivery.amount_to_collect),
   }
 }

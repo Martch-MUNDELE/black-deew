@@ -149,3 +149,52 @@ export function formatMoney(amount: number | null | undefined): string {
   const safe = Number.isFinite(n) ? n : 0
   return `${safe.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`
 }
+
+// BLAC-P3-049 : detail d'une livraison (lecture seule, ni email client ni donnee de paiement).
+export type DriverDeliveryItem = {
+  name: string
+  quantity: number
+  unitPrice: number
+}
+
+export type DriverDeliveryDetail = {
+  id: string
+  orderRef: string
+  customerName: string
+  customerPhone: string | null
+  address: string | null
+  lat: number | null
+  lng: number | null
+  note: string | null
+  slotDate: string | null
+  slotStart: string | null
+  slotEnd: string | null
+  distanceKm: number | null
+  status: string
+  items: DriverDeliveryItem[]
+  deliveryFee: number
+  amountToCollect: number
+}
+
+/** 8 premiers caracteres de l'identifiant de commande, en majuscules. */
+export function shortOrderRef(orderId: string | null | undefined): string {
+  return String(orderId ?? '').trim().slice(0, 8).toUpperCase()
+}
+
+/** "6,0 km" ; chaine vide si la distance est inconnue ou invalide. */
+export function formatDistanceKm(km: number | string | null | undefined): string {
+  if (km === null || km === undefined || km === '') return ''
+  const n = Number(km)
+  if (!Number.isFinite(n) || n < 0) return ''
+  return `${n.toFixed(1).replace('.', ',')} km`
+}
+
+/** "Samedi 7 novembre" a partir d'une date AAAA-MM-JJ ; chaine vide si invalide. */
+export function formatLongDate(date: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(date ?? ''))
+  if (!m) return ''
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])))
+  if (Number.isNaN(d.getTime())) return ''
+  const text = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' }).format(d)
+  return text.charAt(0).toLocaleUpperCase('fr-FR') + text.slice(1)
+}

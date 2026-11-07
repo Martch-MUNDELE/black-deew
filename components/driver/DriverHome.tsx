@@ -152,8 +152,13 @@ function TodoCard({ d }: { d: DriverDelivery }) {
         <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.gold }}>{slot || 'Créneau à confirmer'}</span>
         <Pill tone="gold">À livrer</Pill>
       </div>
-      <div style={{ fontFamily: SANS, fontSize: 17, fontWeight: 600, color: C.text }}>{d.customerName}</div>
-      {d.address ? <div style={{ fontFamily: SANS, fontSize: 14, color: C.muted }}>{d.address}</div> : null}
+      <a
+        href={`/admin/driver/livraison/${d.id}`}
+        style={{ display: 'flex', flexDirection: 'column', gap: 10, textDecoration: 'none', color: 'inherit' }}
+      >
+        <div style={{ fontFamily: SANS, fontSize: 17, fontWeight: 600, color: C.text }}>{d.customerName}</div>
+        {d.address ? <div style={{ fontFamily: SANS, fontSize: 14, color: C.muted }}>{d.address}</div> : null}
+      </a>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: SANS, fontSize: 14, color: C.text }}>
         <span style={{ color: C.muted }}>À encaisser</span>
         <strong>{formatMoney(d.amountToCollect)}</strong>
@@ -361,14 +366,14 @@ export default function DriverHome({ initial, initialError, driverName }: Props)
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={labelStyle}>Déjà livrées</div>
                 {done.map((d) => (
-                  <div key={d.id} style={{ ...cardStyle, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, minHeight: 44 }}>
+                  <a key={d.id} href={`/admin/driver/livraison/${d.id}`} style={{ ...cardStyle, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, textDecoration: 'none', color: C.text }}>
                     <IconCheck />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.customerName}</div>
                       <div style={{ fontFamily: SANS, fontSize: 12, color: C.muted }}>{formatSlot(d.slotDate, d.slotStart, d.slotEnd)}</div>
                     </div>
                     <strong style={{ fontFamily: SANS, fontSize: 14 }}>{formatMoney(d.amountCollected || d.amountToCollect)}</strong>
-                  </div>
+                  </a>
                 ))}
               </div>
             ) : null}
