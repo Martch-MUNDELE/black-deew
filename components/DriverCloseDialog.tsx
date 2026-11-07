@@ -137,7 +137,7 @@ export default function DriverCloseDialog({
           </div>
         </div>
 
-        <div style={{ fontSize: 11, color: '#C8B99A', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>Monnaie en main : {cashOnHand.toFixed(0)} {currency}</div>
+        <div style={{ fontSize: 11, color: '#C8B99A', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>Répartir la monnaie en main : {cashOnHand.toFixed(0)} {currency}</div>
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
           <div style={{ flex: 1 }}>
             <div style={LBL}>Rendu</div>
