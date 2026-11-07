@@ -24,6 +24,8 @@ interface Props {
   driverName: string
   currency: string
   cashOnHand: number
+  /** Argent encaissé auprès des clients pendant la session (affichage seul). */
+  collected: number
   netToRemit: number
   stock: CloseStockLine[]
   onCancel: () => void
@@ -54,6 +56,7 @@ export default function DriverCloseDialog({
   driverName,
   currency,
   cashOnHand,
+  collected,
   netToRemit,
   stock,
   onCancel,
@@ -116,7 +119,25 @@ export default function DriverCloseDialog({
         <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, fontWeight: 700, color: '#F5EDD6', margin: '0 0 6px' }}>Clôturer la session</h2>
         <div style={{ fontSize: 12, color: '#C8B99A', marginBottom: 16 }}>{driverName}</div>
 
-        <div style={{ fontSize: 11, color: '#C8B99A', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>Argent sur le livreur : {cashOnHand.toFixed(0)} {currency}</div>
+        <div data-testid="driver-close-summary" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(232,160,32,0.2)', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
+            <div>
+              <div style={{ fontSize: 12, color: '#F5EDD6' }}>Monnaie en main</div>
+              <div style={{ fontSize: 10, color: '#C8B99A' }}>à répartir en rendu et gardé</div>
+            </div>
+            <div style={{ fontSize: 13, color: '#F5EDD6', fontWeight: 700 }}>{cashOnHand.toFixed(0)} {currency}</div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
+            <div style={{ fontSize: 12, color: '#F5EDD6' }}>Encaissé auprès des clients</div>
+            <div style={{ fontSize: 13, color: '#F5EDD6', fontWeight: 700 }}>{collected.toFixed(0)} {currency}</div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+            <div style={{ fontSize: 12, color: '#F5EDD6' }}>Net à remettre</div>
+            <div style={{ fontSize: 13, color: '#F5EDD6', fontWeight: 700 }}>{netToRemit.toFixed(0)} {currency}</div>
+          </div>
+        </div>
+
+        <div style={{ fontSize: 11, color: '#C8B99A', fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>Monnaie en main : {cashOnHand.toFixed(0)} {currency}</div>
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
           <div style={{ flex: 1 }}>
             <div style={LBL}>Rendu</div>

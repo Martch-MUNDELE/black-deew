@@ -729,6 +729,7 @@ async function updateDriverStatus(id: string, status: string) {
           driverName={closeDriver.full_name}
           currency={currency}
           cashOnHand={closeCtx.cashOnHand}
+          collected={closeCtx.collected}
           netToRemit={closeCtx.netToRemit}
           stock={closeCtx.stock}
           onCancel={() => { setCloseDriver(null); setCloseCtx(null) }}
