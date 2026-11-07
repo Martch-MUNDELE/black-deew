@@ -5,6 +5,7 @@ import { useCurrency } from '@/lib/currency'
 import PhoneInput from '@/components/PhoneInput'
 import DriverLedgerPanel from '@/components/DriverLedgerPanel'
 import DriverCloseDialog, { type CloseResult } from '@/components/DriverCloseDialog'
+import DriverAccountDialog from '@/components/DriverAccountDialog'
 import { deliveriesOfSession, type SessionCash } from '@/lib/driver-ledger'
 import {
   addCashMovement,
@@ -30,6 +31,8 @@ type Driver = {
   status: string
   vehicle_type: string | null
   zone: string | null
+  email: string | null
+  user_id: string | null
   open_session: {
     id: string
     started_at: string
@@ -80,6 +83,8 @@ type DriverDbRow = {
   status: string | null
   vehicle_type: string | null
   zone: string | null
+  email: string | null
+  user_id: string | null
 }
 
 type DriverSessionRow = NonNullable<Driver['open_session']> & {
@@ -168,6 +173,7 @@ export default function LivreursPage() {
   const [closeCtx, setCloseCtx] = useState<(ClosingContext & { sessionId: string }) | null>(null)
   const [ledgerBusy, setLedgerBusy] = useState(false)
   const [ledgerError, setLedgerError] = useState<string | null>(null)
+  const [accountDriver, setAccountDriver] = useState<Driver | null>(null)
 
 async function updateDriverStatus(id: string, status: string) {
   await supabase.from('delivery_drivers').update({ status: status }).eq('id', id)
@@ -178,7 +184,7 @@ async function updateDriverStatus(id: string, status: string) {
     setLoading(true)
     const { data: driversRaw } = await supabase
       .from('delivery_drivers')
-      .select('id, full_name, phone, status, vehicle_type, zone')
+      .select('id, full_name, phone, status, vehicle_type, zone, email, user_id')
       .order('full_name')
     if (!driversRaw) { setLoading(false); return }
     const { data: sessions } = await supabase
@@ -631,6 +637,14 @@ async function updateDriverStatus(id: string, status: string) {
                           {hasSession && (
                             <button onClick={() => setCloseDriver(driver)} style={{ background: 'rgba(255,107,107,0.1)', color: '#FF6B6B', border: '1px solid rgba(255,107,107,0.25)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Cloture session</button>
                           )}
+                          {driver.user_id ? (
+                            <>
+                              <span style={{ fontSize: 12, color: '#C8B99A', fontFamily: 'DM Sans, sans-serif', alignSelf: 'center' }}>Acces actif : {driver.email}</span>
+                              <button onClick={() => setAccountDriver(driver)} style={{ background: 'rgba(232,160,32,0.1)', color: '#E8A020', border: '1px solid rgba(232,160,32,0.25)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Reinitialiser le mot de passe</button>
+                            </>
+                          ) : (
+                            <button onClick={() => setAccountDriver(driver)} style={{ background: 'rgba(232,160,32,0.1)', color: '#E8A020', border: '1px solid rgba(232,160,32,0.25)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Acces livreur</button>
+                          )}
                           <button onClick={() => openEdit(driver)} style={{ background: 'rgba(232,160,32,0.1)', color: '#E8A020', border: '1px solid rgba(232,160,32,0.25)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Modifier</button>
                           <button onClick={() => setDeleteDriver(driver)} style={{ background: 'rgba(255,107,107,0.08)', color: '#FF6B6B', border: '1px solid rgba(255,107,107,0.2)', borderRadius: 8, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Supprimer</button>
                         </div>
@@ -738,6 +752,18 @@ async function updateDriverStatus(id: string, status: string) {
       )}
       {closeDriver && closeDriver.open_session && !(closeCtx && closeCtx.sessionId === closeDriver.open_session.id) && (
         <div onClick={() => setCloseDriver(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#C8B99A', fontSize: 14 }}>Chargement de la clôture...</div>
+      )}
+
+      {accountDriver && (
+        <DriverAccountDialog
+          key={accountDriver.id}
+          driverId={accountDriver.id}
+          driverName={accountDriver.full_name}
+          existingEmail={accountDriver.user_id ? accountDriver.email : null}
+          hasAccount={!!accountDriver.user_id}
+          onClose={() => setAccountDriver(null)}
+          onDone={load}
+        />
       )}
 
       {deleteDriver && (
