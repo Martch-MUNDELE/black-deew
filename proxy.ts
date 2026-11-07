@@ -15,6 +15,8 @@ function toLogin(request: NextRequest) {
 }
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
+  // BLAC-P3-046 : le layout serveur lit ce chemin (en-tete de la requete, ecrase a chaque passage du proxy).
+  request.headers.set('x-admin-path', path)
   let response = NextResponse.next({ request })
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
