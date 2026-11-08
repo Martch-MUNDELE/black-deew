@@ -234,7 +234,7 @@ test('route : refus sans administrateur, rien d écrit', async () => {
 const src = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
 
 test('aucun code du ticket n écrit dans la table products', () => {
-  for (const f of ['app/api/mark-livree/route.ts', 'lib/driver-stock-alert.ts', 'components/DriverVipAlert.tsx']) {
+  for (const f of ['app/api/mark-livree/route.ts', 'lib/mark-delivered.ts', 'lib/driver-stock-alert.ts', 'components/DriverVipAlert.tsx']) {
     const text = src(f)
     assert.doesNotMatch(text, /from\(\s*['"]products['"]\s*\)\s*\.\s*(update|upsert|delete|insert)/, f)
     assert.doesNotMatch(text, /\.rpc\(/, f)
