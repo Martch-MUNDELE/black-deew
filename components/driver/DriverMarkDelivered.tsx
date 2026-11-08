@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatMoney } from '@/lib/driver-space'
+import DriverTrackingSender from '@/components/driver/DriverTrackingSender'
 
 const SANS = "'DM Sans', sans-serif"
 
@@ -17,7 +18,7 @@ const baseButton: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-export default function DriverMarkDelivered({ deliveryId, amount }: { deliveryId: string; amount: number }) {
+function DriverMarkDeliveredForm({ deliveryId, amount }: { deliveryId: string; amount: number }) {
   const router = useRouter()
   const [confirming, setConfirming] = useState(false)
   const [sending, setSending] = useState(false)
@@ -98,6 +99,42 @@ export default function DriverMarkDelivered({ deliveryId, amount }: { deliveryId
           {sending ? 'Envoi…' : 'Oui, livrée'}
         </button>
       </div>
+    </div>
+  )
+}
+
+// BLAC-P3-065 : envoi de position pendant la course + aide pour le partage en direct WhatsApp
+export default function DriverMarkDelivered({ deliveryId, amount }: { deliveryId: string; amount: number }) {
+  const [helpOpen, setHelpOpen] = useState(false)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <DriverTrackingSender deliveryId={deliveryId} />
+      <DriverMarkDeliveredForm deliveryId={deliveryId} amount={amount} />
+      <button
+        type="button"
+        aria-expanded={helpOpen}
+        onClick={() => setHelpOpen((v) => !v)}
+        style={{
+          background: 'none',
+          border: 'none',
+          padding: '6px 0',
+          fontFamily: SANS,
+          fontSize: 14,
+          color: '#F5C842',
+          textDecoration: 'underline',
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        Partager ma position en direct dans WhatsApp
+      </button>
+      {helpOpen ? (
+        <ol style={{ margin: 0, paddingLeft: 20, fontFamily: SANS, fontSize: 14, color: '#BFAF8F', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <li>Ouvre la discussion WhatsApp avec le client.</li>
+          <li>Touche le trombone ou le +.</li>
+          <li>Choisis Position, puis « Partager la position en direct ».</li>
+        </ol>
+      ) : null}
     </div>
   )
 }

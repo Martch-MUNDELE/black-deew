@@ -10,6 +10,7 @@ import {
 } from '@/lib/driver-space'
 import DriverMarkDelivered from '@/components/driver/DriverMarkDelivered'
 import DriverAcceptDelivery from '@/components/driver/DriverAcceptDelivery'
+import DriverNavigationLinks from '@/components/driver/DriverNavigationLinks'
 
 const C = {
   bg: '#0B0906',
@@ -122,6 +123,8 @@ export default function DriverDeliveryDetail({ delivery, error }: { delivery: Dr
   const delivered = delivery.status.trim().toLowerCase() === 'delivered'
   // BLAC-P3-058 : la course doit etre acceptee (picked_up) avant de pouvoir etre marquee livree
   const accepted = delivery.status.trim().toLowerCase() === 'picked_up'
+  // BLAC-P3-063 : itineraire affiche pour toute course ni livree ni annulee
+  const navigable = !delivered && delivery.status.trim().toLowerCase() !== 'cancelled'
   const dateText = formatLongDate(delivery.slotDate)
   const slotText = formatSlot(delivery.slotDate, delivery.slotStart, delivery.slotEnd)
   const distance = formatDistanceKm(delivery.distanceKm)
@@ -170,6 +173,7 @@ export default function DriverDeliveryDetail({ delivery, error }: { delivery: Dr
           ) : (
             <div style={{ fontFamily: SANS, fontSize: 14, color: C.muted }}>Adresse non renseignée</div>
           )}
+          {navigable ? <DriverNavigationLinks address={delivery.address} lat={delivery.lat} lng={delivery.lng} /> : null}
           {delivery.note ? (
             <div style={{ background: C.alertBg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
               <div style={{ ...labelStyle, color: C.alert }}>Note du client</div>
