@@ -1,7 +1,7 @@
 // BLAC-P3-046 : role admin / livreur cote serveur uniquement (cle service_role jamais exposee au navigateur).
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
-import { resolveAdminRole, type AdminRole } from '@/lib/admin-role'
+import { resolveAdminRole, isDriverStatusAllowed, type AdminRole } from '@/lib/admin-role'
 
 export type AdminRoleInfo = {
   role: AdminRole
@@ -48,20 +48,21 @@ export async function getAdminRole(): Promise<AdminRoleInfo | null> {
 
     const { data: driver, error: driverError } = await service
       .from('delivery_drivers')
-      .select('id, full_name')
+      .select('id, full_name, status')
       .eq('user_id', user.id)
-      .eq('status', 'active')
       .maybeSingle()
     if (driverError) {
       console.warn('[getAdminRole] lecture de la table delivery_drivers impossible')
       return null
     }
 
-    const role = resolveAdminRole({ isAdmin, isDriver: !!driver })
+    // BLAC-P3-052 : 'inactive' (sans session ouverte) reste un livreur valide ; 'suspended' => role 'none'.
+    const allowedDriver = driver && isDriverStatusAllowed(driver.status) ? driver : null
+    const role = resolveAdminRole({ isAdmin, isDriver: !!allowedDriver })
     return {
       role,
       email,
-      driver: driver ? { id: String(driver.id), full_name: (driver.full_name as string | null) ?? null } : null,
+      driver: allowedDriver ? { id: String(allowedDriver.id), full_name: (allowedDriver.full_name as string | null) ?? null } : null,
     }
   } catch {
     console.warn('[getAdminRole] erreur inattendue : role non determine')

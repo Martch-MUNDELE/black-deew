@@ -22,6 +22,15 @@ export function resolveAdminRole(input: { isAdmin: boolean; isDriver: boolean })
   return 'none'
 }
 
+/**
+ * BLAC-P3-052 : statut livreur autorisant la connexion a l'espace livreur.
+ * 'active' = session ouverte ; 'inactive' = sans session ouverte (session fermee ou pas encore ouverte),
+ * ce qui NE bloque PAS la connexion. Seul 'suspended' (et toute autre valeur ou absence) bloque.
+ */
+export function isDriverStatusAllowed(status: unknown): boolean {
+  return status === 'active' || status === 'inactive'
+}
+
 /** Vrai pour /admin/driver et ses sous-chemins uniquement. */
 export function isDriverAllowedPath(path: string): boolean {
   const p = pathnameOf(path)
