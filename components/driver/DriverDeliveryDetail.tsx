@@ -8,6 +8,7 @@ import {
   formatSlot,
   type DriverDeliveryDetail as DriverDeliveryDetailData,
 } from '@/lib/driver-space'
+import DriverMarkDelivered from '@/components/driver/DriverMarkDelivered'
 
 const C = {
   bg: '#0B0906',
@@ -55,10 +56,10 @@ function BackLink() {
   )
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({ children, tall }: { children: React.ReactNode; tall?: boolean }) {
   return (
     <div style={{ background: C.bg, margin: '-24px -16px', padding: 16, minHeight: '100vh', color: C.text, fontFamily: SANS }}>
-      <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 'calc(52px + 48px + env(safe-area-inset-bottom))' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: tall ? 'calc(260px + env(safe-area-inset-bottom))' : 'calc(52px + 48px + env(safe-area-inset-bottom))' }}>
         {children}
       </div>
     </div>
@@ -126,7 +127,7 @@ export default function DriverDeliveryDetail({ delivery, error }: { delivery: Dr
 
   return (
     <>
-      <Shell>
+      <Shell tall={!delivered}>
         <BackLink />
 
         <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
@@ -204,7 +205,9 @@ export default function DriverDeliveryDetail({ delivery, error }: { delivery: Dr
         aria-label="Actions de la livraison"
         style={{ position: 'fixed', left: 0, right: 0, bottom: 0, background: C.bg, borderTop: `1px solid ${C.border}`, padding: '12px 16px calc(12px + env(safe-area-inset-bottom))', zIndex: 20 }}
       >
-        <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', gap: 12 }}>
+        <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {!delivered ? <DriverMarkDelivered deliveryId={delivery.id} amount={delivery.amountToCollect} /> : null}
+          <div style={{ display: 'flex', gap: 12 }}>
           <ActionLink href={telHref} label="Appeler">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
@@ -215,6 +218,7 @@ export default function DriverDeliveryDetail({ delivery, error }: { delivery: Dr
               <path d="M3 11l18-8-8 18-2-8-8-2z" />
             </svg>
           </ActionLink>
+          </div>
         </div>
       </nav>
     </>
