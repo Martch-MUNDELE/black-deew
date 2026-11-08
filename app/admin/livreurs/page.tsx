@@ -23,6 +23,7 @@ import {
   type SessionLedger,
   type VipProductRef,
 } from '@/lib/driver-ledger-data'
+import { parseOpeningCash, parseOpeningLoads } from '@/lib/session-form'
 
 type Driver = {
   id: string
@@ -382,8 +383,8 @@ async function updateDriverStatus(id: string, status: string) {
   async function handleOpenSession() {
     if (!sessionDriver || openingRef.current) return
     setSessionError('')
-    const cash = parseFloat(openingCash)
-    if (isNaN(cash) || cash < 0) { setSessionError('Montant invalide'); return }
+    const cash = parseOpeningCash(openingCash)
+    if (cash === null) { setSessionError('Montant invalide'); return }
     openingRef.current = true
     setSessionLoading(true)
     let openError = ''
@@ -391,7 +392,7 @@ async function updateDriverStatus(id: string, status: string) {
       await openSessionWithLedger(supabase, {
         driver_id: sessionDriver.id,
         openingCash: cash,
-        loads: Object.entries(openLoads).map(([product_id, q]) => ({ product_id, quantity: parseInt(q, 10) })).filter((l) => l.quantity > 0),
+        loads: parseOpeningLoads(openLoads),
       })
     } catch (e) { openError = e instanceof Error ? e.message : 'Ouverture impossible' }
     openingRef.current = false
