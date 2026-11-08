@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
     const { data: subscriptions, error } = await supabase
       .from('push_subscriptions')
       .select('endpoint, p256dh, auth')
+      .is('driver_id', null)
 
     if (error) throw error
     if (!subscriptions || subscriptions.length === 0) {

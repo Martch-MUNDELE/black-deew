@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 
 function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -24,6 +25,8 @@ export default function PushNotificationManager() {
       window.location.hostname === 'localhost'
     )
 
+  const pathname = usePathname()
+  const isDriverPath = !!pathname && pathname.startsWith('/admin/driver')
   const [status, setStatus] = useState<'idle' | 'loading' | 'subscribed' | 'denied' | 'unsupported' | 'ready'>('idle')
   const [swReg, setSwReg] = useState<ServiceWorkerRegistration | null>(null)
 
@@ -125,7 +128,9 @@ export default function PushNotificationManager() {
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10
     }}>
       <span style={{ fontSize: 12, color: '#E8D5A3', flex: 1 }}>
-        🔔 Recevoir les alertes nouvelles commandes ?
+        {isDriverPath
+          ? "🔔 Recevoir une alerte quand une livraison t'est assignée ?"
+          : '🔔 Recevoir les alertes nouvelles commandes ?'}
       </span>
       <button onClick={handleEnable} style={{
         background: '#F5C842', color: '#000', border: 'none',

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getAdminRole } from '@/lib/admin-role-server'
 
 // Utiliser service_role pour bypasser RLS
 function createServiceClient() {
@@ -19,26 +20,36 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient()
 
+    // BLAC-P3-050 : le livreur vient de la session, jamais du corps de la requete
+    const info = await getAdminRole()
+    const driverId = info?.role === 'driver' && info.driver ? info.driver.id : null
+
     // Vérifier si déjà abonné
     const { data: existing } = await supabase
       .from('push_subscriptions')
       .select('id')
       .eq('endpoint', subscription.endpoint)
-      .single()
+      .maybeSingle()
 
     if (existing) {
+      // Telephone qui change de compte : mise a jour du driver_id
+      const { error: updError } = await supabase
+        .from('push_subscriptions')
+        .update({ driver_id: driverId })
+        .eq('endpoint', subscription.endpoint)
+      if (updError) console.error('[Push Subscribe] mise a jour driver_id', updError.message)
       return NextResponse.json({ message: 'Déjà abonné' }, { status: 200 })
     }
 
     // Enregistrer l'abonnement
-    const { error } = await supabase
-      .from('push_subscriptions')
-      .insert({
-        endpoint: subscription.endpoint,
-        p256dh: subscription.keys?.p256dh,
-        auth: subscription.keys?.auth,
-        created_at: new Date().toISOString()
-      })
+    const row: Record<string, unknown> = {
+      endpoint: subscription.endpoint,
+      p256dh: subscription.keys?.p256dh,
+      auth: subscription.keys?.auth,
+      created_at: new Date().toISOString()
+    }
+    if (driverId) row.driver_id = driverId
+    const { error } = await supabase.from('push_subscriptions').insert(row)
 
     if (error) throw error
 
