@@ -9,6 +9,7 @@ import {
   type DriverDeliveryDetail as DriverDeliveryDetailData,
 } from '@/lib/driver-space'
 import DriverMarkDelivered from '@/components/driver/DriverMarkDelivered'
+import DriverAcceptDelivery from '@/components/driver/DriverAcceptDelivery'
 
 const C = {
   bg: '#0B0906',
@@ -119,6 +120,8 @@ export default function DriverDeliveryDetail({ delivery, error }: { delivery: Dr
   }
 
   const delivered = delivery.status.trim().toLowerCase() === 'delivered'
+  // BLAC-P3-058 : la course doit etre acceptee (picked_up) avant de pouvoir etre marquee livree
+  const accepted = delivery.status.trim().toLowerCase() === 'picked_up'
   const dateText = formatLongDate(delivery.slotDate)
   const slotText = formatSlot(delivery.slotDate, delivery.slotStart, delivery.slotEnd)
   const distance = formatDistanceKm(delivery.distanceKm)
@@ -142,15 +145,15 @@ export default function DriverDeliveryDetail({ delivery, error }: { delivery: Dr
               fontFamily: SANS,
               fontSize: 12,
               fontWeight: 600,
-              color: delivered ? C.green : C.alert,
-              background: delivered ? C.greenBg : C.alertBg,
+              color: delivered || accepted ? C.green : C.alert,
+              background: delivered || accepted ? C.greenBg : C.alertBg,
               borderRadius: 999,
               padding: '4px 10px',
               whiteSpace: 'nowrap',
               marginTop: 4,
             }}
           >
-            {delivered ? 'Livrée' : 'À livrer'}
+            {delivered ? 'Livrée' : accepted ? 'Acceptée' : 'À livrer'}
           </span>
         </header>
 
@@ -206,7 +209,12 @@ export default function DriverDeliveryDetail({ delivery, error }: { delivery: Dr
         style={{ position: 'fixed', left: 0, right: 0, bottom: 0, background: C.bg, borderTop: `1px solid ${C.border}`, padding: '12px 16px calc(12px + env(safe-area-inset-bottom))', zIndex: 20 }}
       >
         <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {!delivered && !accepted ? <DriverAcceptDelivery deliveryId={delivery.id} /> : null}
+          {accepted ? (
+            <>
           {!delivered ? <DriverMarkDelivered deliveryId={delivery.id} amount={delivery.amountToCollect} /> : null}
+            </>
+          ) : null}
           <div style={{ display: 'flex', gap: 12 }}>
           <ActionLink href={telHref} label="Appeler">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
