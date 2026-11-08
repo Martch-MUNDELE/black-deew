@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { isBusinessActiveOrder } from '@/lib/order-status'
 import { useCurrency } from '@/lib/currency'
 import type { Order } from '@/lib/types'
+import DriverDeliveryIndicator from '@/components/admin/DriverDeliveryIndicator'
 
 function timeAgo(dateStr: string, nowMs: number): string {
   const mins = Math.floor((nowMs - new Date(dateStr).getTime()) / 60000)
@@ -354,6 +355,8 @@ export default function AdminDashboard() {
           <button onClick={() => setToast(null)} style={{background:'none',border:'none',color:'#7A6E58',cursor:'pointer',fontSize:16,padding:4,lineHeight:1}}>✕</button>
         </div>
       )}
+
+      <DriverDeliveryIndicator currency={currency} />
 
       <div style={{marginBottom:24}}>
         <h1 style={{fontFamily:'Playfair Display, serif',fontSize:28,fontWeight:800,color:'#F5EDD6',margin:'0 0 4px',letterSpacing:'-0.5px'}}>Dashboard</h1>

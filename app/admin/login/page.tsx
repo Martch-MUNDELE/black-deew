@@ -26,6 +26,10 @@ export default function AdminLogin() {
   const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
+    // BLAC-P3-052 : message explicite quand le layout renvoie vers /admin/login?error=acces
+    if (new URLSearchParams(window.location.search).get('error') === 'acces') {
+      queueMicrotask(() => setError("Ce compte n'a pas acces a l'administration ni a l'espace livreur. Contacte l'administrateur."))
+    }
     supabase.from('settings').select('*').then(({ data }) => {
       ;((data || []) as AdminLoginSettingRow[]).forEach((s) => {
         if (s.key === 'site_name') setSiteName(s.value || 'Black Deew')
