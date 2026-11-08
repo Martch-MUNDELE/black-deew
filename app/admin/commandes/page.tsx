@@ -364,6 +364,12 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: Orde
     if (insErr) {
       console.error('[order_deliveries insert failed]', insErr.message)
     }
+    // BLAC-P3-050 : notification push au livreur, sans attendre (erreur ignoree)
+    fetch('/api/driver/notify-assignment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: order.id }),
+    }).catch(() => {})
     setSaving(false)
     const driverInfo = driver ? { full_name: driver.full_name, phone: driver.phone } : null
     const formatDateLocal = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
