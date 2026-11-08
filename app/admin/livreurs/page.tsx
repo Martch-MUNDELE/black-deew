@@ -15,7 +15,6 @@ import {
   listVipProducts,
   loadClosingContext,
   loadLedgers,
-  openSessionWithLedger,
   prepareOpening,
   sessionCashSummary,
   stockAlertLevel,
@@ -389,12 +388,21 @@ async function updateDriverStatus(id: string, status: string) {
     setSessionLoading(true)
     let openError = ''
     try {
-      await openSessionWithLedger(supabase, {
-        driver_id: sessionDriver.id,
-        openingCash: cash,
-        loads: parseOpeningLoads(openLoads),
+      const res = await fetch('/api/admin/open-driver-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          driver_id: sessionDriver.id,
+          openingCash: cash,
+          loads: parseOpeningLoads(openLoads),
+        }),
       })
-    } catch (e) { openError = e instanceof Error ? e.message : 'Ouverture impossible' }
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        openError = (data && typeof data.error === 'string' && data.error) || 'Ouverture impossible'
+      }
+    } catch { openError = 'Ouverture impossible' }
     openingRef.current = false
     setSessionLoading(false)
     if (openError) { setSessionError(openError); return }
