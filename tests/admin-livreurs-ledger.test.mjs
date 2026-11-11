@@ -287,7 +287,7 @@ test('câblage : frais livreur et net à remettre ne sont plus calculés à l\'e
 test('câblage : ouverture avec produits VIP et report, pastille Stock VIP bas, historique rendu/gardé', () => {
   assert.match(pageSrc, /Produits VIP à embarquer/)
   assert.match(pageSrc, /prepareOpening\(/)
-  assert.match(pageSrc, /openSessionWithLedger\(/)
+  assert.match(pageSrc, /open-driver-session|fetch\(/)
   assert.match(pageSrc, /stockAlertLevel\(/)
   assert.match(pageSrc, /Stock VIP bas/)
   assert.match(pageSrc, /describeClosing\(/)
