@@ -77,6 +77,16 @@ export async function POST(req: NextRequest) {
     if (!result.ok) {
       return NextResponse.json({ error: 'Mise a jour impossible' }, { status: result.status, headers: NO_STORE })
     }
+    // BLAC-P3-065 : arret du suivi en direct ; tout echec est ignore (la table peut ne pas exister)
+    try {
+      await supabase
+        .from('delivery_tracking')
+        .update({ active: false, ended_at: new Date().toISOString() })
+        .eq('delivery_id', deliveryId)
+        .eq('active', true)
+    } catch {
+      // ignore
+    }
     return NextResponse.json({ ok: true, already: false, driverSessionUpdated: result.driverSessionUpdated }, { headers: NO_STORE })
   } catch {
     return NextResponse.json({ error: 'Mise a jour impossible' }, { status: 500, headers: NO_STORE })

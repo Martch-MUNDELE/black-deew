@@ -1,5 +1,6 @@
 'use client'
 // BLAC-P3-058 : bouton "Accepter la course" (prise en charge avant livraison).
+// BLAC-P3-066 : apres acceptation, lien WhatsApp "Prevenir le client" avant de rafraichir.
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -9,6 +10,7 @@ export default function DriverAcceptDelivery({ deliveryId }: { deliveryId: strin
   const router = useRouter()
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [accepted, setAccepted] = useState<{ whatsappUrl: string } | null>(null)
 
   async function send() {
     if (sending) return
@@ -29,12 +31,76 @@ export default function DriverAcceptDelivery({ deliveryId }: { deliveryId: strin
         setSending(false)
         return
       }
+      let whatsappUrl: string | null = null
+      try {
+        const data = (await res.json()) as { whatsappUrl?: unknown }
+        whatsappUrl = typeof data.whatsappUrl === 'string' && data.whatsappUrl ? data.whatsappUrl : null
+      } catch {
+        whatsappUrl = null
+      }
       setSending(false)
-      router.refresh()
+      if (!whatsappUrl) {
+        router.refresh()
+        return
+      }
+      setAccepted({ whatsappUrl })
+      try {
+        // Ouverture automatique : si le navigateur la refuse, le lien ci-dessous reste disponible.
+        window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
+      } catch {
+        // jamais bloquant
+      }
     } catch {
       setError('Connexion impossible. Réessaie.')
       setSending(false)
     }
+  }
+
+  if (accepted) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ fontFamily: SANS, fontSize: 16, fontWeight: 700, color: '#F5C842' }}>Course acceptée</div>
+        <a
+          href={accepted.whatsappUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            width: '100%',
+            minHeight: 52,
+            borderRadius: 14,
+            fontFamily: SANS,
+            fontSize: 16,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textDecoration: 'none',
+            background: '#25D366',
+            color: '#0B1A10',
+          }}
+        >
+          Prévenir le client sur WhatsApp
+        </a>
+        <button
+          type="button"
+          onClick={() => router.refresh()}
+          style={{
+            width: '100%',
+            minHeight: 52,
+            borderRadius: 14,
+            fontFamily: SANS,
+            fontSize: 16,
+            fontWeight: 700,
+            border: 'none',
+            cursor: 'pointer',
+            background: 'linear-gradient(135deg, #F5C842, #FF6B20)',
+            color: '#1A1206',
+          }}
+        >
+          Continuer
+        </button>
+      </div>
+    )
   }
 
   return (
