@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCurrency } from '@/lib/currency'
 import type { Product } from '@/lib/types'
+import { loadOpenDriverStock } from '@/lib/driver-stock-alert'
+import { embarkedByProduct } from '@/lib/vip-embarked-by-product'
 
 const adminProductImageLoader = ({ src }: ImageLoaderProps) => src
 
@@ -45,6 +47,8 @@ function ProduitsAdminInner() {
   const [openCatDropdown, setOpenCatDropdown] = useState(false)
   const [stockEnabled, setStockEnabled] = useState(false)
   const [editingStock, setEditingStock] = useState<{id: string; value: string} | null>(null)
+  // Stock embarqué chez les livreurs (lecture seule, séparé du stock du catalogue)
+  const [embarked, setEmbarked] = useState<Record<string, number>>({})
 
   // Le menu de gauche envoie ?tab=actifs|inactifs|vip : l'onglet suit l'adresse
   useEffect(() => {
@@ -72,6 +76,12 @@ function ProduitsAdminInner() {
       setCats((catsData as Cat[]) || [])
       setStockEnabled(stockRows?.[0]?.value === 'true')
       setLoading(false)
+      try {
+        const open = await loadOpenDriverStock(supabase as unknown as Parameters<typeof loadOpenDriverStock>[0])
+        setEmbarked(embarkedByProduct(open.drivers))
+      } catch {
+        setEmbarked({})
+      }
     }
     load()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -271,6 +281,11 @@ function ProduitsAdminInner() {
                       )
                     )}
                   </div>
+                  {p.is_vip && (embarked[p.id] ?? 0) > 0 && (
+                    <div style={{ fontSize: 11, color: '#7A6E58', marginTop: 2, fontFamily: 'DM Sans, sans-serif' }}>
+                      dont {embarked[p.id]} embarqués chez les livreurs
+                    </div>
+                  )}
                   {/* Ligne 2 : prix */}
                   <div style={{ fontSize: 12, color: '#C8B99A', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
                     {(p.discount ?? 0) > 0 && <span style={{ textDecoration: 'line-through', color: '#4A4035' }}>{p.price}</span>}

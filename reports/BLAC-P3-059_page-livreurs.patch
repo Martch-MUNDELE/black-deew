@@ -1,0 +1,37 @@
+diff --git a/app/admin/livreurs/page.tsx b/app/admin/livreurs/page.tsx
+index 97e90b2..84cff6e 100644
+--- a/app/admin/livreurs/page.tsx
++++ b/app/admin/livreurs/page.tsx
+@@ -15,7 +15,6 @@ import {
+   listVipProducts,
+   loadClosingContext,
+   loadLedgers,
+-  openSessionWithLedger,
+   prepareOpening,
+   sessionCashSummary,
+   stockAlertLevel,
+@@ -389,11 +388,20 @@ async function updateDriverStatus(id: string, status: string) {
+     setSessionLoading(true)
+     let openError = ''
+     try {
+-      await openSessionWithLedger(supabase, {
+-        driver_id: sessionDriver.id,
+-        openingCash: cash,
+-        loads: parseOpeningLoads(openLoads),
++      const res = await fetch('/api/admin/open-driver-session', {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({
++          driver_id: sessionDriver.id,
++          openingCash: cash,
++          loads: parseOpeningLoads(openLoads),
++        }),
+       })
++      let payload: { error?: unknown } | null = null
++      try { payload = await res.json() } catch { payload = null }
++      if (!res.ok) {
++        openError = payload && typeof payload.error === 'string' && payload.error ? payload.error : 'Ouverture impossible'
++      }
+     } catch (e) { openError = e instanceof Error ? e.message : 'Ouverture impossible' }
+     openingRef.current = false
+     setSessionLoading(false)
