@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import { sanitizeAdminNext } from '@/lib/supabase/proxy'
+import { loginHeading } from '@/lib/driver-short-url'
 
 type AdminLoginSettingRow = {
   key: string
@@ -22,10 +23,13 @@ export default function AdminLogin() {
   const [error, setError] = useState('')
   const [siteName, setSiteName] = useState('Black Deew')
   const [siteLogo, setSiteLogo] = useState<string | null>(null)
+  const [heading, setHeading] = useState('Administration')
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
+    // BLAC-P3-062 : titre selon ?next= (calcule apres montage pour ne pas casser le rendu serveur)
+    queueMicrotask(() => setHeading(loginHeading(new URLSearchParams(window.location.search).get('next'))))
     // BLAC-P3-052 : message explicite quand le layout renvoie vers /admin/login?error=acces
     if (new URLSearchParams(window.location.search).get('error') === 'acces') {
       queueMicrotask(() => setError("Ce compte n'a pas acces a l'administration ni a l'espace livreur. Contacte l'administrateur."))
@@ -67,7 +71,7 @@ export default function AdminLogin() {
             {siteLogo === null ? <div style={{ width: 64, height: 64 }} /> : siteLogo ? <span role="img" aria-label={siteName} style={{ width: 64, height: 64, display: 'inline-block', backgroundImage: `url(${siteLogo})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} /> : <Logo size={64} />}
           </div>
           <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: '#F5EDD6', margin: 0 }}>{siteName}</h1>
-          <div style={{ fontSize: 11, color: '#C8B99A', letterSpacing: '2px', textTransform: 'uppercase', marginTop: 4 }}>Administration</div>
+          <div style={{ fontSize: 11, color: '#C8B99A', letterSpacing: '2px', textTransform: 'uppercase', marginTop: 4 }}>{heading}</div>
         </div>
 
         {/* Card */}
