@@ -112,7 +112,7 @@ export async function getDriverHome(driverId: string, fullName: string | null = 
     .from('order_deliveries')
     .select(DELIVERY_COLUMNS)
     .eq('driver_id', driverId)
-    .in('status', ['assigned', 'pending', 'delivered'])
+    .in('status', ['assigned', 'pending', 'picked_up', 'delivered'])
     .gte('created_at', open.started_at)
     .order('created_at', { ascending: true })
   if (deliveryError) throw new Error('Lecture des livraisons impossible')

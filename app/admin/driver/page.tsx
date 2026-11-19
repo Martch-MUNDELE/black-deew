@@ -3,6 +3,7 @@ import AdminLogoutButton from '@/components/admin/AdminLogoutButton'
 import DriverHome from '@/components/driver/DriverHome'
 import { getAdminRole } from '@/lib/admin-role-server'
 import { getDriverHome } from '@/lib/driver-space-server'
+import { getSiteLogoUrl } from '@/lib/site-logo-server'
 import type { DriverHomeData } from '@/lib/driver-space'
 
 export const dynamic = 'force-dynamic'
@@ -40,5 +41,7 @@ export default async function DriverSpacePage() {
     initialError = 'Impossible de lire tes données pour le moment.'
   }
 
-  return <DriverHome initial={initial} initialError={initialError} driverName={driver.full_name} />
+  const logoUrl = await getSiteLogoUrl()
+
+  return <DriverHome initial={initial} initialError={initialError} driverName={driver.full_name} logoUrl={logoUrl} />
 }

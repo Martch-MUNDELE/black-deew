@@ -198,3 +198,32 @@ export function formatLongDate(date: string | null | undefined): string {
   const text = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' }).format(d)
   return text.charAt(0).toLocaleUpperCase('fr-FR') + text.slice(1)
 }
+
+// BLAC-ACCUEIL-LIVREUR-MAQUETTE : fonctions pures de l'accueil refait selon les maquettes.
+export type OnlineBadge = { label: 'En ligne' | 'Hors session'; tone: 'green' | 'muted' }
+
+/** Pastille d'en-tete : En ligne si une session est ouverte, sinon Hors session. */
+export function onlineBadge(session: unknown): OnlineBadge {
+  return session ? { label: 'En ligne', tone: 'green' } : { label: 'Hors session', tone: 'muted' }
+}
+
+/** Ratio 0 a 1 de la barre de stock ; 0 si vide ou maximum inconnu, minimum 0.06 si du stock existe. */
+export function stockBarRatio(onHand: number, maxOnHand: number): number {
+  const on = Number(onHand)
+  const max = Number(maxOnHand)
+  if (!Number.isFinite(on) || !Number.isFinite(max) || on <= 0 || max <= 0) return 0
+  return Math.min(1, Math.max(0.06, on / max))
+}
+
+/** Premiere livraison acceptee (picked_up), sinon null. */
+export function activeDelivery<T extends { status: string | null | undefined }>(deliveries: T[]): T | null {
+  return deliveries.find((d) => String(d.status ?? '').trim().toLowerCase() === 'picked_up') ?? null
+}
+
+/** Etape de la course : 1 en route (picked_up), 2 livree (delivered), 0 sinon. */
+export function deliveryStepIndex(status: string | null | undefined): number {
+  const s = String(status ?? '').trim().toLowerCase()
+  if (s === 'picked_up') return 1
+  if (s === 'delivered') return 2
+  return 0
+}

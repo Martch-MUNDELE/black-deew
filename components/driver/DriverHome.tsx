@@ -2,17 +2,24 @@
 
 // BLAC-P3-048 : accueil de l'espace livreur. Aucune lecture de table depuis le navigateur :
 // les donnees initiales viennent du serveur, puis /api/driver/home est rappelee toutes les 20 secondes.
+// BLAC-ACCUEIL-LIVREUR-MAQUETTE : mise en forme selon les maquettes (logo du site, course acceptee, barres de stock).
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { signOutAction } from '@/app/actions/auth'
+import DriverNavigationLinks from '@/components/driver/DriverNavigationLinks'
+import DriverMarkDelivered from '@/components/driver/DriverMarkDelivered'
 import {
+  activeDelivery,
   buildMapsUrl,
   buildTelUrl,
+  deliveryStepIndex,
   formatDayShort,
   formatMoney,
   formatSlot,
   formatTimeOfDay,
   initialOf,
+  onlineBadge,
   splitDeliveries,
+  stockBarRatio,
   type DriverDelivery,
   type DriverHomeData,
 } from '@/lib/driver-space'
@@ -66,6 +73,7 @@ type Props = {
   initial: DriverHomeData | null
   initialError: string | null
   driverName: string | null
+  logoUrl?: string | null
 }
 
 function IconLogout() {
@@ -91,17 +99,23 @@ function IconRoute() {
     </svg>
   )
 }
-function IconCheck() {
+function IconCheck({ size = 18 }: { size?: number }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M20 6L9 17l-5-5" />
     </svg>
   )
 }
 
-function Pill({ children, tone }: { children: React.ReactNode; tone: 'green' | 'alert' | 'gold' }) {
+function Pill({ children, tone }: { children: React.ReactNode; tone: 'green' | 'alert' | 'gold' | 'muted' }) {
   const palette =
-    tone === 'green' ? { fg: C.green, bg: C.greenBg } : tone === 'alert' ? { fg: C.alert, bg: C.alertBg } : { fg: C.gold, bg: '#2A2210' }
+    tone === 'green'
+      ? { fg: C.green, bg: C.greenBg }
+      : tone === 'alert'
+        ? { fg: C.alert, bg: C.alertBg }
+        : tone === 'muted'
+          ? { fg: C.muted, bg: C.border }
+          : { fg: C.gold, bg: '#2A2210' }
   return (
     <span style={{ fontFamily: SANS, fontSize: 12, fontWeight: 600, color: palette.fg, background: palette.bg, borderRadius: 999, padding: '4px 10px', whiteSpace: 'nowrap' }}>
       {children}
@@ -144,6 +158,64 @@ function ActionLink({ href, primary, icon, children }: { href: string | null; pr
   )
 }
 
+function Tile({ label, value, hint, accent }: { label: string; value: string; hint?: string; accent?: boolean }) {
+  return (
+    <div style={{ ...cardStyle, flex: 1, minWidth: 0, padding: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ ...labelStyle, fontSize: 10, letterSpacing: '0.12em' }}>{label}</div>
+      <div style={{ fontFamily: SANS, fontSize: 17, fontWeight: 700, color: accent ? C.gold : C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
+      {hint ? <div style={{ fontFamily: SANS, fontSize: 12, color: C.muted }}>{hint}</div> : null}
+    </div>
+  )
+}
+
+const STEPS = ['Acceptée', 'En route', 'Livrée']
+
+function StepBar({ status }: { status: string }) {
+  // Acceptee = course prise en charge (picked_up) ; En route = etape courante ; Livree = fin.
+  const current = deliveryStepIndex(status)
+  return (
+    <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', gap: 6 }}>
+      {STEPS.map((label, i) => {
+        const reached = i <= current
+        return (
+          <li key={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ height: 4, borderRadius: 2, background: reached ? C.gold : C.border }} />
+            <span style={{ fontFamily: SANS, fontSize: 12, fontWeight: reached ? 700 : 500, color: reached ? C.gold : C.muted }}>{label}</span>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+function ActiveCard({ d }: { d: DriverDelivery }) {
+  const slot = formatSlot(d.slotDate, d.slotStart, d.slotEnd)
+  return (
+    <section style={{ ...cardStyle, borderColor: C.gold, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <StepBar status={d.status} />
+      <a
+        href={`/admin/driver/livraison/${d.id}`}
+        style={{ display: 'flex', flexDirection: 'column', gap: 6, textDecoration: 'none', color: 'inherit' }}
+      >
+        <div style={{ fontFamily: SANS, fontSize: 18, fontWeight: 700, color: C.text }}>{d.customerName}</div>
+        {d.address ? <div style={{ fontFamily: SANS, fontSize: 14, color: C.muted }}>{d.address}</div> : null}
+        {slot ? <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.gold }}>{slot}</div> : null}
+      </a>
+      <div>
+        <div style={labelStyle}>À encaisser</div>
+        <div style={{ fontFamily: SERIF, fontSize: 34, fontWeight: 800, color: C.gold, lineHeight: 1.1, marginTop: 4 }}>{formatMoney(d.amountToCollect)}</div>
+      </div>
+      <DriverNavigationLinks address={d.address} lat={d.lat} lng={d.lng} />
+      <div style={{ display: 'flex', gap: 10 }}>
+        <ActionLink href={buildTelUrl(d.customerPhone)} primary icon={<IconPhone />}>
+          Appeler
+        </ActionLink>
+      </div>
+      <DriverMarkDelivered deliveryId={d.id} amount={d.amountToCollect} />
+    </section>
+  )
+}
+
 function TodoCard({ d }: { d: DriverDelivery }) {
   const slot = formatSlot(d.slotDate, d.slotStart, d.slotEnd)
   return (
@@ -175,7 +247,33 @@ function TodoCard({ d }: { d: DriverDelivery }) {
   )
 }
 
-export default function DriverHome({ initial, initialError, driverName }: Props) {
+function StockBars({ stock }: { stock: DriverHomeData['stock'] }) {
+  const max = stock.reduce((m, l) => Math.max(m, l.onHand), 0)
+  return (
+    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {stock.map((line) => {
+        const ratio = stockBarRatio(line.onHand, max)
+        const barColor = line.level === 'low' ? C.orange : C.green
+        return (
+          <div key={line.productId} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontFamily: SANS, fontSize: 14, color: C.text }}>
+              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line.name}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                {line.level === 'empty' ? <Pill tone="alert">Épuisé</Pill> : null}
+                <strong style={{ fontWeight: 800 }}>{line.onHand}</strong>
+              </span>
+            </div>
+            <div style={{ height: 6, borderRadius: 3, background: C.border, overflow: 'hidden' }}>
+              <div style={{ width: `${Math.round(ratio * 100)}%`, height: '100%', background: barColor, borderRadius: 3 }} />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+export default function DriverHome({ initial, initialError, driverName, logoUrl = null }: Props) {
   const [data, setData] = useState<DriverHomeData | null>(initial)
   const [lost, setLost] = useState<boolean>(initial === null)
   const busy = useRef(false)
@@ -210,31 +308,31 @@ export default function DriverHome({ initial, initialError, driverName }: Props)
 
   const name = data?.driver.fullName ?? driverName ?? 'Livreur'
   const { todo, done } = splitDeliveries(data?.deliveries ?? [])
+  const active = activeDelivery(todo)
+  const waiting = active ? todo.filter((d) => d.id !== active.id) : todo
+  const badge = onlineBadge(data?.session ?? null)
+  const total = done.length + todo.length
 
   return (
     <div style={{ background: C.bg, margin: '-24px -16px', padding: 16, minHeight: '100vh', color: C.text, fontFamily: SANS }}>
       <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <header style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div
-            aria-hidden="true"
-            style={{ width: 44, height: 44, borderRadius: '50%', border: `2px solid ${C.gold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 20, fontWeight: 700, color: C.gold, flexShrink: 0 }}
-          >
-            {initialOf(name)}
-          </div>
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoUrl} alt="" width={44} height={44} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', border: `2px solid ${C.gold}`, flexShrink: 0 }} />
+          ) : (
+            <div
+              aria-hidden="true"
+              style={{ width: 44, height: 44, borderRadius: '50%', border: `2px solid ${C.gold}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: SERIF, fontSize: 20, fontWeight: 700, color: C.gold, flexShrink: 0 }}
+            >
+              {initialOf(name)}
+            </div>
+          )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={labelStyle}>Espace livreur</div>
             <div style={{ fontFamily: SERIF, fontSize: 22, fontWeight: 700, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
           </div>
-          <form action={signOutAction}>
-            <button
-              type="submit"
-              aria-label="Déconnexion"
-              title="Déconnexion"
-              style={{ width: 44, height: 44, borderRadius: 12, border: `1px solid ${C.border}`, background: C.card, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-            >
-              <IconLogout />
-            </button>
-          </form>
+          <Pill tone={badge.tone}>{badge.label}</Pill>
         </header>
 
         {lost && data ? (
@@ -249,60 +347,36 @@ export default function DriverHome({ initial, initialError, driverName }: Props)
           </div>
         ) : data.session ? (
           <>
-            <section style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: SANS, fontSize: 15, fontWeight: 600 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: C.green, display: 'inline-block' }} />
-                  Session ouverte
-                </div>
-                <div style={{ fontFamily: SANS, fontSize: 13, color: C.muted, marginTop: 4 }}>
-                  depuis {formatTimeOfDay(data.session.startedAt)} · {formatDayShort(data.session.startedAt)}
-                </div>
+            {active ? (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <Tile label="Encaissé" value={formatMoney(data.cash?.collected ?? 0)} />
+                <Tile label="Livraisons" value={`${done.length} sur ${total}`} />
+                <Tile label="À remettre" value={formatMoney(data.cash?.netToRemit ?? 0)} accent />
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={labelStyle}>Fonds d&apos;ouverture</div>
-                <div style={{ fontFamily: SANS, fontSize: 16, fontWeight: 700, color: C.text }}>{formatMoney(data.session.openingCash)}</div>
-              </div>
-            </section>
+            ) : (
+              <>
+                <section style={cardStyle}>
+                  <div style={labelStyle}>Net à remettre aujourd&apos;hui</div>
+                  <div style={{ fontFamily: SERIF, fontSize: 44, fontWeight: 800, color: C.gold, lineHeight: 1.1, marginTop: 8 }}>
+                    {formatMoney(data.cash?.netToRemit ?? 0)}
+                  </div>
+                  <div style={{ fontFamily: SANS, fontSize: 12, color: C.muted, marginTop: 4 }}>fonds + encaisse − frais</div>
+                </section>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <Tile label="Livraisons" value={`${done.length} sur ${total}`} />
+                  <Tile label="Session" value={`depuis ${formatTimeOfDay(data.session.startedAt)}`} hint={formatDayShort(data.session.startedAt)} />
+                </div>
+              </>
+            )}
 
-            {data.cash ? (
-              <section style={cardStyle}>
-                <div style={labelStyle}>Mes chiffres du jour</div>
-                <div style={{ fontFamily: SERIF, fontSize: 44, fontWeight: 800, color: C.gold, lineHeight: 1.1, marginTop: 8 }}>{formatMoney(data.cash.netToRemit)}</div>
-                <div style={{ fontFamily: SANS, fontSize: 12, color: C.muted, margin: '4px 0 12px' }}>Net à remettre · fonds + encaisse − frais</div>
-                <div style={rowStyle}>
-                  <span style={{ color: C.muted }}>Encaissé auprès des clients</span>
-                  <strong>{formatMoney(data.cash.collected)}</strong>
-                </div>
-                <div style={rowStyle}>
-                  <span style={{ color: C.muted }}>Mes frais de livraison</span>
-                  <strong>{formatMoney(data.cash.driverFees)}</strong>
-                </div>
-                <div style={rowStyle}>
-                  <span style={{ color: C.muted }}>Livraisons faites</span>
-                  <strong>
-                    {done.length} sur {done.length + todo.length}
-                  </strong>
-                </div>
-              </section>
-            ) : null}
+            {active ? <ActiveCard d={active} /> : null}
 
             <section style={cardStyle}>
               <div style={labelStyle}>Mon stock VIP restant</div>
               {data.stock.length === 0 ? (
                 <div style={{ fontFamily: SANS, fontSize: 14, color: C.muted, marginTop: 8 }}>Aucun stock chargé pour cette session.</div>
               ) : (
-                <div style={{ marginTop: 8 }}>
-                  {data.stock.map((line) => (
-                    <div key={line.productId} style={{ ...rowStyle, alignItems: 'center' }}>
-                      <span>{line.name}</span>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                        {line.level === 'empty' ? <Pill tone="alert">Épuisé</Pill> : line.level === 'low' ? <Pill tone="alert">Stock bas</Pill> : null}
-                        <strong>{line.onHand}</strong>
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <StockBars stock={data.stock} />
               )}
             </section>
           </>
@@ -348,25 +422,34 @@ export default function DriverHome({ initial, initialError, driverName }: Props)
           </>
         )}
 
-        {data ? (
+        {data && data.session && !active && todo.length === 0 ? (
+          <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 10, padding: 24 }}>
+            <span style={{ width: 56, height: 56, borderRadius: '50%', background: C.greenBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IconCheck size={28} />
+            </span>
+            <div style={{ fontFamily: SERIF, fontSize: 20, fontWeight: 700, color: C.text }}>Aucune course en attente</div>
+            <div style={{ fontFamily: SANS, fontSize: 14, color: C.muted }}>Les nouvelles courses apparaissent ici et sonnent sur ton téléphone.</div>
+          </section>
+        ) : null}
+
+        {data && (waiting.length > 0 || done.length > 0) ? (
           <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
               <div style={labelStyle}>Livraisons du jour</div>
               <div style={{ fontFamily: SANS, fontSize: 13, color: C.gold, fontWeight: 600 }}>{todo.length} à faire</div>
             </div>
-            {todo.length === 0 && done.length === 0 ? (
-              <div style={{ ...cardStyle, fontFamily: SANS, fontSize: 14, color: C.muted }}>
-                Aucune livraison pour l&apos;instant. Tu recevras une notification à chaque nouvelle livraison.
-              </div>
-            ) : null}
-            {todo.map((d) => (
+            {waiting.map((d) => (
               <TodoCard key={d.id} d={d} />
             ))}
             {done.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={labelStyle}>Déjà livrées</div>
                 {done.map((d) => (
-                  <a key={d.id} href={`/admin/driver/livraison/${d.id}`} style={{ ...cardStyle, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, textDecoration: 'none', color: C.text }}>
+                  <a
+                    key={d.id}
+                    href={`/admin/driver/livraison/${d.id}`}
+                    style={{ ...cardStyle, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, textDecoration: 'none', color: 'inherit' }}
+                  >
                     <IconCheck />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.customerName}</div>
@@ -379,6 +462,16 @@ export default function DriverHome({ initial, initialError, driverName }: Props)
             ) : null}
           </section>
         ) : null}
+
+        <form action={signOutAction}>
+          <button
+            type="submit"
+            style={{ width: '100%', minHeight: 44, borderRadius: 12, border: `1px solid ${C.border}`, background: C.card, color: C.gold, fontFamily: SANS, fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer' }}
+          >
+            <IconLogout />
+            Se déconnecter
+          </button>
+        </form>
       </div>
     </div>
   )
