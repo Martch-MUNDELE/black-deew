@@ -96,7 +96,7 @@ export function formatSlot(
   return d ? `${d[3]}/${d[2]}` : ''
 }
 
-/** Lien Google Maps : lat/lng si fournis, sinon l'adresse, sinon null. */
+/** Lien Google Maps : adresse ecrite si non vide, sinon lat/lng (secours), sinon null. */
 export function buildMapsUrl(input: {
   address?: string | null
   lat?: number | string | null
@@ -104,11 +104,11 @@ export function buildMapsUrl(input: {
 }): string | null {
   const lat = input.lat === null || input.lat === undefined || input.lat === '' ? NaN : Number(input.lat)
   const lng = input.lng === null || input.lng === undefined || input.lng === '' ? NaN : Number(input.lng)
+  const address = String(input.address ?? '').trim()
+  if (address) return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`
   if (Number.isFinite(lat) && Number.isFinite(lng)) {
     return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
   }
-  const address = String(input.address ?? '').trim()
-  if (address) return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`
   return null
 }
 
