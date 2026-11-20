@@ -79,7 +79,7 @@ test('illustration : svg, aria-hidden, aucun http', () => {
 
 test('detail : composants et phrase de la maquette, aucun emoji', () => {
   const src = read('components/driver/DriverDeliveryDetail.tsx')
-  for (const word of ['headerBadge', 'steps', 'stockNote', 'DriverRouteIllustration', 'DriverAcceptDelivery', 'DriverNavigationLinks', 'DriverMarkDelivered']) {
+  for (const word of ['headerBadge', 'steps', 'stockNote', 'DriverRouteMap', 'DriverAcceptDelivery', 'DriverNavigationLinks', 'DriverMarkDelivered']) {
     assert.ok(src.includes(word), `manque ${word}`)
   }
   assert.ok(src.includes('En acceptant, la commande passe en livraison'))

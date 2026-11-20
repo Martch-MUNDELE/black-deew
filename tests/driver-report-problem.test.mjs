@@ -116,5 +116,7 @@ test('detail : bouton sous Accepter (non acceptee) et sous Marquer comme livree 
   const reports = [...src.matchAll(/<DriverReportProblem /g)].map((m) => m.index)
   assert.ok(accept < reports[0] && reports[0] < markDelivered)
   assert.ok(markDelivered < reports[1])
-  assert.match(src, /<CallButton href=\{telHref\} \/>/)
+  // BLAC-DETAIL-ERGONOMIE : Appeler quitte le bas de page et passe sur la carte client (CallLink)
+  assert.match(src, /<CallLink href=\{telHref\} phone=\{delivery\.customerPhone\} \/>/)
+  assert.doesNotMatch(src, /CallButton/)
 })
