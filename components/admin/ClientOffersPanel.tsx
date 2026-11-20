@@ -216,7 +216,7 @@ export default function ClientOffersPanel() {
               <p style={{ fontSize: 13, color: '#6A5A40', margin: 0 }}>Chargement…</p>
             ) : offers.length === 0 ? (
               <p style={{ fontSize: 13, color: '#6A5A40', margin: 0, textAlign: 'center' }}>
-                Aucune offre personnelle pour l'instant.
+                Aucune offre personnelle pour l&apos;instant.
               </p>
             ) : (
               <div style={{ display: 'grid', gap: 10 }}>

@@ -11,7 +11,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 export default function DriverDeliveryIndicator({ currency = '' }: { currency?: string }) {
   const [feed, setFeed] = useState<DeliveryFeedItem[]>([])
 
-  const load = useCallback(async (supabase: ReturnType<typeof createClient>) => {
+  const fetchFeed = useCallback(async (supabase: ReturnType<typeof createClient>): Promise<DeliveryFeedItem[] | null> => {
     try {
       const since = new Date(Date.now() - DAY_MS).toISOString()
       const { data: rows } = await supabase
@@ -20,18 +20,24 @@ export default function DriverDeliveryIndicator({ currency = '' }: { currency?: 
         .eq('status', 'delivered')
         .gte('delivered_at', since)
       const { data: drivers } = await supabase.from('delivery_drivers').select('id, full_name')
-      setFeed(buildDeliveryFeed(rows || [], drivers || [], Date.now()))
+      return buildDeliveryFeed(rows || [], drivers || [], Date.now())
     } catch (e) {
       console.error('[DriverDeliveryIndicator] lecture impossible', e)
+      return null
     }
   }, [])
 
   useEffect(() => {
     const supabase = createClient()
-    load(supabase)
-    const interval = setInterval(() => load(supabase), REFRESH_MS)
+    const refresh = () => {
+      fetchFeed(supabase).then((items) => {
+        if (items) setFeed(items)
+      })
+    }
+    refresh()
+    const interval = setInterval(refresh, REFRESH_MS)
     return () => clearInterval(interval)
-  }, [load])
+  }, [fetchFeed])
 
   return (
     <div

@@ -7,7 +7,6 @@ const sql = readFileSync(file, 'utf8');
 const marker = '-- RETOUR ARRIÈRE';
 const idx = sql.indexOf(marker);
 const body = idx >= 0 ? sql.slice(0, idx) : sql;
-const bodyLower = body.toLowerCase();
 const norm = (s) => s.toLowerCase().replace(/\s+/g, ' ');
 const n = norm(body);
 

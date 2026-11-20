@@ -1,10 +1,62 @@
 'use client'
 // BLAC-P3-058 : bouton "Accepter la course" (prise en charge avant livraison).
 // BLAC-P3-066 : apres acceptation, lien WhatsApp "Prevenir le client" avant de rafraichir.
+// BLAC-P3-076 : premiere position du livreur envoyee des l'acceptation, avant l'ouverture de WhatsApp.
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { buildPositionPayload } from '@/lib/tracking-sender'
 
 const SANS = "'DM Sans', sans-serif"
+
+// Attente maximale ajoutee avant l'ouverture de WhatsApp (lecture de la position + envoi).
+export const FIRST_POSITION_TIMEOUT_MS = 4000
+
+// Lit la position une seule fois et l'envoie a /api/driver/tracking.
+// Ne leve jamais d'erreur et n'attend pas plus de FIRST_POSITION_TIMEOUT_MS.
+export async function sendFirstPosition(deliveryId: string): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    const geolocation = navigator.geolocation
+    const attempt = new Promise<void>((resolve) => {
+      try {
+        geolocation.getCurrentPosition(
+          (position) => {
+            try {
+              const payload = buildPositionPayload(deliveryId, position.coords)
+              if (!payload) {
+                resolve()
+                return
+              }
+              fetch('/api/driver/tracking', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              }).then(
+                () => resolve(),
+                () => resolve()
+              )
+            } catch {
+              resolve()
+            }
+          },
+          () => resolve(),
+          { enableHighAccuracy: true, maximumAge: 10000, timeout: FIRST_POSITION_TIMEOUT_MS }
+        )
+      } catch {
+        resolve()
+      }
+    })
+    const limit = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, FIRST_POSITION_TIMEOUT_MS)
+    })
+    await Promise.race([attempt, limit])
+  } catch {
+    // jamais bloquant : WhatsApp s'ouvre quand meme
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+  }
+}
 
 export default function DriverAcceptDelivery({ deliveryId }: { deliveryId: string }) {
   const router = useRouter()
@@ -44,6 +96,7 @@ export default function DriverAcceptDelivery({ deliveryId }: { deliveryId: strin
         return
       }
       setAccepted({ whatsappUrl })
+      await sendFirstPosition(deliveryId)
       try {
         // Ouverture automatique : si le navigateur la refuse, le lien ci-dessous reste disponible.
         window.open(whatsappUrl, '_blank', 'noopener,noreferrer')

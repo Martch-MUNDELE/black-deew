@@ -96,7 +96,7 @@ export default function PushNotificationManager() {
 
       setStatus('ready')
     }).catch(() => setStatus('unsupported'))
-  }, [])
+  }, [isLocalMdh])
 
   async function handleEnable() {
     if (!swReg) return

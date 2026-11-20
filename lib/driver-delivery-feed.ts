@@ -52,5 +52,11 @@ export function buildDeliveryFeed(
     })
   }
   out.sort((a, b) => b._ts - a._ts)
-  return out.map(({ _ts, ...item }) => item)
+  return out.map((entry) => ({
+    order_id: entry.order_id,
+    driver_name: entry.driver_name,
+    delivered_at: entry.delivered_at,
+    amount_collected: entry.amount_collected,
+    minutes_ago: entry.minutes_ago,
+  }))
 }

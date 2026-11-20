@@ -51,7 +51,7 @@ test('composant DriverTrackingSender : watchPosition, clearWatch, route, message
 test('DriverMarkDelivered : monte DriverTrackingSender et le bouton WhatsApp', () => {
   const src = read('components/driver/DriverMarkDelivered.tsx')
   assert.match(src, /DriverTrackingSender/)
-  assert.match(src, /Partager ma position en direct dans WhatsApp/)
+  assert.match(src, /Prévenir le client et partager mon suivi/)
   assert.match(src, /Oui, livrée/)
 })
 

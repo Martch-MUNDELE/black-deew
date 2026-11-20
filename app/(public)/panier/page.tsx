@@ -258,8 +258,9 @@ function getVipPrefillPhone() {
 
   // BLAC-P3-009 : apercu serveur de la remise (le serveur reste seul juge du prix final)
   const [serverPromo, setServerPromo] = useState<ServerPromo>(NO_SERVER_PROMO)
+  if (items.length === 0 && serverPromo !== NO_SERVER_PROMO) setServerPromo(NO_SERVER_PROMO)
   useEffect(() => {
-    if (items.length === 0) { setServerPromo(NO_SERVER_PROMO); return }
+    if (items.length === 0) return
     let cancelled = false
     const ctrl = new AbortController()
     const timer = setTimeout(() => {

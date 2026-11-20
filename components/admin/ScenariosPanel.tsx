@@ -165,7 +165,7 @@ export default function ScenariosPanel() {
       <div role="alert" data-testid="promo-no-end-warning-scenarios"
         style={{ padding: '8px 12px', borderRadius: 8, fontSize: 13, color: '#F5A623',
           background: 'rgba(245,166,35,0.1)', border: '1px solid rgba(245,166,35,0.45)' }}>
-        Cette promotion n'a pas de date de fin : l'offre n'expirera pas toute seule.
+        Cette promotion n&apos;a pas de date de fin : l&apos;offre n&apos;expirera pas toute seule.
       </div>
     )
   }
@@ -245,7 +245,7 @@ export default function ScenariosPanel() {
             <div data-testid="scenario-inactive-message" style={{ whiteSpace: 'pre-wrap', fontSize: 14, color: '#F3E9D2', background: '#0C0A06', borderRadius: 8, padding: 10 }}>{inactiveMessage}</div>
           </div>
           {inError && <p role="alert" style={{ color: '#E5604D', fontSize: 13, margin: 0 }}>{inError}</p>}
-          {inDone && <p role="status" style={{ color: GOLD, fontSize: 13, margin: 0 }}>Campagne créée. Retrouve-la dans la file d'envoi (onglet Campagnes).</p>}
+          {inDone && <p role="status" style={{ color: GOLD, fontSize: 13, margin: 0 }}>Campagne créée. Retrouve-la dans la file d&apos;envoi (onglet Campagnes).</p>}
           <button type="button" data-testid="scenario-inactive-validate" style={buttonStyle} disabled={inBusy || inDone} onClick={validateInactive}>
             {inBusy ? 'Création…' : "Valider et préparer l'envoi"}
           </button>

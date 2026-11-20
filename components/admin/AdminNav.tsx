@@ -109,8 +109,9 @@ export function filterNavGroups(groups: typeof NAV_GROUPS, permissions: AdminPer
         return !key || hasAdminPermission(permissions, key, "view");
       })
       .map((link) => {
-        const { permission: _permission, ...rest } = link as typeof link & { permission?: string };
-        return rest;
+        const rest: Record<string, unknown> = { ...link };
+        delete rest.permission;
+        return rest as typeof link;
       }),
   }));
 }

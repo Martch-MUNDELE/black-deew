@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatMoney } from '@/lib/driver-space'
 import DriverTrackingSender from '@/components/driver/DriverTrackingSender'
+import { shareTrackingViaWhatsApp } from '@/lib/delivery-whatsapp'
 
 const SANS = "'DM Sans', sans-serif"
 
@@ -103,21 +104,38 @@ function DriverMarkDeliveredForm({ deliveryId, amount }: { deliveryId: string; a
   )
 }
 
-// BLAC-P3-065 : envoi de position pendant la course + aide pour le partage en direct WhatsApp
+// BLAC-P3-065 / BLAC-P3-077 : envoi de position + bouton qui ouvre WhatsApp avec le message complet pret a envoyer
 export default function DriverMarkDelivered({ deliveryId, amount }: { deliveryId: string; amount: number }) {
-  const [helpOpen, setHelpOpen] = useState(false)
+  const [tipOpen, setTipOpen] = useState(false)
+  const [sharing, setSharing] = useState(false)
+  const [shareError, setShareError] = useState<string | null>(null)
+
+  async function shareTracking() {
+    if (sharing) return
+    setSharing(true)
+    setShareError(null)
+    const result = await shareTrackingViaWhatsApp({
+      deliveryId,
+      fetchImpl: (input, init) => fetch(input, init),
+      open: (url) => {
+        window.location.href = url
+      },
+    })
+    if (!result.ok) setShareError(result.error)
+    setSharing(false)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <DriverTrackingSender deliveryId={deliveryId} />
       <DriverMarkDeliveredForm deliveryId={deliveryId} amount={amount} />
       <button
         type="button"
-        aria-expanded={helpOpen}
-        onClick={() => setHelpOpen((v) => !v)}
+        disabled={sharing}
+        onClick={shareTracking}
         style={{
           width: '100%',
-          minHeight: 44,
-          height: 44,
+          minHeight: 48,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -127,19 +145,33 @@ export default function DriverMarkDelivered({ deliveryId, amount }: { deliveryId
           background: '#15110B',
           border: '1px solid #F5C842',
           fontFamily: SANS,
-          fontSize: 14,
+          fontSize: 15,
           fontWeight: 700,
           color: '#F5C842',
           cursor: 'pointer',
+          opacity: sharing ? 0.6 : 1,
         }}
       >
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" />
           <circle cx="12" cy="9.5" r="2.5" />
         </svg>
-        Partager ma position en direct dans WhatsApp
+        {sharing ? 'Ouverture…' : 'Prévenir le client et partager mon suivi'}
       </button>
-      {helpOpen ? (
+      {shareError ? (
+        <div role="alert" style={{ fontFamily: SANS, fontSize: 14, color: '#FFA566' }}>
+          {shareError}
+        </div>
+      ) : null}
+      <button
+        type="button"
+        aria-expanded={tipOpen}
+        onClick={() => setTipOpen((v) => !v)}
+        style={{ alignSelf: 'flex-start', background: 'none', border: 'none', padding: 0, fontFamily: SANS, fontSize: 13, color: '#BFAF8F', textDecoration: 'underline', cursor: 'pointer' }}
+      >
+        Astuce : suivi continu écran verrouillé
+      </button>
+      {tipOpen ? (
         <ol style={{ margin: 0, paddingLeft: 20, fontFamily: SANS, fontSize: 14, color: '#BFAF8F', display: 'flex', flexDirection: 'column', gap: 4 }}>
           <li>Ouvre la discussion WhatsApp avec le client.</li>
           <li>Touche le trombone ou le +.</li>

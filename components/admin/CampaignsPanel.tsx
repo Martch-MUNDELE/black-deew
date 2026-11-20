@@ -290,7 +290,7 @@ export default function CampaignsPanel({
                 </div>
 
                 <Card n={1} title="Visuel de la promo">
-                  <div style={LABEL_STYLE}>Image de l'aperçu WhatsApp (facultatif)</div>
+                  <div style={LABEL_STYLE}>Image de l&apos;aperçu WhatsApp (facultatif)</div>
                   {imageUrl ? (
                     <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -299,7 +299,7 @@ export default function CampaignsPanel({
                       <button type="button" onClick={() => setImageUrl('')}
                         style={{ minHeight: 44, padding: '0 14px', borderRadius: 8, border: '1px solid rgba(229,115,115,0.4)',
                           background: 'transparent', color: '#E57373', fontSize: 13, cursor: 'pointer' }}>
-                        Retirer l'image
+                        Retirer l&apos;image
                       </button>
                     </div>
                   ) : (
@@ -311,7 +311,7 @@ export default function CampaignsPanel({
                     </label>
                   )}
                   <div style={{ fontSize: 12, color: '#6A5A40', marginTop: 6 }}>
-                    Sans image, l'aperçu garde l'image de la marque.
+                    Sans image, l&apos;aperçu garde l&apos;image de la marque.
                   </div>
                 </Card>
 
@@ -326,7 +326,7 @@ export default function CampaignsPanel({
                     <div role="alert" data-testid="promo-no-end-warning"
                       style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, fontSize: 13, color: '#F5A623',
                         background: 'rgba(245,166,35,0.1)', border: '1px solid rgba(245,166,35,0.45)' }}>
-                      Cette promotion n'a pas de date de fin : l'offre n'expirera pas toute seule.
+                      Cette promotion n&apos;a pas de date de fin : l&apos;offre n&apos;expirera pas toute seule.
                     </div>
                   )}
                 </Card>
@@ -427,7 +427,7 @@ export default function CampaignsPanel({
                 <Card title="Récapitulatif">
                   <dl style={{ margin: 0, display: 'grid', gap: 8, fontSize: 13 }}>
                     <div><dt style={{ color: '#8A7A5C' }}>Promotion</dt><dd style={{ margin: 0, color: '#F0E6CC' }}>{selectedRule?.name ?? '—'}</dd></div>
-                    <div><dt style={{ color: '#8A7A5C' }}>Valable jusqu'au</dt><dd style={{ margin: 0, color: '#F0E6CC' }}>{endLong ?? 'Sans date de fin'}</dd></div>
+                    <div><dt style={{ color: '#8A7A5C' }}>Valable jusqu&apos;au</dt><dd style={{ margin: 0, color: '#F0E6CC' }}>{endLong ?? 'Sans date de fin'}</dd></div>
                     <div><dt style={{ color: '#8A7A5C' }}>Destinataires</dt><dd style={{ margin: 0, color: '#F0E6CC' }}>{audienceLabel(audience)}</dd></div>
                     <div><dt style={{ color: '#8A7A5C' }}>Canal</dt><dd style={{ margin: 0, color: '#F0E6CC' }}>WhatsApp, un clic par client</dd></div>
                   </dl>
@@ -485,7 +485,7 @@ export default function CampaignsPanel({
                             <button type="button" onClick={() => void setCampaignImage(c.id, null)}
                               style={{ minHeight: 36, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(229,115,115,0.4)',
                                 background: 'transparent', color: '#E57373', fontSize: 12, cursor: 'pointer' }}>
-                              Retirer l'image
+                              Retirer l&apos;image
                             </button>
                           )}
                         </div>

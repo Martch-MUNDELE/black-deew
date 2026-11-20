@@ -11,13 +11,11 @@ export default function SuiviPage() {
   const params = useParams<{ token: string }>()
   const token = typeof params?.token === 'string' ? params.token : ''
   const [view, setView] = useState<TrackingView | null>(null)
-  const [invalid, setInvalid] = useState(false)
+  const [notFound, setNotFound] = useState(false)
+  const invalid = !token || notFound
 
   useEffect(() => {
-    if (!token) {
-      setInvalid(true)
-      return
-    }
+    if (!token) return
     let stopped = false
     let timer: ReturnType<typeof setInterval> | null = null
 
@@ -26,7 +24,7 @@ export default function SuiviPage() {
         const res = await fetch(`/api/tracking/${encodeURIComponent(token)}`, { cache: 'no-store' })
         if (stopped) return
         if (res.status === 404) {
-          setInvalid(true)
+          setNotFound(true)
           if (timer) clearInterval(timer)
           return
         }
@@ -74,7 +72,7 @@ export default function SuiviPage() {
 
         {invalid ? (
           <div style={cardStyle}>
-            <p style={{ fontSize: 18, margin: 0 }}>Ce lien de suivi n'est plus valide</p>
+            <p style={{ fontSize: 18, margin: 0 }}>{"Ce lien de suivi n'est plus valide"}</p>
           </div>
         ) : !view ? (
           <div style={cardStyle}>

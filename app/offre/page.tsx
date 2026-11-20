@@ -1,6 +1,7 @@
 // BLAC-P2-027 : page publique d'une offre de campagne (offre?c=<id>), apercu WhatsApp via Open Graph.
 // Composant serveur. Aucune donnee client : seulement le contenu de la campagne et de sa promotion.
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 import { loadPublicCampaign, resolveCampaignOgImage, type PublicCampaign } from '@/lib/campaign-public'
 import { isValidCampaignImageUrl } from '@/lib/campaigns'
@@ -139,7 +140,7 @@ export default async function OffrePage({ searchParams }: { searchParams: Search
           <p style={{ fontSize: 14, color: '#8A7A5C', margin: '0 0 20px' }}>
             Cette offre est terminée ou n&apos;existe pas. Découvre notre carte du moment.
           </p>
-          <a href="/" style={BUTTON}>Voir la carte</a>
+          <Link href="/" style={BUTTON}>Voir la carte</Link>
         </div>
       </main>
     )

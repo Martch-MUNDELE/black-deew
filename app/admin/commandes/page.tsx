@@ -296,7 +296,6 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: Orde
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string>('')
-  const [successWaUrl, setSuccessWaUrl] = useState<string | null>(null)
   const [pendingPayload, setPendingPayload] = useState<DispatchedPayload | null>(null)
   const [phase, setPhase] = useState<'form' | 'success'>('form')
   const supabase = useMemo(() => createClient(), [])
@@ -372,11 +371,8 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: Orde
     }).catch(() => {})
     setSaving(false)
     const driverInfo = driver ? { full_name: driver.full_name, phone: driver.phone } : null
-    const formatDateLocal = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
-    const waUrl = buildWhatsAppUrl(order, null, 'en_livraison', formatDateLocal, undefined, undefined, currency, driverInfo)
     const dispatched: DispatchedPayload = { orderId: order.id, driverId: selectedDriver, driverInfo }
     setPendingPayload(dispatched)
-    setSuccessWaUrl(waUrl)
     setPhase('success')
   }
 
@@ -393,17 +389,8 @@ function DispatchModal({ order, onClose, onDispatched, currency }: { order: Orde
         <div style={{ fontSize: 12, color: '#C8B99A', marginBottom: 20 }}>Commande #{order.id.slice(0, 8).toUpperCase()} - {order.customer_name} - {(order.total ?? 0).toFixed(2)} {currency}</div>
         {phase === 'success' ? (
           <>
-            <div style={{ marginBottom: 20, padding: '12px 14px', borderRadius: 10, background: 'rgba(91,197,122,0.08)', border: '1px solid rgba(91,197,122,0.25)', color: '#5BC57A', fontSize: 12, fontFamily: 'DM Sans, sans-serif' }}>Commande dispatchée. Prévenez le client par WhatsApp avec les infos du livreur.</div>
+            <div style={{ marginBottom: 20, padding: '12px 14px', borderRadius: 10, background: 'rgba(91,197,122,0.08)', border: '1px solid rgba(91,197,122,0.25)', color: '#5BC57A', fontSize: 12, fontFamily: 'DM Sans, sans-serif' }}>Livreur dispatché. Le livreur prévient le client depuis son application.</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {successWaUrl && (
-                <a
-                  href={successWaUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={finishDispatch}
-                  style={{ display: 'block', textAlign: 'center', padding: '12px 0', borderRadius: 50, background: '#25D366', color: '#0A0804', fontSize: 13, fontWeight: 700, textDecoration: 'none', fontFamily: 'DM Sans, sans-serif' }}
-                >Envoyer message WhatsApp au client</a>
-              )}
               <button onClick={finishDispatch} style={{ padding: '10px 0', borderRadius: 50, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#C8B99A', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>Fermer</button>
             </div>
           </>
@@ -807,7 +794,7 @@ function CommandesAdminInner() {
 
                   {pending && pending !== status && pending !== 'restauration' && (() => {
                     const btnStyle = { marginTop: 10, display: 'inline-block', float: 'right' as const, background: '#25D366', color: '#0A0804', borderRadius: 50, padding: '6px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', textDecoration: 'none', border: 'none' }
-                    if (pending === 'en_livraison' && !order.driver_id) return null
+                    if (pending === 'en_livraison') return null
                     const waUrl = buildWhatsAppUrl(
                       order,
                       slotForOrder,

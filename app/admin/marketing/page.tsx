@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState, useSyncExternalStore } from 'react'
 import CampaignsPanel from '@/components/admin/CampaignsPanel'
 import CampaignResults from '@/components/admin/CampaignResults'
 import ClientOffersPanel from '@/components/admin/ClientOffersPanel'
@@ -23,19 +23,31 @@ function tabFromHash(hash: string): TabId {
   return TABS.some((t) => t.id === id) ? (id as TabId) : 'campagnes'
 }
 
-export default function MarketingPage() {
-  const [active, setActive] = useState<TabId>('campagnes')
+function getHashTab(): TabId {
+  return tabFromHash(window.location.hash)
+}
 
+function getServerHashTab(): TabId {
+  return 'campagnes'
+}
+
+export default function MarketingPage() {
   // L'onglet actif est gardé dans le hash de l'adresse (lien partageable).
-  useEffect(() => {
-    setActive(tabFromHash(window.location.hash))
-    const onHash = () => setActive(tabFromHash(window.location.hash))
+  // "chosen" = onglet choisi localement (clic ou clavier) ; un changement de hash le remet à zéro.
+  const [chosen, setChosen] = useState<TabId | null>(null)
+  const subscribeHash = useCallback((onChange: () => void) => {
+    const onHash = () => {
+      setChosen(null)
+      onChange()
+    }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+  const hashTab = useSyncExternalStore(subscribeHash, getHashTab, getServerHashTab)
+  const active: TabId = chosen ?? hashTab
 
   const select = useCallback((id: TabId) => {
-    setActive(id)
+    setChosen(id)
     try {
       window.history.replaceState(null, '', `#${id}`)
     } catch {

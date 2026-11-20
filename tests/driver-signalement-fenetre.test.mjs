@@ -96,14 +96,15 @@ test('badge position : partagee avec le client, message d erreur conserve', () =
   assert.match(tracking, /Active la localisation pour que le client te suive/)
 })
 
-test('bouton WhatsApp : secondaire de 44 px avec icone SVG, meme comportement', () => {
-  assert.match(delivered, /Partager ma position en direct dans WhatsApp/)
-  assert.match(delivered, /minHeight: 44/)
-  assert.match(delivered, /height: 44/)
+// BLAC-P3-077 : le bouton devient "Prevenir le client et partager mon suivi" (ouvre WhatsApp avec le message complet) ;
+// l'aide manuelle en trois lignes devient une astuce optionnelle (lien texte souligne, aria-expanded conserve).
+test('bouton WhatsApp : secondaire de 48 px avec icone SVG, astuce optionnelle conservee', () => {
+  assert.match(delivered, /Prévenir le client et partager mon suivi/)
+  assert.match(delivered, /minHeight: 48/)
   assert.match(delivered, /<svg aria-hidden="true"/)
-  assert.match(delivered, /aria-expanded=\{helpOpen\}/)
-  assert.match(delivered, /setHelpOpen\(\(v\) => !v\)/)
-  assert.ok(!/textDecoration: 'underline'/.test(delivered))
+  assert.match(delivered, /aria-expanded=\{tipOpen\}/)
+  assert.match(delivered, /setTipOpen\(\(v\) => !v\)/)
+  assert.match(delivered, /Astuce : suivi continu écran verrouillé/)
 })
 
 test('confirmation de livraison non touchee', () => {

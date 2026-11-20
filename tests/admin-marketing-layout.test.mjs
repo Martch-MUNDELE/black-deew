@@ -18,7 +18,9 @@ test('la page a un tablist accessible avec quatre onglets dont Scénarios automa
 })
 
 test('onglet Campagnes par défaut, hash gardé, un seul panneau visible', () => {
-  assert.ok(page.includes("useState<TabId>('campagnes')"))
+  // BLAC-ESLINT-ZERO : l'état initial n'est plus un useState dans un effet mais une lecture du hash (useSyncExternalStore), défaut 'campagnes' côté serveur.
+  assert.ok(page.includes('useSyncExternalStore(subscribeHash, getHashTab, getServerHashTab)'))
+  assert.ok(page.includes("return 'campagnes'"))
   assert.ok(page.includes('window.location.hash'))
   assert.ok(page.includes('hashchange'))
   assert.equal((page.match(/role="tabpanel"/g) ?? []).length, 4)

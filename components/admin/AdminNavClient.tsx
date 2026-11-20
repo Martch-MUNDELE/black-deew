@@ -4,6 +4,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useVipPendingCount } from "@/lib/use-vip-pending-count";
+import { applyOrderEvent, type OrderRealtimeEvent } from "@/lib/admin-new-orders";
 import Link from "next/link";
 import {
   Home, Package, ShoppingBag, Truck, Clock, Settings,
@@ -147,12 +148,15 @@ export default function AdminNavClient({
       isFirstLoad.current = false;
     });
     const channel = sb.channel("adminnav-orders")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (payload) => {
-        const o = payload.new as { id: string };
-        if (!prevOrderIds.current.has(o.id)) {
-          prevOrderIds.current.add(o.id);
-          setNewOrderCount(c => c + 1);
-        }
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (payload) => {
+        // BLAC-PASTILLE-COMMANDES : INSERT / UPDATE / DELETE, logique pure dans lib/admin-new-orders.ts
+        const next = applyOrderEvent(prevOrderIds.current, {
+          eventType: payload.eventType,
+          new: payload.new,
+          old: payload.old,
+        } as OrderRealtimeEvent);
+        prevOrderIds.current = next;
+        setNewOrderCount(next.size);
       })
       .subscribe();
     return () => { sb.removeChannel(channel); };
@@ -222,6 +226,9 @@ export default function AdminNavClient({
                         {link.href === "/admin/settings" && pendingVipCount > 0 && (
                           <span className="bd-sidebar-badge">{pendingVipCount}</span>
                         )}
+                        {link.href === "/admin/commandes" && newOrderCount > 0 && (
+                          <span className="bd-sidebar-badge">{newOrderCount}</span>
+                        )}
                         <ChevronDown size={14} className={`bd-sidebar-chevron${expanded ? " is-open" : ""}`} />
                       </button>
                     ) : (
@@ -248,6 +255,9 @@ export default function AdminNavClient({
                             {sub.label}
                             {sub.url === "/admin/settings?tab=vip" && pendingVipCount > 0 && (
                               <span className="bd-sidebar-badge">{pendingVipCount}</span>
+                            )}
+                            {sub.url === "/admin/commandes?tab=nouvelle" && newOrderCount > 0 && (
+                              <span className="bd-sidebar-badge">{newOrderCount}</span>
                             )}
                           </Link>
                         ))}
@@ -298,6 +308,9 @@ export default function AdminNavClient({
                       >
                         <NavIcon name={link.icon} />
                         <span>{link.label}</span>
+                        {link.href === "/admin/commandes" && newOrderCount > 0 && (
+                          <span className="bd-sidebar-badge" style={{ marginLeft: "auto" }}>{newOrderCount}</span>
+                        )}
                         <ChevronDown size={13} className={`bd-sidebar-chevron${expanded ? " is-open" : ""}`} />
                       </button>
                     ) : (

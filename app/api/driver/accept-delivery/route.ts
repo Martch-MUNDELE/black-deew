@@ -107,6 +107,24 @@ async function markOrderEnLivraison(orderId: unknown): Promise<void> {
   }
 }
 
+// BLAC-P3-077 : articles de la commande (order_items). Tout echec => liste vide, jamais d'exception.
+async function fetchOrderItems(orderId: unknown): Promise<{ name: string; quantity: number }[]> {
+  if (typeof orderId !== 'string' || !orderId) return []
+  try {
+    const { data, error } = await supabase
+      .from('order_items')
+      .select('product_name, quantity')
+      .eq('order_id', orderId)
+    if (error || !Array.isArray(data)) return []
+    return data.map((row: { product_name?: unknown; quantity?: unknown }) => ({
+      name: typeof row.product_name === 'string' ? row.product_name : '',
+      quantity: Number(row.quantity),
+    }))
+  } catch {
+    return []
+  }
+}
+
 // Suivi actif (cree si absent quand create=true) + lien WhatsApp. Tout echec => null, jamais d'exception.
 async function buildWhatsappInfo(
   deliveryId: string,
@@ -154,7 +172,9 @@ async function buildWhatsappInfo(
       .select('full_name, phone')
       .eq('id', driverId)
       .maybeSingle()
+    const items = await fetchOrderItems(orderId)
     const message = buildEnRouteMessage({
+      items,
       customerName: customer?.customer_name,
       driverName: driver?.full_name,
       driverPhone: driver?.phone,

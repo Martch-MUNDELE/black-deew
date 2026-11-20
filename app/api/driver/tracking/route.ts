@@ -69,7 +69,9 @@ export async function POST(req: NextRequest) {
         .eq('active', true)
         .maybeSingle()
 
-    let { data: tracking, error: readErr } = await readActive()
+    const firstRead = await readActive()
+    const readErr = firstRead.error
+    let tracking = firstRead.data
     if (readErr) {
       return NextResponse.json({ error: 'Lecture impossible' }, { status: 500, headers: NO_STORE })
     }
