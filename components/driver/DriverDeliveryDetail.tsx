@@ -1,6 +1,6 @@
-// BLAC-P3-049 : detail d'une livraison pour le livreur (lecture seule, aucun appel navigateur a la base).
+// BLAC-P3-049 puis BLAC-ECRAN-COURSE-MAQUETTE : detail d'une livraison pour le livreur (maquette 2 · Nouvelle course).
+// Lecture seule : aucun appel navigateur a la base ; le comportement des boutons existants ne change pas.
 import {
-  buildMapsUrl,
   buildTelUrl,
   formatDistanceKm,
   formatLongDate,
@@ -8,9 +8,12 @@ import {
   formatSlot,
   type DriverDeliveryDetail as DriverDeliveryDetailData,
 } from '@/lib/driver-space'
+import { headerBadge, steps, stockNote, type StockBalanceInput } from '@/lib/driver-delivery-view'
 import DriverMarkDelivered from '@/components/driver/DriverMarkDelivered'
 import DriverAcceptDelivery from '@/components/driver/DriverAcceptDelivery'
+import DriverReportProblem from '@/components/driver/DriverReportProblem'
 import DriverNavigationLinks from '@/components/driver/DriverNavigationLinks'
+import DriverRouteIllustration from '@/components/driver/DriverRouteIllustration'
 
 const C = {
   bg: '#0B0906',
@@ -29,6 +32,10 @@ const C = {
 const SANS = "'DM Sans', sans-serif"
 const SERIF = "'Playfair Display', serif"
 
+// Les fonctions pures renvoient les libelles de la spec (sans accents) : l'affichage remet les accents.
+const ACCENTS: Record<string, string> = { 'A accepter': 'À accepter', Acceptee: 'Acceptée', Livree: 'Livrée', Annulee: 'Annulée' }
+const show = (label: string) => ACCENTS[label] ?? label
+
 const cardStyle: React.CSSProperties = {
   background: C.card,
   border: `1px solid ${C.border}`,
@@ -44,70 +51,72 @@ const labelStyle: React.CSSProperties = {
   color: C.muted,
 }
 
-function BackLink() {
+function BackArrow() {
   return (
     <a
       href="/admin/driver"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 44, fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.gold, textDecoration: 'none' }}
+      aria-label="Retour à mes livraisons"
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, minWidth: 44, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, color: C.gold, textDecoration: 'none' }}
     >
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M15 18l-6-6 6-6" />
       </svg>
-      Mes livraisons
     </a>
   )
 }
 
-function Shell({ children, tall }: { children: React.ReactNode; tall?: boolean }) {
+function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ background: C.bg, margin: '-24px -16px', padding: 16, minHeight: '100vh', color: C.text, fontFamily: SANS }}>
-      <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: tall ? 'calc(260px + env(safe-area-inset-bottom))' : 'calc(52px + 48px + env(safe-area-inset-bottom))' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 'calc(32px + env(safe-area-inset-bottom))' }}>
         {children}
       </div>
     </div>
   )
 }
 
-const actionBase: React.CSSProperties = {
-  flex: 1,
-  minHeight: 52,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 8,
-  borderRadius: 14,
-  fontFamily: SANS,
-  fontSize: 16,
-  fontWeight: 700,
-  textDecoration: 'none',
-}
-
-function ActionLink({ href, primary, label, children }: { href: string | null; primary?: boolean; label: string; children: React.ReactNode }) {
-  const style: React.CSSProperties = primary
-    ? { ...actionBase, background: `linear-gradient(135deg, ${C.gold}, ${C.orange})`, color: C.dark }
-    : { ...actionBase, background: C.card, color: C.gold, border: `1px solid ${C.gold}` }
-  if (!href) {
-    return (
-      <span aria-disabled="true" style={{ ...style, opacity: 0.4 }}>
-        {children}
-        {label}
-      </span>
-    )
-  }
-  const external = href.startsWith('http')
+function StepsBanner({ status }: { status: string }) {
+  const list = steps(status)
+  if (list.length === 0) return null
   return (
-    <a href={href} style={style} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
-      {children}
-      {label}
-    </a>
+    <ol aria-label="Étapes de la course" style={{ ...cardStyle, listStyle: 'none', margin: 0, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+      {list.map((step) => (
+        <li key={step.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          {step.state === 'done' ? (
+            <span style={{ width: 28, height: 28, borderRadius: 999, background: C.greenBg, color: C.green, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 13l4 4L19 7" />
+              </svg>
+            </span>
+          ) : step.state === 'current' ? (
+            <span style={{ width: 28, height: 28, borderRadius: 999, background: C.gold, display: 'inline-block' }} />
+          ) : (
+            <span style={{ width: 28, height: 28, borderRadius: 999, border: `2px solid ${C.border}`, boxSizing: 'border-box', display: 'inline-block' }} />
+          )}
+          <span style={{ fontFamily: SANS, fontSize: 12, fontWeight: step.state === 'current' ? 700 : 500, color: step.state === 'upcoming' ? C.muted : C.text, textAlign: 'center' }}>
+            {show(step.label)}
+          </span>
+        </li>
+      ))}
+    </ol>
   )
 }
 
-export default function DriverDeliveryDetail({ delivery, error }: { delivery: DriverDeliveryDetailData | null; error?: string | null }) {
+export default function DriverDeliveryDetail({
+  delivery,
+  error,
+  stockBalances = [],
+}: {
+  delivery: DriverDeliveryDetailData | null
+  error?: string | null
+  stockBalances?: StockBalanceInput[]
+}) {
   if (!delivery) {
     return (
       <Shell>
-        <BackLink />
+        <div>
+          <BackArrow />
+        </div>
         <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <h1 style={{ fontFamily: SERIF, fontSize: 24, fontWeight: 700, color: C.text, margin: 0 }}>
             {error ? 'Lecture impossible' : 'Livraison introuvable'}
@@ -123,116 +132,159 @@ export default function DriverDeliveryDetail({ delivery, error }: { delivery: Dr
   const delivered = delivery.status.trim().toLowerCase() === 'delivered'
   // BLAC-P3-058 : la course doit etre acceptee (picked_up) avant de pouvoir etre marquee livree
   const accepted = delivery.status.trim().toLowerCase() === 'picked_up'
-  // BLAC-P3-063 : itineraire affiche pour toute course ni livree ni annulee
-  const navigable = !delivered && delivery.status.trim().toLowerCase() !== 'cancelled'
+  const cancelled = delivery.status.trim().toLowerCase() === 'cancelled'
+  const notYetAccepted = !accepted && !delivered && !cancelled
+
+  const badge = headerBadge(delivery.status)
+  const badgeColors =
+    badge.tone === 'green'
+      ? { fg: C.green, bg: C.greenBg }
+      : badge.tone === 'alert'
+        ? { fg: C.alert, bg: C.alertBg }
+        : { fg: C.gold, bg: C.dark }
+  const eyebrow = delivered ? 'Course livrée' : accepted ? 'Course en cours' : 'Nouvelle course'
+
   const dateText = formatLongDate(delivery.slotDate)
   const slotText = formatSlot(delivery.slotDate, delivery.slotStart, delivery.slotEnd)
   const distance = formatDistanceKm(delivery.distanceKm)
   const telHref = buildTelUrl(delivery.customerPhone)
-  const mapsHref = buildMapsUrl({ address: delivery.address, lat: delivery.lat, lng: delivery.lng })
+  const stockLines = stockNote(delivery.items, stockBalances)
 
   return (
-    <>
-      <Shell tall={!delivered}>
-        <BackLink />
+    <Shell>
+      <header style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <BackArrow />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={labelStyle}>{eyebrow}</div>
+          <h1 style={{ fontFamily: SERIF, fontSize: 24, fontWeight: 700, color: C.text, margin: '2px 0 0', lineHeight: 1.15, overflowWrap: 'anywhere' }}>
+            Commande #{delivery.orderRef}
+          </h1>
+        </div>
+        <span style={{ fontFamily: SANS, fontSize: 12, fontWeight: 600, color: badgeColors.fg, background: badgeColors.bg, border: `1px solid ${badgeColors.fg}`, borderRadius: 999, padding: '4px 10px', whiteSpace: 'nowrap' }}>
+          {show(badge.label)}
+        </span>
+      </header>
 
-        <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={labelStyle}>Commande {delivery.orderRef}</div>
-            <h1 style={{ fontFamily: SERIF, fontSize: 28, fontWeight: 700, color: C.text, margin: '4px 0 0', lineHeight: 1.15, overflowWrap: 'anywhere' }}>
-              {delivery.customerName}
-            </h1>
+      <section style={{ ...cardStyle, padding: 12 }}>
+        <DriverRouteIllustration distanceText={distance || undefined} />
+      </section>
+
+      <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={labelStyle}>Client</div>
+        <div style={{ fontFamily: SANS, fontSize: 18, fontWeight: 700, color: C.text, overflowWrap: 'anywhere' }}>{delivery.customerName}</div>
+        <div style={{ fontFamily: SANS, fontSize: 14, color: delivery.address ? C.muted : C.muted }}>
+          {delivery.address || 'Adresse non renseignée'}
+        </div>
+        {delivery.note ? (
+          <div style={{ background: C.alertBg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
+            <div style={{ ...labelStyle, color: C.alert }}>Note du client</div>
+            <div style={{ fontFamily: SANS, fontSize: 14, color: C.text, marginTop: 4, overflowWrap: 'anywhere' }}>{delivery.note}</div>
           </div>
-          <span
+        ) : null}
+        <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 4, paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+          <span style={labelStyle}>À encaisser</span>
+          <span style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 800, color: C.gold }}>{formatMoney(delivery.amountToCollect)}</span>
+        </div>
+      </section>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <section style={{ ...cardStyle, padding: 14 }}>
+          <div style={labelStyle}>Créneau</div>
+          <div style={{ fontFamily: SANS, fontSize: 16, fontWeight: 700, color: C.text, marginTop: 6 }}>{slotText || 'À confirmer'}</div>
+          {dateText ? <div style={{ fontFamily: SANS, fontSize: 12, color: C.muted, marginTop: 2 }}>{dateText}</div> : null}
+        </section>
+        <section style={{ ...cardStyle, padding: 14 }}>
+          <div style={labelStyle}>Mes frais</div>
+          <div style={{ fontFamily: SANS, fontSize: 16, fontWeight: 700, color: C.green, marginTop: 6 }}>+{formatMoney(delivery.deliveryFee)}</div>
+        </section>
+      </div>
+
+      <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={labelStyle}>À livrer</div>
+        {delivery.items.map((item, index) => (
+          <div
+            key={`${item.name}-${index}`}
+            style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontFamily: SANS, fontSize: 15, color: C.text, padding: '6px 0', borderTop: index === 0 ? 'none' : `1px solid ${C.border}` }}
+          >
+            <span>{item.name}</span>
+            <strong>x{item.quantity}</strong>
+          </div>
+        ))}
+        {stockLines.map((line) => (
+          <div
+            key={`stock-${line.name}`}
             style={{
               fontFamily: SANS,
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 600,
-              color: delivered || accepted ? C.green : C.alert,
-              background: delivered || accepted ? C.greenBg : C.alertBg,
               borderRadius: 999,
-              padding: '4px 10px',
-              whiteSpace: 'nowrap',
-              marginTop: 4,
+              padding: '8px 12px',
+              color: line.enough ? C.green : C.alert,
+              background: line.enough ? C.greenBg : C.alertBg,
             }}
           >
-            {delivered ? 'Livrée' : accepted ? 'Acceptée' : 'À livrer'}
-          </span>
-        </header>
-
-        <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={labelStyle}>Créneau et adresse</div>
-          <div style={{ fontFamily: SANS, fontSize: 17, fontWeight: 700, color: C.gold }}>
-            {[dateText, slotText].filter(Boolean).join(' · ') || 'Créneau à confirmer'}
+            {line.enough ? 'Stock VIP suffisant' : 'Stock insuffisant'} : il te reste {line.onHand} {line.name}
           </div>
-          {delivery.address ? (
-            <div style={{ fontFamily: SANS, fontSize: 15, color: C.text }}>
-              {delivery.address}
-              {distance ? <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{distance} depuis le dépôt</div> : null}
-            </div>
-          ) : (
-            <div style={{ fontFamily: SANS, fontSize: 14, color: C.muted }}>Adresse non renseignée</div>
-          )}
-          {navigable ? <DriverNavigationLinks address={delivery.address} lat={delivery.lat} lng={delivery.lng} /> : null}
-          {delivery.note ? (
-            <div style={{ background: C.alertBg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
-              <div style={{ ...labelStyle, color: C.alert }}>Note du client</div>
-              <div style={{ fontFamily: SANS, fontSize: 14, color: C.text, marginTop: 4, overflowWrap: 'anywhere' }}>{delivery.note}</div>
-            </div>
-          ) : null}
+        ))}
+      </section>
+
+      {notYetAccepted ? (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={{ fontFamily: SANS, fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.5 }}>
+            En acceptant, la commande passe en livraison, WhatsApp s&apos;ouvre avec le message prêt pour la cliente et ton suivi en direct démarre.
+          </p>
+          <DriverAcceptDelivery deliveryId={delivery.id} />
+          <DriverReportProblem deliveryId={delivery.id} />
         </section>
+      ) : null}
 
-        <section style={cardStyle}>
-          <div style={labelStyle}>Contenu et montant</div>
-          <div style={{ marginTop: 8 }}>
-            {delivery.items.map((item, index) => (
-              <div
-                key={`${item.name}-${index}`}
-                style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontFamily: SANS, fontSize: 14, color: C.text, padding: '8px 0', borderTop: index === 0 ? 'none' : `1px solid ${C.border}` }}
-              >
-                <span>
-                  {item.quantity} × {item.name}
-                </span>
-                <strong>{formatMoney(item.quantity * item.unitPrice)}</strong>
-              </div>
-            ))}
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontFamily: SANS, fontSize: 14, color: C.text, padding: '8px 0', borderTop: delivery.items.length ? `1px solid ${C.border}` : 'none' }}>
-              <span style={{ color: C.muted }}>Livraison</span>
-              <strong>{formatMoney(delivery.deliveryFee)}</strong>
-            </div>
-          </div>
-          <div style={{ borderTop: `1px solid ${C.gold}`, marginTop: 8, paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
-            <span style={{ fontFamily: SANS, fontSize: 14, color: C.muted }}>À encaisser</span>
-            <span style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 800, color: C.gold }}>{formatMoney(delivery.amountToCollect)}</span>
-          </div>
-        </section>
-      </Shell>
+      {accepted ? (
+        <>
+          <StepsBanner status={delivery.status} />
+          <DriverNavigationLinks address={delivery.address} lat={delivery.lat} lng={delivery.lng} />
+          <DriverMarkDelivered deliveryId={delivery.id} amount={delivery.amountToCollect} />
+          <DriverReportProblem deliveryId={delivery.id} />
+          <CallButton href={telHref} />
+        </>
+      ) : null}
 
-      <nav
-        aria-label="Actions de la livraison"
-        style={{ position: 'fixed', left: 0, right: 0, bottom: 0, background: C.bg, borderTop: `1px solid ${C.border}`, padding: '12px 16px calc(12px + env(safe-area-inset-bottom))', zIndex: 20 }}
-      >
-        <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {!delivered && !accepted ? <DriverAcceptDelivery deliveryId={delivery.id} /> : null}
-          {accepted ? (
-            <>
-          {!delivered ? <DriverMarkDelivered deliveryId={delivery.id} amount={delivery.amountToCollect} /> : null}
-            </>
-          ) : null}
-          <div style={{ display: 'flex', gap: 12 }}>
-          <ActionLink href={telHref} label="Appeler">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
-            </svg>
-          </ActionLink>
-          <ActionLink href={mapsHref} primary label="Itinéraire">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M3 11l18-8-8 18-2-8-8-2z" />
-            </svg>
-          </ActionLink>
-          </div>
-        </div>
-      </nav>
-    </>
+      {delivered ? <StepsBanner status={delivery.status} /> : null}
+    </Shell>
+  )
+}
+
+function CallButton({ href }: { href: string | null }) {
+  const style: React.CSSProperties = {
+    minHeight: 52,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    fontFamily: SANS,
+    fontSize: 16,
+    fontWeight: 700,
+    textDecoration: 'none',
+    background: C.card,
+    color: C.gold,
+    border: `1px solid ${C.gold}`,
+    opacity: href ? 1 : 0.4,
+  }
+  const icon = (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
+    </svg>
+  )
+  if (!href) {
+    return (
+      <span aria-disabled="true" style={style}>
+        {icon}Appeler
+      </span>
+    )
+  }
+  return (
+    <a href={href} style={style}>
+      {icon}Appeler
+    </a>
   )
 }

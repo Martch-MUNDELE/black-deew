@@ -7,7 +7,7 @@ import { useVipPendingCount } from "@/lib/use-vip-pending-count";
 import Link from "next/link";
 import {
   Home, Package, ShoppingBag, Truck, Clock, Settings,
-  Users, Star, UtensilsCrossed, ChevronDown, X, Menu, Lock, BarChart3, Percent,
+  Users, Star, UtensilsCrossed, ChevronDown, X, Menu, Lock, BarChart3, Percent, AlertTriangle,
   type LucideProps,
 } from "lucide-react";
 
@@ -45,6 +45,7 @@ const ICON_MAP: Record<string, IconComponent> = {
   "lock": Lock,
   "bar-chart": BarChart3,
   "percent": Percent,
+  "alert": AlertTriangle,
 };
 
 function NavIcon({ name, className }: { name: string; className?: string }) {
@@ -121,6 +122,19 @@ export default function AdminNavClient({
     });
   }, [logoUrl]);
   const pendingVipCount = useVipPendingCount("adminnav-vip");
+
+  // BLAC-ADMIN-SIGNALEMENTS : pastille du nombre de signalements livreurs ouverts.
+  const [openReportsCount, setOpenReportsCount] = useState(0);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/admin/delivery-reports/open-count", { cache: "no-store" })
+      .then(res => (res.ok ? res.json() : null))
+      .then((data: { count?: number } | null) => {
+        if (active) setOpenReportsCount(typeof data?.count === "number" ? data.count : 0);
+      })
+      .catch(() => { if (active) setOpenReportsCount(0); });
+    return () => { active = false; };
+  }, [pathname]);
   const prevOrderIds = useRef<Set<string>>(new Set());
   const isFirstLoad = useRef(true);
 
@@ -159,6 +173,12 @@ export default function AdminNavClient({
   const visibleGroups = groups.filter(g => {
     if (g.label === "SUPER ADMIN") return superAdmin;
     return true;
+  }).map(g => {
+    // Lien Signalements place apres Livreurs, avec la pastille des signalements ouverts.
+    const idx = g.links.findIndex(l => l.href === "/admin/livreurs");
+    if (idx < 0 || g.links.some(l => l.href === "/admin/signalements")) return g;
+    const link: NavLink = { href: "/admin/signalements", label: "Signalements", icon: "alert", badgeCount: openReportsCount };
+    return { ...g, links: [...g.links.slice(0, idx + 1), link, ...g.links.slice(idx + 1)] };
   });
 
   // Bottom bar fixe : Dashboard, Commandes, Accès VIP

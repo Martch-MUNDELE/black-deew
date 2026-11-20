@@ -30,13 +30,17 @@ test('formatSlot : HH:MM – HH:MM, repli sur la date', () => {
   assert.equal(formatSlot(null, null, null), '')
 })
 
-test('buildMapsUrl : adresse seule, lat/lng prioritaires, rien => null', () => {
+test('buildMapsUrl : adresse prioritaire, lat/lng en secours si adresse vide, rien => null', () => {
   assert.equal(
     buildMapsUrl({ address: '12 avenue de la Paix, Gombe' }),
     'https://www.google.com/maps/dir/?api=1&destination=12%20avenue%20de%20la%20Paix%2C%20Gombe'
   )
   assert.equal(
     buildMapsUrl({ address: 'x', lat: -4.3276, lng: 15.3136 }),
+    'https://www.google.com/maps/dir/?api=1&destination=x'
+  )
+  assert.equal(
+    buildMapsUrl({ address: '', lat: -4.3276, lng: 15.3136 }),
     'https://www.google.com/maps/dir/?api=1&destination=-4.3276,15.3136'
   )
   assert.equal(buildMapsUrl({ address: '  ', lat: null, lng: null }), null)

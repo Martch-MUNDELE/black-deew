@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import DriverDeliveryDetail from '@/components/driver/DriverDeliveryDetail'
 import { getAdminRole } from '@/lib/admin-role-server'
 import { getDriverDelivery } from '@/lib/driver-space-server'
+import { getDriverStockBalances, type DriverStockBalance } from '@/lib/driver-delivery-stock-server'
 import type { DriverDeliveryDetail as DriverDeliveryDetailData } from '@/lib/driver-space'
 
 export const dynamic = 'force-dynamic'
@@ -25,5 +26,11 @@ export default async function DriverDeliveryPage({ params }: { params: Promise<{
     }
   }
 
-  return <DriverDeliveryDetail delivery={delivery} error={error} />
+  // BLAC-ECRAN-COURSE-MAQUETTE : soldes de stock VIP du livreur (repli sur [])
+  let stockBalances: DriverStockBalance[] = []
+  if (delivery) {
+    stockBalances = await getDriverStockBalances(driver.id).catch(() => [])
+  }
+
+  return <DriverDeliveryDetail delivery={delivery} error={error} stockBalances={stockBalances} />
 }

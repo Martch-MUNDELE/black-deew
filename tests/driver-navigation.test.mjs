@@ -20,7 +20,8 @@ function checkCoordLinks(links) {
 }
 
 test('coordonnees numeriques : les quatre liens contiennent les coordonnees exactes', () => {
-  const links = buildNavigationLinks({ address: 'Rue X', lat: LAT, lng: LNG })
+  // BLAC-ITINERAIRE-ADRESSE : les liens par coordonnees ne servent qu'en secours (adresse vide)
+  const links = buildNavigationLinks({ address: '', lat: LAT, lng: LNG })
   checkCoordLinks(links)
   assert.equal(links.google, `https://www.google.com/maps/dir/?api=1&destination=${PAIR}&travelmode=driving`)
   assert.equal(links.waze, `https://waze.com/ul?ll=${PAIR}&navigate=yes`)
@@ -80,8 +81,9 @@ test('le composant n affiche rien quand le resultat est null (lecture du code)',
 
 test('le detail n affiche pas le bloc pour delivered et cancelled (lecture du code)', () => {
   const src = readFileSync(new URL('../components/driver/DriverDeliveryDetail.tsx', import.meta.url), 'utf8')
-  assert.match(src, /const navigable = !delivered && delivery\.status\.trim\(\)\.toLowerCase\(\) !== 'cancelled'/)
-  assert.match(src, /navigable \? <DriverNavigationLinks/)
+  assert.match(src, /accepted \? \(\s*<>\s*<StepsBanner status=\{delivery\.status\} \/>\s*<DriverNavigationLinks/)
   assert.match(src, /const delivered = delivery\.status\.trim\(\)\.toLowerCase\(\) === 'delivered'/)
-  assert.match(src, /buildMapsUrl\(/)
+  // le bloc n'apparait que pour une course acceptee (picked_up) : jamais delivered ni cancelled (assertion remise par Claude apres controle BLAC-P3-069)
+  assert.match(src, /const accepted = delivery\.status\.trim\(\)\.toLowerCase\(\) === 'picked_up'/)
+  assert.equal((src.match(/<DriverNavigationLinks/g) || []).length, 1)
 })

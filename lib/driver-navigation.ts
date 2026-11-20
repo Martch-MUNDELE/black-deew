@@ -1,11 +1,17 @@
 // BLAC-P3-063 : liens d'itineraire (Google Maps, Waze, Plans, Android) vers l'adresse du client.
-// Fonction pure : coordonnees valides en priorite, sinon adresse ecrite, sinon null.
+// Fonction pure : adresse ecrite en priorite, sinon coordonnees valides (secours), sinon null.
+// Raison : les coordonnees enregistrees a la commande sont instables, l'adresse ecrite fait foi.
 
 export type NavigationLinks = {
   google: string
   waze: string
   apple: string
   android: string
+  /**
+   * Vaut true UNIQUEMENT quand les liens sont construits a partir des coordonnees,
+   * c'est-a-dire en secours quand l'adresse ecrite est vide et que lat/lng sont valides.
+   * Vaut false des que les liens partent de l'adresse ecrite, meme si des coordonnees existent.
+   */
   hasCoords: boolean
 }
 
@@ -30,7 +36,7 @@ export function buildNavigationLinks(input: {
     Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
   const address = String(input?.address ?? '').trim()
 
-  if (hasCoords) {
+  if (!address && hasCoords) {
     const pair = `${lat},${lng}`
     return {
       google: `https://www.google.com/maps/dir/?api=1&destination=${pair}&travelmode=driving`,

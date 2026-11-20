@@ -235,6 +235,24 @@ function TodoCard({ d }: { d: DriverDelivery }) {
         <span style={{ color: C.muted }}>À encaisser</span>
         <strong>{formatMoney(d.amountToCollect)}</strong>
       </div>
+      <a
+        href={`/admin/driver/livraison/${d.id}`}
+        style={{
+          minHeight: 48,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: 12,
+          fontFamily: SANS,
+          fontSize: 16,
+          fontWeight: 700,
+          textDecoration: 'none',
+          background: C.gold,
+          color: '#1A1206',
+        }}
+      >
+        Voir et accepter la course
+      </a>
       <div style={{ display: 'flex', gap: 10 }}>
         <ActionLink href={buildTelUrl(d.customerPhone)} primary icon={<IconPhone />}>
           Appeler

@@ -77,14 +77,16 @@ test('composant : confirmation en page, ni confirm( ni alert(', () => {
   assert.ok(!/amount/.test(src.slice(src.indexOf('JSON.stringify'), src.indexOf('JSON.stringify') + 60)))
 })
 
-test('DriverDeliveryDetail : bouton seulement si non livree, Appeler et Itineraire conserves', () => {
+test('DriverDeliveryDetail : bouton seulement pour une course acceptee, Appeler et Itineraire conserves', () => {
   const src = read('components/driver/DriverDeliveryDetail.tsx')
-  assert.match(src, /\{!delivered \? <DriverMarkDelivered deliveryId=\{delivery\.id\} amount=\{delivery\.amountToCollect\} \/> : null\}/)
+  assert.match(src, /accepted = delivery\.status\.trim\(\)\.toLowerCase\(\) === 'picked_up'/)
+  assert.match(src, /\{accepted \? \(/)
+  assert.match(src, /<DriverMarkDelivered deliveryId=\{delivery\.id\} amount=\{delivery\.amountToCollect\} \/>/)
   assert.equal((src.match(/<DriverMarkDelivered/g) || []).length, 1)
-  assert.ok(src.indexOf('<DriverMarkDelivered') < src.indexOf('label="Appeler"'))
-  assert.match(src, /label="Appeler"/)
-  assert.match(src, /label="Itinéraire"/)
-  assert.match(src, /env\(safe-area-inset-bottom\)/)
+  assert.ok(src.indexOf('<DriverMarkDelivered') < src.lastIndexOf('Appeler'))
+  assert.match(src, /Appeler/)
+  assert.match(src, /<DriverNavigationLinks/)
+  assert.match(src, /\{delivered \? <StepsBanner status=\{delivery\.status\} \/> : null\}/)
 })
 
 test("lib/mark-delivered.ts : ordre des ecritures et messages d'erreur identiques a la route admin d'origine", () => {
