@@ -1,6 +1,6 @@
 'use client'
 // BLAC-P3-063 puis BLAC-DETAIL-ERGONOMIE : bloc d'itineraire du livreur (un bouton principal adapte a l'appareil, autres applications repliees).
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import { buildNavigationLinks } from '@/lib/driver-navigation'
 import { detectNavigationTarget, LABEL_COLOR, LABEL_FONT_SIZE, type NavigationTarget } from '@/lib/driver-delivery-view'
 
@@ -52,6 +52,8 @@ const smallButton: React.CSSProperties = {
   border: `1px solid ${C.gold}`,
 }
 
+const subscribeNever = () => () => {}
+
 export default function DriverNavigationLinks({
   address,
   lat,
@@ -61,11 +63,11 @@ export default function DriverNavigationLinks({
   lat?: number | string | null
   lng?: number | string | null
 }) {
-  const [target, setTarget] = useState<NavigationTarget>('google')
-  useEffect(() => {
-    if (typeof navigator === 'undefined') return
-    setTarget(detectNavigationTarget({ userAgent: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints }))
-  }, [])
+  const target = useSyncExternalStore<NavigationTarget>(
+    subscribeNever,
+    () => detectNavigationTarget({ userAgent: navigator.userAgent, maxTouchPoints: navigator.maxTouchPoints }),
+    () => 'google',
+  )
 
   const links = buildNavigationLinks({ address, lat, lng })
   if (!links) return null
