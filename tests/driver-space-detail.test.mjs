@@ -64,7 +64,9 @@ test('composant detail : Appeler, Itineraire, note du client, introuvable, safe-
   assert.match(src, /Livraison introuvable/)
   assert.match(src, /safe-area-inset-bottom/)
   assert.match(src, /href="\/admin\/driver"/)
-  assert.match(src, /A encaisser|\u00c0 encaisser/)
+  // BLAC-DETAIL-ERGONOMIE : le libelle depend de l'etat de la course (fonction pure de lib/driver-delivery-view.ts)
+  assert.match(src, /collectLabel\(delivery\.status\)/)
+  assert.match(read('lib/driver-delivery-view.ts'), /\u00c0 encaisser/)
   assert.doesNotMatch(src, /supabase/i)
 })
 

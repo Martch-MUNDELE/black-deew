@@ -69,7 +69,7 @@ export default function DriverTrackingSender({ deliveryId }: { deliveryId: strin
         color: ok ? '#7FD6A0' : '#FFA566',
       }}
     >
-      {ok ? 'Position partagée' : 'Active la localisation pour que le client te suive'}
+      {ok ? 'Position partagée avec le client' : 'Active la localisation pour que le client te suive'}
     </div>
   )
 }

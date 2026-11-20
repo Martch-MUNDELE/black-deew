@@ -1,10 +1,12 @@
 'use client'
 // BLAC-SIGNALER-PROBLEME : bouton secondaire "Signaler un problème" + feuille des types.
+// BLAC-SIGNALEMENT-FENETRE : la feuille est une vraie fenêtre modale (fond assombri, croix, Échap, choix visible).
 // N'agit jamais sur la course : le signalement est seulement transmis a l'admin du portail.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { REPORT_KINDS, REPORT_NOTE_MAX, type ReportKind } from '@/lib/delivery-reports'
 
 const SANS = "'DM Sans', sans-serif"
+const GOLD = '#F5C842'
 
 export default function DriverReportProblem({ deliveryId }: { deliveryId: string }) {
   const [open, setOpen] = useState(false)
@@ -21,6 +23,28 @@ export default function DriverReportProblem({ deliveryId }: { deliveryId: string
     setError(null)
     setSent(false)
   }
+
+  // Fenêtre ouverte : Échap ferme, le défilement de la page derrière est bloqué.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    document.addEventListener('keydown', onKey)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [open])
+
+  // Après l'envoi : la confirmation s'affiche puis la fenêtre se ferme.
+  useEffect(() => {
+    if (!sent) return
+    const t = setTimeout(close, 1800)
+    return () => clearTimeout(t)
+  }, [sent])
 
   async function send() {
     if (sending || !kind) return
@@ -72,91 +96,154 @@ export default function DriverReportProblem({ deliveryId }: { deliveryId: string
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Signaler un problème"
-      style={{ background: '#15110B', border: '1px solid #2A2216', borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 10, fontFamily: SANS, color: '#F5EDD6' }}
+      data-report-backdrop
+      onClick={(e) => {
+        if (e.target === e.currentTarget) close()
+      }}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
     >
-      {sent ? (
-        <>
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#7FD6A0' }}>Signalement envoyé</div>
-          <div style={{ fontSize: 13, color: '#BFAF8F', lineHeight: 1.5 }}>L&apos;administrateur a reçu ton signalement et te dira quoi faire.</div>
-          <button type="button" onClick={close} style={{ ...secondary, color: '#F5C842' }}>
-            Fermer
-          </button>
-        </>
-      ) : (
-        <>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>Quel est le problème ?</div>
-          <div role="radiogroup" aria-label="Type de problème" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {REPORT_KINDS.map((k) => {
-              const selected = kind === k.value
-              return (
-                <button
-                  key={k.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  onClick={() => setKind(k.value)}
-                  style={{
-                    minHeight: 48,
-                    borderRadius: 12,
-                    padding: '10px 14px',
-                    textAlign: 'left',
-                    fontFamily: SANS,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    background: selected ? '#2E1809' : '#0B0906',
-                    color: selected ? '#FFA566' : '#F5EDD6',
-                    border: `1px solid ${selected ? '#FF6B20' : '#2A2216'}`,
-                  }}
-                >
-                  {k.label}
-                </button>
-              )
-            })}
-          </div>
-          <label style={{ fontSize: 12, color: '#BFAF8F' }} htmlFor="report-note">
-            Précisions (facultatif)
-          </label>
-          <textarea
-            id="report-note"
-            value={note}
-            maxLength={REPORT_NOTE_MAX}
-            onChange={(e) => setNote(e.target.value)}
-            rows={3}
-            style={{ borderRadius: 12, padding: 12, fontFamily: SANS, fontSize: 14, background: '#0B0906', color: '#F5EDD6', border: '1px solid #2A2216', resize: 'vertical' }}
-          />
-          {error ? (
-            <div role="alert" style={{ fontSize: 14, color: '#FFA566' }}>
-              {error}
-            </div>
-          ) : null}
+      <style>{`@keyframes reportSheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Signaler un problème"
+        style={{
+          width: '100%',
+          maxWidth: 520,
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#15110B',
+          border: '1px solid #2A2216',
+          borderRadius: '20px 20px 0 0',
+          fontFamily: SANS,
+          color: '#F5EDD6',
+          animation: 'reportSheetUp 240ms ease-out',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 8px 8px 16px', flexShrink: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>{sent ? 'Signalement envoyé' : 'Quel est le problème ?'}</div>
           <button
             type="button"
-            disabled={!kind || sending}
-            onClick={send}
-            style={{
-              minHeight: 52,
-              borderRadius: 14,
-              fontFamily: SANS,
-              fontSize: 16,
-              fontWeight: 700,
-              border: 'none',
-              cursor: kind && !sending ? 'pointer' : 'not-allowed',
-              background: 'linear-gradient(135deg, #F5C842, #FF6B20)',
-              color: '#1A1206',
-              opacity: !kind || sending ? 0.5 : 1,
-            }}
+            aria-label="Fermer"
+            onClick={close}
+            style={{ width: 44, height: 44, borderRadius: 12, border: 'none', background: 'transparent', color: '#F5EDD6', fontSize: 22, lineHeight: 1, cursor: 'pointer', fontFamily: SANS }}
           >
-            {sending ? 'Envoi…' : 'Envoyer le signalement'}
+            ×
           </button>
-          <button type="button" onClick={close} style={secondary}>
-            Annuler
-          </button>
-        </>
-      )}
+        </div>
+
+        {sent ? (
+          <div style={{ padding: '0 16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#7FD6A0' }}>Signalement envoyé</div>
+            <div style={{ fontSize: 13, color: '#BFAF8F', lineHeight: 1.5 }}>L&apos;administrateur a reçu ton signalement et te dira quoi faire.</div>
+            <button type="button" onClick={close} style={{ ...secondary, color: GOLD }}>
+              Fermer
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{ overflowY: 'auto', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10, flex: '1 1 auto' }}>
+              <div role="radiogroup" aria-label="Type de problème" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {REPORT_KINDS.map((k) => {
+                  const selected = kind === k.value
+                  return (
+                    <button
+                      key={k.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setKind(k.value)}
+                      style={{
+                        minHeight: 52,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        borderRadius: 12,
+                        padding: '10px 14px',
+                        textAlign: 'left',
+                        fontFamily: SANS,
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        background: selected ? 'rgba(245,200,66,0.18)' : '#0B0906',
+                        color: selected ? GOLD : '#F5EDD6',
+                        border: `1px solid ${selected ? GOLD : '#2A2216'}`,
+                      }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        data-radio-circle
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: 11,
+                          flexShrink: 0,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: `2px solid ${selected ? GOLD : '#6B5E45'}`,
+                          background: selected ? GOLD : 'transparent',
+                        }}
+                      >
+                        {selected ? (
+                          <svg data-check width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1A1206" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M5 12.5l4.5 4.5L19 7.5" />
+                          </svg>
+                        ) : null}
+                      </span>
+                      <span style={{ flex: 1 }}>{k.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <label style={{ fontSize: 12, color: '#BFAF8F' }} htmlFor="report-note">
+                Précisions (facultatif)
+              </label>
+              <textarea
+                id="report-note"
+                value={note}
+                maxLength={REPORT_NOTE_MAX}
+                onChange={(e) => setNote(e.target.value)}
+                rows={3}
+                style={{ borderRadius: 12, padding: 12, fontFamily: SANS, fontSize: 14, background: '#0B0906', color: '#F5EDD6', border: '1px solid #2A2216', resize: 'vertical' }}
+              />
+              {error ? (
+                <div role="alert" style={{ fontSize: 14, color: '#FFA566' }}>
+                  {error}
+                </div>
+              ) : null}
+            </div>
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+              {!kind ? (
+                <div style={{ fontSize: 13, color: '#BFAF8F', textAlign: 'center' }}>Choisis un type pour envoyer</div>
+              ) : null}
+              <button
+                type="button"
+                disabled={!kind || sending}
+                onClick={send}
+                style={{
+                  minHeight: 52,
+                  borderRadius: 14,
+                  fontFamily: SANS,
+                  fontSize: 16,
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: kind && !sending ? 'pointer' : 'not-allowed',
+                  background: 'linear-gradient(135deg, #F5C842, #FF6B20)',
+                  color: '#1A1206',
+                  opacity: !kind || sending ? 0.5 : 1,
+                }}
+              >
+                {sending ? 'Envoi…' : 'Envoyer le signalement'}
+              </button>
+              <button type="button" onClick={close} style={secondary}>
+                Annuler
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

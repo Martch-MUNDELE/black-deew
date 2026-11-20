@@ -8,12 +8,22 @@ import {
   formatSlot,
   type DriverDeliveryDetail as DriverDeliveryDetailData,
 } from '@/lib/driver-space'
-import { headerBadge, steps, stockNote, type StockBalanceInput } from '@/lib/driver-delivery-view'
+import {
+  actionBarKind,
+  collectLabel,
+  deliverLabel,
+  headerBadge,
+  LABEL_COLOR,
+  LABEL_FONT_SIZE,
+  steps,
+  stockNote,
+  type StockBalanceInput,
+} from '@/lib/driver-delivery-view'
 import DriverMarkDelivered from '@/components/driver/DriverMarkDelivered'
 import DriverAcceptDelivery from '@/components/driver/DriverAcceptDelivery'
 import DriverReportProblem from '@/components/driver/DriverReportProblem'
 import DriverNavigationLinks from '@/components/driver/DriverNavigationLinks'
-import DriverRouteIllustration from '@/components/driver/DriverRouteIllustration'
+import DriverRouteMap from '@/components/driver/DriverRouteMap'
 
 const C = {
   bg: '#0B0906',
@@ -44,11 +54,11 @@ const cardStyle: React.CSSProperties = {
 }
 const labelStyle: React.CSSProperties = {
   fontFamily: SANS,
-  fontSize: 11,
+  fontSize: LABEL_FONT_SIZE,
   fontWeight: 600,
   letterSpacing: '0.16em',
   textTransform: 'uppercase',
-  color: C.muted,
+  color: LABEL_COLOR,
 }
 
 function BackArrow() {
@@ -65,10 +75,10 @@ function BackArrow() {
   )
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({ children, withBar = false }: { children: React.ReactNode; withBar?: boolean }) {
   return (
     <div style={{ background: C.bg, margin: '-24px -16px', padding: 16, minHeight: '100vh', color: C.text, fontFamily: SANS }}>
-      <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 'calc(32px + env(safe-area-inset-bottom))' }}>
+      <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: withBar ? 'calc(140px + env(safe-area-inset-bottom))' : 'calc(32px + env(safe-area-inset-bottom))' }}>
         {children}
       </div>
     </div>
@@ -134,6 +144,7 @@ export default function DriverDeliveryDetail({
   const accepted = delivery.status.trim().toLowerCase() === 'picked_up'
   const cancelled = delivery.status.trim().toLowerCase() === 'cancelled'
   const notYetAccepted = !accepted && !delivered && !cancelled
+  const bar = actionBarKind(delivery.status)
 
   const badge = headerBadge(delivery.status)
   const badgeColors =
@@ -151,7 +162,7 @@ export default function DriverDeliveryDetail({
   const stockLines = stockNote(delivery.items, stockBalances)
 
   return (
-    <Shell>
+    <Shell withBar={bar !== null}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <BackArrow />
         <div style={{ minWidth: 0, flex: 1 }}>
@@ -166,7 +177,7 @@ export default function DriverDeliveryDetail({
       </header>
 
       <section style={{ ...cardStyle, padding: 12 }}>
-        <DriverRouteIllustration distanceText={distance || undefined} />
+        <DriverRouteMap lat={delivery.lat} lng={delivery.lng} distanceText={distance || undefined} />
       </section>
 
       <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -175,6 +186,7 @@ export default function DriverDeliveryDetail({
         <div style={{ fontFamily: SANS, fontSize: 14, color: delivery.address ? C.muted : C.muted }}>
           {delivery.address || 'Adresse non renseignée'}
         </div>
+        {telHref && !delivered && !cancelled ? <CallLink href={telHref} phone={delivery.customerPhone} /> : null}
         {delivery.note ? (
           <div style={{ background: C.alertBg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
             <div style={{ ...labelStyle, color: C.alert }}>Note du client</div>
@@ -182,7 +194,7 @@ export default function DriverDeliveryDetail({
           </div>
         ) : null}
         <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 4, paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
-          <span style={labelStyle}>À encaisser</span>
+          <span style={labelStyle}>{collectLabel(delivery.status)}</span>
           <span style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 800, color: C.gold }}>{formatMoney(delivery.amountToCollect)}</span>
         </div>
       </section>
@@ -200,7 +212,7 @@ export default function DriverDeliveryDetail({
       </div>
 
       <section style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={labelStyle}>À livrer</div>
+        <div style={labelStyle}>{deliverLabel(delivery.status)}</div>
         {delivery.items.map((item, index) => (
           <div
             key={`${item.name}-${index}`}
@@ -233,7 +245,9 @@ export default function DriverDeliveryDetail({
           <p style={{ fontFamily: SANS, fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.5 }}>
             En acceptant, la commande passe en livraison, WhatsApp s&apos;ouvre avec le message prêt pour la cliente et ton suivi en direct démarre.
           </p>
-          <DriverAcceptDelivery deliveryId={delivery.id} />
+          <ActionBar>
+            <DriverAcceptDelivery deliveryId={delivery.id} />
+          </ActionBar>
           <DriverReportProblem deliveryId={delivery.id} />
         </section>
       ) : null}
@@ -242,49 +256,68 @@ export default function DriverDeliveryDetail({
         <>
           <StepsBanner status={delivery.status} />
           <DriverNavigationLinks address={delivery.address} lat={delivery.lat} lng={delivery.lng} />
-          <DriverMarkDelivered deliveryId={delivery.id} amount={delivery.amountToCollect} />
+          <ActionBar>
+            <DriverMarkDelivered deliveryId={delivery.id} amount={delivery.amountToCollect} />
+          </ActionBar>
           <DriverReportProblem deliveryId={delivery.id} />
-          <CallButton href={telHref} />
         </>
       ) : null}
 
       {delivered ? <StepsBanner status={delivery.status} /> : null}
+
     </Shell>
   )
 }
 
-function CallButton({ href }: { href: string | null }) {
-  const style: React.CSSProperties = {
-    minHeight: 52,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderRadius: 14,
-    fontFamily: SANS,
-    fontSize: 16,
-    fontWeight: 700,
-    textDecoration: 'none',
-    background: C.card,
-    color: C.gold,
-    border: `1px solid ${C.gold}`,
-    opacity: href ? 1 : 0.4,
-  }
-  const icon = (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
-    </svg>
-  )
-  if (!href) {
-    return (
-      <span aria-disabled="true" style={style}>
-        {icon}Appeler
-      </span>
-    )
-  }
+// Barre d'action fixe en bas de l'ecran : hors du flux, donc l'ordre dans le source n'a pas d'effet visuel.
+function ActionBar({ children }: { children: React.ReactNode }) {
   return (
-    <a href={href} style={style}>
-      {icon}Appeler
+    <div
+      data-testid="driver-action-bar"
+      style={{
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 50,
+        background: C.bg,
+        borderTop: `1px solid ${C.border}`,
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}
+    >
+      <div style={{ maxWidth: 480, margin: '0 auto', padding: 12, maxHeight: '80vh', overflowY: 'auto', boxSizing: 'border-box' }}>{children}</div>
+    </div>
+  )
+}
+
+function CallLink({ href, phone }: { href: string; phone: string | null | undefined }) {
+  return (
+    <a
+      href={href}
+      style={{
+        minHeight: 52,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        borderRadius: 14,
+        padding: '0 16px',
+        fontFamily: SANS,
+        fontSize: 16,
+        fontWeight: 700,
+        textDecoration: 'none',
+        background: C.dark,
+        color: C.gold,
+        border: `1px solid ${C.gold}`,
+      }}
+    >
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
+        </svg>
+        Appeler
+      </span>
+      <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{phone}</span>
     </a>
   )
 }

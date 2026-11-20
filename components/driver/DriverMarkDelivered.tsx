@@ -115,17 +115,28 @@ export default function DriverMarkDelivered({ deliveryId, amount }: { deliveryId
         aria-expanded={helpOpen}
         onClick={() => setHelpOpen((v) => !v)}
         style={{
-          background: 'none',
-          border: 'none',
-          padding: '6px 0',
+          width: '100%',
+          minHeight: 44,
+          height: 44,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          borderRadius: 12,
+          padding: '0 14px',
+          background: '#15110B',
+          border: '1px solid #F5C842',
           fontFamily: SANS,
           fontSize: 14,
+          fontWeight: 700,
           color: '#F5C842',
-          textDecoration: 'underline',
           cursor: 'pointer',
-          textAlign: 'left',
         }}
       >
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" />
+          <circle cx="12" cy="9.5" r="2.5" />
+        </svg>
         Partager ma position en direct dans WhatsApp
       </button>
       {helpOpen ? (
